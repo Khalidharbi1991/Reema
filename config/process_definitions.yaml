@@ -1,0 +1,157 @@
+# IT Process Definitions
+# Defines the IT processes that the system can document
+
+incident_management:
+  name: "Incident Management"
+  category: "ITIL Core"
+  description: "Process to restore normal service operation as quickly as possible"
+  standards:
+    - "ITIL v4"
+    - "ISO 20000"
+  complexity: "medium"
+  estimated_pages: 20
+
+change_management:
+  name: "Change Management"
+  category: "ITIL Core"
+  description: "Process to control the lifecycle of all changes"
+  standards:
+    - "ITIL v4"
+    - "ISO 20000"
+  complexity: "high"
+  estimated_pages: 25
+
+problem_management:
+  name: "Problem Management"
+  category: "ITIL Core"
+  description: "Process to identify and manage the causes of incidents"
+  standards:
+    - "ITIL v4"
+    - "ISO 20000"
+  complexity: "medium"
+  estimated_pages: 22
+
+service_request_management:
+  name: "Service Request Management"
+  category: "ITIL Core"
+  description: "Process to handle user requests for services"
+  standards:
+    - "ITIL v4"
+    - "ISO 20000"
+  complexity: "low"
+  estimated_pages: 18
+
+event_management:
+  name: "Event Management"
+  category: "ITOM"
+  description: "Process to detect, analyze and manage events"
+  standards:
+    - "ITIL v4"
+    - "ITOM"
+  complexity: "medium"
+  estimated_pages: 20
+
+infrastructure_operations:
+  name: "Infrastructure & Operations Management"
+  category: "ITOM"
+  description: "Process to manage IT infrastructure and operations"
+  standards:
+    - "ITIL v4"
+    - "ITOM"
+  complexity: "high"
+  estimated_pages: 28
+
+monitoring_control:
+  name: "Monitoring & Control"
+  category: "ITOM"
+  description: "Process to monitor and control IT services and infrastructure"
+  standards:
+    - "ITIL v4"
+    - "ITOM"
+  complexity: "medium"
+  estimated_pages: 20
+
+hardware_asset_management:
+  name: "Hardware Asset Management"
+  category: "ITAM"
+  description: "Process to manage physical IT assets throughout their lifecycle"
+  standards:
+    - "ITIL v4"
+    - "ISO 19770"
+  complexity: "medium"
+  estimated_pages: 22
+
+software_asset_management:
+  name: "Software Asset Management"
+  category: "ITAM"
+  description: "Process to manage software assets and licenses"
+  standards:
+    - "ITIL v4"
+    - "ISO 19770"
+  complexity: "medium"
+  estimated_pages: 24
+
+license_management:
+  name: "License Management"
+  category: "ITAM"
+  description: "Process to manage software licenses and compliance"
+  standards:
+    - "ITIL v4"
+    - "ISO 19770"
+  complexity: "low"
+  estimated_pages: 18
+
+security_operations:
+  name: "Security Operations"
+  category: "Security & Compliance"
+  description: "Process to maintain security of IT systems and data"
+  standards:
+    - "ISO 27001"
+    - "NIST"
+    - "SOC 2"
+  complexity: "high"
+  estimated_pages: 30
+
+compliance_audits:
+  name: "Compliance Checks & Audits"
+  category: "Security & Compliance"
+  description: "Process to ensure regulatory compliance and conduct audits"
+  standards:
+    - "ISO 27001"
+    - "SOC 2"
+    - "GDPR"
+  complexity: "high"
+  estimated_pages: 26
+
+risk_management:
+  name: "Risk Management"
+  category: "Security & Compliance"
+  description: "Process to identify, assess and mitigate IT risks"
+  standards:
+    - "ISO 27001"
+    - "ISO 31000"
+    - "COBIT"
+  complexity: "high"
+  estimated_pages: 28
+
+devices_batch_management:
+  name: "Devices Batch Management"
+  category: "Custom"
+  description: "Process to manage devices in batches for deployment and maintenance"
+  standards:
+    - "ITIL v4"
+    - "ITOM"
+  complexity: "medium"
+  estimated_pages: 20
+
+workstation_security_patches:
+  name: "Workstation Security Patches"
+  category: "Security & Operations"
+  description: "Process to manage security patch deployment and updates for workstations"
+  standards:
+    - "ITIL v4"
+    - "ISO 27001"
+    - "NIST"
+    - "CIS Controls"
+  complexity: "high"
+  estimated_pages: 28
