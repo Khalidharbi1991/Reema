@@ -48,7 +48,8 @@ class MarkdownFormatter:
         formatted = content.replace('\r\n', '\n')
 
         # Add a clean header if not present
-        if not formatted.startswith('#'):
+        from .safe_html import strip_frontmatter
+        if not strip_frontmatter(formatted).lstrip().startswith('#'):
             formatted = f"# {process_name} - Standard Operating Procedure\n\n" + formatted
 
         return formatted
