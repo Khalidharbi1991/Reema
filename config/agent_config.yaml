@@ -1,17 +1,50 @@
 # Agent Configuration
-# Defines settings for each agent in the multi-agent system
+# Defines settings for each agent in the REEMA multi-agent system
+# Agent roles. Human approval is recorded separately; AI roles cannot approve.
+# Model fields are optional overrides. Omitted roles use LEADER_MODEL/WORKER_MODEL
+# (default claude-sonnet-4-6). Explicit role overrides are preserved.
+
+# --- Personal coordination ---
+
+secretary_agent:
+  name: "Ahmad"
+  role: "Personal Coordination & Task Management Agent"
+  max_tokens: 4096
+  temperature: 0.5
+  specialization:
+    - "Project coordination"
+    - "Executive communication"
+    - "Document management"
+    - "Scheduling and workflow"
+    - "Quality reporting"
+    - "Stakeholder management"
+    - "Work and personal task organization"
+    - "Daily planning and follow-up"
+
+# --- Leader ---
 
 leader_agent:
   name: "Abdullah"
-  role: "Coordinates all worker agents and manages workflow"
-  model: "claude-sonnet-4"
+  role: "Strategic Leader & Specialist Orchestrator"
   max_tokens: 4096
   temperature: 0.7
+  specialization:
+    - "IT strategy and roadmap development"
+    - "Portfolio and programme governance"
+    - "Business and IT alignment"
+    - "Quality expectations and acceptance criteria"
+    - "Documentation quality, accuracy, usability, and continuous improvement"
+    - "Stakeholder communication and risk escalation"
+    - "Executive reporting and client expectation management"
+    - "Business value, cost benefit, and return on investment analysis"
+    - "Business case development and operational efficiency"
+    - "ITIL, COBIT, ISO 20000, and ISO 27001 governance"
+    - "Audit readiness and controls assurance for human review"
+    - "NCA, SAMA, and PDPL oversight requiring human verification"
 
 research_agent:
-  name: "Taif"
+  name: "Agent 1"
   role: "Gathers ITIL and IT standards information"
-  model: "claude-sonnet-4"
   max_tokens: 4096
   temperature: 0.5
   specialization:
@@ -21,9 +54,8 @@ research_agent:
     - "ITOM processes"
 
 standards_agent:
-  name: "Mohammad"
+  name: "Agent 2"
   role: "Ensures regulatory and framework alignment"
-  model: "claude-sonnet-4"
   max_tokens: 4096
   temperature: 0.3
   specialization:
@@ -34,10 +66,53 @@ standards_agent:
     - "SOC 2"
     - "Compliance frameworks"
 
+access_agent:
+  name: "Agent 6"
+  role: "Access Management & IAM Compliance Specialist"
+  max_tokens: 4096
+  temperature: 0.4
+  specialization:
+    - "Identity & Access Management (IAM)"
+    - "Privileged Access Management (PAM)"
+    - "RBAC/ABAC access control models"
+    - "Zero Trust Architecture"
+    - "Cloud IAM (AWS, Azure, GCP)"
+    - "SSO, MFA, FIDO2 authentication"
+    - "Access governance and certification"
+    - "NCA ECC 2-2, SAMA Domain 3, PDPL"
+    - "ISO 27001:2022 access controls"
+    - "Access analytics and UEBA"
+
+problem_agent:
+  name: "Agent 7"
+  role: "Problem Management & RCA Specialist"
+  max_tokens: 8192
+  temperature: 0.7
+  specialization:
+    - "ITIL v4 Problem Management"
+    - "Root Cause Analysis (RCA)"
+    - "Known Error Database (KEDB)"
+    - "Proactive Problem Management"
+    - "Problem-Incident Integration"
+    - "ServiceNow Problem Module"
+    - "ISO 20000 Section 8.3"
+    - "COBIT DSS03"
+
+data_agent:
+  name: "Agent 8"
+  role: "Data Analytics & Power BI Specialist"
+  max_tokens: 4096
+  temperature: 0.5
+  specialization:
+    - "Data analytics frameworks"
+    - "Power BI dashboard design"
+    - "KPI visualization"
+    - "Data modeling"
+    - "Business intelligence"
+
 content_agent:
-  name: "Saad"
+  name: "Agent 3"
   role: "Creates detailed SOP documentation"
-  model: "claude-sonnet-4"
   max_tokens: 8192
   temperature: 0.7
   specialization:
@@ -45,11 +120,14 @@ content_agent:
     - "SOP creation"
     - "Process documentation"
     - "RACI matrices"
+    - "draw.io (diagrams.net) flowchart generation"
+    - "draw.io XML (.drawio) file creation"
+    - "Process flow diagram design"
+    - "BPMN 2.0 notation"
 
 review_agent:
-  name: "Faisal"
+  name: "Agent 4"
   role: "Validates and ensures content quality"
-  model: "claude-sonnet-4"
   max_tokens: 4096
   temperature: 0.3
   quality_threshold: 85
@@ -60,7 +138,7 @@ review_agent:
     - "Standards compliance"
 
 format_agent:
-  name: "Bee"
+  name: "Agent 5"
   role: "Converts content to multiple formats"
   supported_formats:
     - "pdf"
@@ -70,3 +148,15 @@ format_agent:
   default_formats:
     - "pdf"
     - "docx"
+building_design_agent:
+  name: "Agent 9"
+  role: "Building 3D Modeling & Interior/Exterior Design Specialist"
+  max_tokens: 4096
+  temperature: 0.5
+  specialization:
+    - "Architectural drawing interpretation and modeling briefs"
+    - "Building massing, spatial layout, and room planning"
+    - "Interior furniture, lighting, and material concepts"
+    - "Exterior landscape and facade concepts"
+    - "Explicit measurement, level, and design-assumption tracking"
+    - "CAD-to-3D preparation; no claim of an editable model until exported and checked"

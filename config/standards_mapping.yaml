@@ -72,3 +72,18 @@ devices_batch_management:
   - "ITIL v4 Service Transition"
   - "ITOM Framework"
   - "ISO/IEC 20000-1:2018"
+
+workstation_security_patches:
+  - "ITIL v4 Service Operation"
+  - "ISO/IEC 27001:2022"
+  - "NIST Cybersecurity Framework"
+  - "CIS Controls v8"
+
+access_management:
+  - "ISO/IEC 27001:2022 Annex A.5.15-A.5.18 (Access Control)"
+  - "ISO/IEC 27001:2022 Annex A.8.2-A.8.5 (Privileged Access)"
+  - "NCA ECC Control 2-2 (Access Control)"
+  - "SAMA Cybersecurity Framework Domain 3 (Access Control)"
+  - "SDAIA PDPL (Data Access Requirements)"
+  - "NIST SP 800-53 AC Family"
+  - "COBIT 2019 DSS05"

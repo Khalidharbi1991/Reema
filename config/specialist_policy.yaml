@@ -1,0 +1,12 @@
+freshness_days: 365
+max_claims: 100
+max_identities: 1000
+max_observations: 500
+max_metric_rows: 10000
+require_privileged_mfa: true
+require_approval_evidence: true
+cad_max_bytes: 25000000
+cad_max_entities: 50000
+cad_max_segments: 5000
+cad_wall_layers: [A-WALL]
+separation_of_duties: []

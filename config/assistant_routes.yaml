@@ -1,0 +1,143 @@
+# Bounded bilingual hints; optional structured resolution requires model consent.
+default_agent: secretary_agent
+memory_example_limit: 3
+max_specialists: 6
+context_max_chars: 16000
+negation_terms:
+- 'no'
+- not
+- without
+- exclude
+- skip
+- avoid
+- don't
+- do not
+- بدون
+- لا
+- ما ابغى
+- ما ابي
+- لا اريد
+- استثني
+routes:
+- agent: building_design_agent
+  keywords:
+  - 3d
+  - autocad
+  - dwg
+  - dxf
+  - floor plan
+  - building model
+  - interior design
+  - exterior design
+  - furniture layout
+  - facade
+  - architectural drawing
+  - مخطط
+  - تصميم داخلي
+  - التصميم الداخلي
+  - تصميم خارجي
+  - التصميم الخارجي
+  - اثاث
+  - واجهة
+  - نموذج مبنى
+- agent: access_agent
+  keywords:
+  - access
+  - identity
+  - iam
+  - mfa
+  - privileged account
+  - login
+  - security
+  - الصلاحيات
+  - صلاحيات
+  - الهوية
+  - التوثيق
+  - الحسابات المميزة
+  - امن
+  - الامن
+  - الامان
+- agent: leader_agent
+  keywords:
+  - strategy
+  - roadmap
+  - business case
+  - prioritize
+  - decision
+  - budget
+  - خطة استراتيجية
+  - ميزانية
+  - الاولويات
+  - قرار
+  - استراتيجية
+- agent: problem_agent
+  keywords:
+  - root cause
+  - recurring incident
+  - known error
+  - problem management
+  - السبب الجذري
+  - عطل متكرر
+  - اعطال متكررة
+  - تكرار العطل
+- agent: standards_agent
+  keywords:
+  - standard
+  - compliance
+  - audit
+  - itil
+  - iso 27001
+  - cobit
+  - امتثال
+  - التدقيق
+  - تدقيق
+  - معيار
+  - معايير
+  - الالتزام
+  exclude_phrases:
+  - standard application
+  - standard applications
+- agent: data_agent
+  keywords:
+  - dashboard
+  - analytics
+  - metric
+  - kpi
+  - power bi
+  - مؤشرات
+  - مؤشرات الاداء
+  - لوحة مؤشرات
+  - تحليل البيانات
+  - احسب
+  - نسبة
+- agent: research_agent
+  keywords:
+  - research
+  - compare options
+  - best practice
+  - قارن
+  - بحث
+  - ابحث
+  - خيارات
+  - افضل الممارسات
+- agent: content_agent
+  keywords:
+  - draft
+  - write an email
+  - write a message
+  - prepare an agenda
+  - sop
+  - اكتب
+  - جهز
+  - صياغة
+  - اجراء
+  - اجراءات
+  - دليل
+  - مسودة
+  - جدول اجتماع
+- agent: review_agent
+  keywords:
+  - راجع المستند
+  - راجع الوثيقة
+  - تدقيق لغوي
+semantic_resolution: false

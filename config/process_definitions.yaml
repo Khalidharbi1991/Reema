@@ -2,6 +2,7 @@
 # Defines the IT processes that the system can document
 
 incident_management:
+  specialists: [problem]
   name: "Incident Management"
   category: "ITIL Core"
   description: "Process to restore normal service operation as quickly as possible"
@@ -22,6 +23,7 @@ change_management:
   estimated_pages: 25
 
 problem_management:
+  specialists: [problem]
   name: "Problem Management"
   category: "ITIL Core"
   description: "Process to identify and manage the causes of incidents"
@@ -153,5 +155,19 @@ workstation_security_patches:
     - "ISO 27001"
     - "NIST"
     - "CIS Controls"
+  complexity: "high"
+  estimated_pages: 28
+
+access_management:
+  specialists: [access]
+  name: "Access Management"
+  category: "Security & Compliance"
+  description: "Process to manage identity lifecycle, access control, privileged access, and access governance"
+  standards:
+    - "ITIL v4"
+    - "ISO 27001:2022"
+    - "NCA ECC"
+    - "SAMA"
+    - "PDPL"
   complexity: "high"
   estimated_pages: 28

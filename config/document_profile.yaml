@@ -1,0 +1,52 @@
+max_review_cycles: 2
+template: standard
+layouts:
+  standard:
+    heading_before_pt: 18
+    paragraph_after_pt: 8
+    table_padding_pt: 5
+  compact:
+    heading_before_pt: 12
+    paragraph_after_pt: 6
+    table_padding_pt: 4
+require_applicable_control_references: true
+style:
+  font: DejaVu Sans
+  arabic_font: Arial
+  body_pt: 11
+  margin_inches: 0.8
+  line_spacing: 1.15
+sections:
+  - id: sec-introduction
+    title: Introduction
+    instructions: Explain purpose, scope, audience and explicit request constraints.
+  - id: sec-definitions
+    title: Definitions & Acronyms
+    instructions: Define terms used in this procedure and distinguish local assumptions.
+  - id: sec-roles
+    title: Roles & Responsibilities
+    instructions: Include an activity by role RACI with exactly one accountable and at least one responsible role per activity.
+  - id: sec-overview
+    title: Process Overview
+    instructions: Identify triggers, inputs, outputs, dependencies and escalation authority.
+  - id: sec-procedures
+    title: Detailed Procedures
+    instructions: Give numbered actions, owners, prerequisites, decision criteria and retained evidence.
+  - id: sec-flow
+    title: Process Flow Diagrams
+    instructions: Explain the workflow. A reema-flow fenced JSON sequence may illustrate two to six steps. A graph may contain two to eight nodes, one to three lanes and explicit labelled decision branches. Use only supplied decisions; do not invent branches or encode XML.
+  - id: sec-kpis
+    title: Key Performance Indicators
+    instructions: Define metric formula, unit, source, exclusions, owner and review frequency; distinguish proposed targets.
+  - id: sec-tools
+    title: Tools & Systems
+    instructions: State authorized tools, access requirements and integration assumptions.
+  - id: sec-compliance
+    title: Compliance & Standards
+    instructions: Reference applicable control IDs in square brackets and identify missing evidence and unresolved applicability without certifying compliance.
+  - id: sec-appendices
+    title: Appendices
+    instructions: Supply useful forms, checklists and located references without discarding specialist material.
+  - id: sec-control
+    title: Document Control
+    instructions: State version, owner, review schedule and pending human approval; never invent signatures or approval.

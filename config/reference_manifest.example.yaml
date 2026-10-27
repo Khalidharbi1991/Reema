@@ -1,0 +1,11 @@
+# Copy to references/manifest.yaml locally. Do not commit private manifests.
+# Set a real SHA-256 after reviewing the file. Restricted sources are always denied.
+version: 1
+sources:
+  - path: itom/ITOM.pdf
+    classification: confidential
+    external_ai_allowed: false
+    # Optional ISO calendar publication date supplied by the owner, not inferred.
+    # Omit when unknown. A date does not establish authority or current accuracy.
+    published_on: null
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
