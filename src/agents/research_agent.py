@@ -1,12 +1,16 @@
 """Taif (Research Agent) - Gathers ITIL and IT standards information."""
 
 from typing import Dict, List, Optional
-from anthropic import Anthropic
+from .base_agent import BaseAgent
 from ..utils.logger import logger
 from ..utils.config import config_manager
+from ..utils.specialists import ResearchAnalysis, assess_claims, available_sources, retain_evidence, iso_date
+from ..utils.quality import parse_json_response, is_structured_response
+from datetime import datetime, timezone
+import json
 
 
-class ResearchAgent:
+class ResearchAgent(BaseAgent):
     """
     Taif (Research Agent)
 
@@ -18,20 +22,25 @@ class ResearchAgent:
     - Researches process-specific requirements
     """
 
+    AGENT_NAME = "Agent 1"
+    AGENT_ROLE = "Research Agent"
+    CONFIG_KEY = "research_agent"
+    KNOWLEDGE_FILE = "taif_research_knowledge_ENHANCED.md"
+    DEFAULT_TEMPERATURE = 0.5
+
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or config_manager.system_config.anthropic_api_key
-        self.client = Anthropic(api_key=self.api_key)
-        self.name = "Taif"
-        self.model = config_manager.system_config.worker_model
+        super().__init__(api_key)
 
-        # Knowledge base
+        # Alias for backward compatibility
+        self.research_knowledge = self.knowledge_base
+
+        # Load ITOM.pdf knowledge separately
         self.itom_knowledge = None
-        self._load_knowledge_base()
+        # Customer sources are now selected by the leader's permission manifest.
+        # Keep legacy parser helpers available, but never ingest files implicitly.
 
-        logger.info("Research Agent initialized", agent=self.name)
-
-    def _load_knowledge_base(self):
-        """Load knowledge from ITOM.pdf and other sources."""
+    def _load_itom_knowledge(self):
+        """Load knowledge from ITOM.pdf."""
         try:
             from ..knowledge.itom_parser import ITOMParser
             parser = ITOMParser()
@@ -42,7 +51,7 @@ class ResearchAgent:
             self.itom_knowledge = {}
 
     async def research_process(
-        self, process_name: str, standards: List[str]
+        self, process_name: str, standards: List[str], research_context: Dict = None
     ) -> Dict:
         """
         Research an IT process and gather comprehensive information.
@@ -60,6 +69,11 @@ class ResearchAgent:
             # Build research prompt
             system_prompt = self._build_system_prompt()
             research_prompt = self._build_research_prompt(process_name, standards)
+            as_of = (research_context or {}).get("as_of") or datetime.now(timezone.utc).date().isoformat()
+            iso_date(as_of)
+            research_prompt += ("\nReturn JSON matching:\n" + json.dumps(ResearchAnalysis.model_json_schema())
+                + "\nLink each claim to exact supplied source quotes/locations. Do not invent dates or authority. "
+                "Uncited recommendations/assumptions must be labelled. Research as-of date: " + as_of)
 
             # Call Claude for research
             response = await self._call_claude(
@@ -68,7 +82,7 @@ class ResearchAgent:
             )
 
             # Parse and structure the response
-            research_data = self._parse_research_response(response, process_name)
+            research_data = self._parse_research_response(response, process_name, as_of)
 
             logger.agent_complete(self.name, f"Research for {process_name}")
             return research_data
@@ -79,7 +93,7 @@ class ResearchAgent:
 
     def _build_system_prompt(self) -> str:
         """Build system prompt for research agent."""
-        return """You are an expert IT Service Management researcher specializing in ITIL, ITOM, ITAM, and IT industry best practices.
+        system_prompt = """You are Agent 1, an expert IT Service Management researcher specializing in ITIL, ITOM, ITAM, and IT industry best practices.
 
 Your role is to:
 1. Gather comprehensive information about IT processes
@@ -89,6 +103,9 @@ Your role is to:
 5. Identify roles, responsibilities, and required tools
 
 Provide thorough, accurate, and well-structured research findings."""
+
+        # Inject comprehensive knowledge base
+        return self._inject_knowledge(system_prompt, "You have 100% domain expertise in the following areas. Use this knowledge to provide accurate, detailed research:")
 
     def _build_research_prompt(
         self, process_name: str, standards: List[str]
@@ -165,59 +182,23 @@ Provide detailed, professional research suitable for creating a 15-30 page SOP d
         return "\n\n".join(relevant_sections) if relevant_sections else "No directly relevant ITOM context found."
 
     def _parse_research_response(
-        self, response: str, process_name: str
+        self, response: str, process_name: str, as_of: str = None
     ) -> Dict:
         """Parse and structure the research response."""
+        as_of = as_of or datetime.now(timezone.utc).date().isoformat()
+        if is_structured_response(response):
+            analysis = parse_json_response(response, ResearchAnalysis)
+            sources = available_sources(self)
+            evidence_report = assess_claims(analysis.claims, sources, as_of, config_manager.specialist_policy)
+            for claim in analysis.claims:
+                retain_evidence(claim.evidence, sources)
+            response = analysis.raw_research
+        else:
+            evidence_report = {"as_of": as_of, "claims": [], "status": "unstructured_unverified", "missing_evidence": True}
         return {
             "process_name": process_name,
             "raw_research": response,
             "sections": self._extract_sections(response),
+            "evidence_report": evidence_report,
             "timestamp": self._get_timestamp()
         }
-
-    def _extract_sections(self, response: str) -> Dict[str, str]:
-        """Extract sections from the research response."""
-        sections = {}
-        current_section = None
-        current_content = []
-
-        for line in response.split('\n'):
-            # Detect section headers (bold text like **Process Definition**)
-            if line.strip().startswith('**') and line.strip().endswith('**'):
-                if current_section:
-                    sections[current_section] = '\n'.join(current_content)
-                current_section = line.strip().strip('*')
-                current_content = []
-            elif line.strip().startswith('#'):
-                if current_section:
-                    sections[current_section] = '\n'.join(current_content)
-                current_section = line.strip().strip('#').strip()
-                current_content = []
-            else:
-                if current_section:
-                    current_content.append(line)
-
-        # Add last section
-        if current_section:
-            sections[current_section] = '\n'.join(current_content)
-
-        return sections
-
-    def _get_timestamp(self) -> str:
-        """Get current timestamp."""
-        from datetime import datetime
-        return datetime.now().isoformat()
-
-    async def _call_claude(self, messages: List[Dict], system: str = "") -> str:
-        """Make a call to Claude API."""
-        try:
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=4096,
-                system=system,
-                messages=messages
-            )
-            return response.content[0].text
-        except Exception as e:
-            logger.error(f"Claude API error: {e}", agent=self.name)
-            raise

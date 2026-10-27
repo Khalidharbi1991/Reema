@@ -1,13 +1,18 @@
 """Bee (Format & Export Agent) - Converts content to multiple output formats."""
 
 import asyncio
+from importlib import import_module
 from typing import Dict, List, Optional
 from pathlib import Path
+from .base_agent import BaseAgent
 from ..utils.logger import logger
 from ..utils.config import config_manager
+from ..utils.validation import FORMATS, safe_filename, validate_formats, validate_output_files
+from ..utils.export_quality import inspect_export
+from ..utils.diagrams import extract_flows
 
 
-class FormatAgent:
+class FormatAgent(BaseAgent):
     """
     Bee (Format & Export Agent)
 
@@ -18,34 +23,47 @@ class FormatAgent:
     - Manages document structure and styling
     """
 
-    def __init__(self):
-        self.name = "Bee"
+    AGENT_NAME = "Agent 5"
+    AGENT_ROLE = "Format & Export Agent"
+    CONFIG_KEY = "format_agent"
+    KNOWLEDGE_FILE = "bee_format_knowledge_ENHANCED.md"
+    DEFAULT_MAX_TOKENS = 4096
+    DEFAULT_TEMPERATURE = 0.5
+
+    def __init__(self, api_key: Optional[str] = None):
+        # Bee doesn't need an API key — pass empty to skip Anthropic client
+        super().__init__(api_key="")
+
+        # Alias for backward compatibility
+        self.format_knowledge = self.knowledge_base
+
+        # Output directory
         self.output_dir = config_manager.system_config.output_dir
 
         # Import formatters
         self.formatters = {}
         self._initialize_formatters()
-
-        logger.info("Format Agent initialized", agent=self.name)
+        self.last_export_checks = {}
 
     def _initialize_formatters(self):
         """Initialize all format converters."""
-        try:
-            from ..formatters.pdf_formatter import PDFFormatter
-            from ..formatters.docx_formatter import DOCXFormatter
-            from ..formatters.markdown_formatter import MarkdownFormatter
-            from ..formatters.html_formatter import HTMLFormatter
+        self.unavailable_formats = {}
+        for fmt, class_name in {
+            "pdf": "PDFFormatter", "docx": "DOCXFormatter",
+            "markdown": "MarkdownFormatter", "html": "HTMLFormatter",
+        }.items():
+            try:
+                module = import_module(f"..formatters.{fmt}_formatter", __package__)
+                self.formatters[fmt] = getattr(module, class_name)()
+            except (ImportError, OSError) as error:
+                self.unavailable_formats[fmt] = str(error)
 
-            self.formatters = {
-                "pdf": PDFFormatter(),
-                "docx": DOCXFormatter(),
-                "markdown": MarkdownFormatter(),
-                "html": HTMLFormatter()
-            }
-            logger.info("All formatters initialized", agent=self.name)
-
-        except ImportError as e:
-            logger.warning(f"Some formatters could not be loaded: {e}", agent=self.name)
+    def validate_requested_formats(self, formats):
+        formats = validate_formats(formats)
+        unavailable = set(formats) - self.formatters.keys()
+        if unavailable:
+            raise ValueError(f"Requested formatters unavailable: {', '.join(sorted(unavailable))}. Install their dependencies or choose another format.")
+        return formats
 
     async def convert_to_formats(
         self, content: str, formats: List[str], process_name: str = "document"
@@ -61,6 +79,11 @@ class FormatAgent:
         Returns:
             Dictionary mapping format to output file path
         """
+        formats = self.validate_requested_formats(formats)
+        if not isinstance(content, str) or not content.strip():
+            raise ValueError("Cannot export empty content")
+        extract_flows(content)
+        self.last_export_checks = {}
         logger.agent_start(
             self.name,
             f"Converting to formats: {', '.join(formats)}"
@@ -100,6 +123,9 @@ class FormatAgent:
                             agent=self.name
                         )
 
+            validate_output_files(output_files, formats)
+            for fmt, path in output_files.items():
+                self.last_export_checks[fmt] = inspect_export(fmt, path, content)
             logger.agent_complete(
                 self.name,
                 f"Converted to {len(output_files)} formats"
@@ -120,6 +146,8 @@ class FormatAgent:
 
         # Generate output filename
         output_file = self._generate_output_path(process_name, format_type)
+        if output_file.exists():
+            raise FileExistsError(f"Output already exists: {output_file}; use a new run directory")
 
         # Ensure output directory exists
         output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -132,17 +160,11 @@ class FormatAgent:
     def _generate_output_path(self, process_name: str, format_type: str) -> Path:
         """Generate output file path."""
         # Sanitize process name for filename
-        safe_name = process_name.replace(" ", "_").replace("/", "_")
+        safe_name = safe_filename(process_name)
 
         # Get format-specific extension
-        extensions = {
-            "pdf": ".pdf",
-            "docx": ".docx",
-            "markdown": ".md",
-            "html": ".html"
-        }
-
-        extension = extensions.get(format_type, f".{format_type}")
+        validate_formats([format_type])
+        extension = FORMATS[format_type]
 
         # Create path
         output_path = self.output_dir / format_type / f"{safe_name}_SOP{extension}"

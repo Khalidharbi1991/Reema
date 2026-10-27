@@ -1,12 +1,17 @@
 """Saad (Content Generation Agent) - Creates detailed SOP documentation."""
 
 from typing import Dict, List, Optional
-from anthropic import Anthropic
+from .base_agent import BaseAgent
 from ..utils.logger import logger
 from ..utils.config import config_manager
+from ..utils.handoffs import payload_json
+from ..utils.documents import SectionDraft, SectionPatch, section_map, sha
+from ..utils.quality import parse_json_response, is_structured_response
+from ..utils.diagrams import SequenceFlow, GraphFlow
+import json
 
 
-class ContentAgent:
+class ContentAgent(BaseAgent):
     """
     Saad (Content Generation Agent)
 
@@ -14,20 +19,25 @@ class ContentAgent:
     - Creates detailed SOP content (15-30 pages)
     - Writes process descriptions, roles, responsibilities
     - Generates step-by-step procedures
-    - Creates process flowcharts and diagrams (text descriptions)
+    - Creates process flowcharts and diagrams (draw.io XML generation)
     - Develops all 11 sections of the SOP document
     """
 
+    AGENT_NAME = "Agent 3"
+    AGENT_ROLE = "Content Generation Agent"
+    CONFIG_KEY = "content_agent"
+    KNOWLEDGE_FILE = "saad_content_knowledge_ENHANCED.md"
+    DEFAULT_MAX_TOKENS = 8192  # Higher token limit for content generation
+    DEFAULT_TEMPERATURE = 0.7
+
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or config_manager.system_config.anthropic_api_key
-        self.client = Anthropic(api_key=self.api_key)
-        self.name = "Saad"
-        self.model = config_manager.system_config.worker_model
+        super().__init__(api_key)
+
+        # Alias for backward compatibility
+        self.content_knowledge = self.knowledge_base
 
         # Load SOP template
         self.sop_template = self._load_sop_template()
-
-        logger.info("Content Agent initialized", agent=self.name)
 
     def _load_sop_template(self) -> str:
         """Load the SOP template."""
@@ -157,6 +167,8 @@ class ContentAgent:
             )
 
             # Structure the response into a complete SOP
+            if is_structured_response(response):
+                response = parse_json_response(response, SectionDraft).assemble(process_name, config_manager.document_profile)
             sop_document = self._format_sop_document(response, process_name)
 
             logger.agent_complete(self.name, f"SOP generation for {process_name}")
@@ -206,9 +218,25 @@ Please provide the complete refined document addressing all feedback points."""
             logger.agent_error(self.name, str(e))
             raise
 
+    async def revise_sections(self, content: str, findings: List[Dict]) -> str:
+        """Apply an exact, digest-bound section patch; all other bytes survive."""
+        profile = config_manager.document_profile
+        locations = section_map(content, profile, require_complete=True)
+        targets = {finding["section_id"] for finding in findings}
+        if not targets or not targets <= set(locations):
+            raise ValueError("Targeted revision needs valid located findings")
+        data = {"base_document_sha256": sha(content), "findings": findings,
+                "sections": {key: {**locations[key], "body": content[locations[key]["body_start"]:locations[key]["end"]]}
+                             for key in sorted(targets)}}
+        prompt = ("Correct only these sections and address each finding. Preserve citations, control IDs, constraints and full specialist material. "
+                  "Do not add top-level headings or claim approvals. Return JSON matching:\n"
+                  + json.dumps(SectionPatch.model_json_schema()) + "\nREVISION DATA:\n" + payload_json(data))
+        response = await self._call_claude([{"role": "user", "content": prompt}], system=self._build_system_prompt())
+        return parse_json_response(response, SectionPatch).apply(content, targets, profile)
+
     def _build_system_prompt(self) -> str:
         """Build system prompt for content generation."""
-        return """You are an expert technical writer and IT Service Management specialist.
+        system_prompt = """You are Agent 3, an expert technical writer and IT Service Management specialist.
 
 Your expertise includes:
 - Creating comprehensive Standard Operating Procedures (SOPs)
@@ -216,7 +244,9 @@ Your expertise includes:
 - Structuring information logically and accessibly
 - Creating detailed step-by-step procedures
 - Developing RACI matrices and role descriptions
-- Writing process flows and diagrams descriptions
+- Creating professional draw.io flowcharts and process flow diagrams (.drawio XML)
+- Generating draw.io XML with proper mxCell elements, style strings, and mxGeometry
+- Designing swimlane diagrams, decision trees, and multi-phase process flows
 
 Guidelines for SOP creation:
 1. Use professional, clear language
@@ -229,6 +259,11 @@ Guidelines for SOP creation:
 8. Reference relevant standards and frameworks
 
 Create documentation that is immediately usable by IT teams."""
+
+        return self._inject_knowledge(
+            system_prompt,
+            "You have 100% domain expertise in technical writing, SOP creation, and documentation best practices. Use this knowledge to create professional documentation:"
+        )
 
     def _build_content_prompt(
         self, process_name: str, research_data: Dict
@@ -262,7 +297,7 @@ Create documentation that is immediately usable by IT teams."""
 - Process-specific terminology
 
 ### 3. ROLES & RESPONSIBILITIES (2-3 pages)
-- RACI matrix (Responsible, Accountable, Consulted, Informed)
+- RACI matrix with Activity followed by role columns; exactly one A and at least one R for each activity (R/A is allowed)
 - Detailed role descriptions
 - Authority levels
 - Escalation paths
@@ -327,33 +362,23 @@ Create documentation that is immediately usable by IT teams."""
 
 Generate the complete SOP document now."""
 
-        return prompt
+        return prompt + ("\nReturn only a section draft JSON matching:\n" + json.dumps(SectionDraft.model_json_schema())
+            + "\nAssemble exactly these configured section IDs; bodies may contain headings at level three and below:\n"
+            + payload_json([s.model_dump() for s in config_manager.document_profile.sections])
+            + "\nInclude each applicable control ID in square brackets in EVERY target section listed in the control register. "
+            "A reference demonstrates traceability, not compliance. Identify missing evidence. "
+            "Optional diagrams use a reema-flow fenced JSON sequence or bounded forward graph with lanes and labelled decisions:\n"
+            + json.dumps(SequenceFlow.model_json_schema()) + "\nGRAPH SCHEMA:\n" + json.dumps(GraphFlow.model_json_schema()))
 
     def _extract_research_summary(self, research_data: Dict) -> str:
-        """Extract summary from research data."""
+        """Legacy method name: retain the full research handoffs, including metadata."""
         if not research_data:
             return "No research data available."
-
-        summary_parts = []
-
-        if "research" in research_data:
-            research = research_data["research"]
-            if isinstance(research, dict) and "raw_research" in research:
-                summary_parts.append("ITIL/IT Research:\n" + research["raw_research"][:2000])
-
-        return "\n\n".join(summary_parts) if summary_parts else "Research data available but not parsed."
+        return payload_json({key: value for key, value in research_data.items() if key != "standards"})
 
     def _extract_compliance_summary(self, research_data: Dict) -> str:
-        """Extract summary from compliance data."""
-        if not research_data:
-            return "No compliance data available."
-
-        if "standards" in research_data:
-            standards = research_data["standards"]
-            if isinstance(standards, dict) and "compliance_analysis" in standards:
-                return "Compliance Analysis:\n" + standards["compliance_analysis"][:2000]
-
-        return "Compliance data available but not parsed."
+        """Retain every standards field and source identity, without prefix truncation."""
+        return payload_json(research_data.get("standards", {})) if research_data else "No compliance data available."
 
     def _format_sop_document(self, content: str, process_name: str) -> str:
         """Format the generated content into a proper SOP document."""
@@ -371,16 +396,66 @@ generated_by: IT Process Documentation System
 """
         return header + content
 
-    async def _call_claude(self, messages: List[Dict], system: str = "") -> str:
-        """Make a call to Claude API."""
+    async def generate_drawio_flowchart(
+        self, process_name: str, process_steps: Dict
+    ) -> str:
+        """
+        Generate a draw.io XML flowchart for the given IT process.
+
+        Uses Saad's draw.io mastery knowledge (Section 3) to create
+        professional .drawio XML with proper mxCell elements, Customer
+        brand color coding, decision diamonds, and multi-phase layout.
+
+        Args:
+            process_name: Name of the IT process (e.g., "Incident Management")
+            process_steps: Dict with phase names as keys and step lists as values
+
+        Returns:
+            Valid .drawio XML string ready to be saved as a .drawio file
+        """
+        logger.agent_start(self.name, f"Generating draw.io flowchart for {process_name}")
+
         try:
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=8192,  # Higher token limit for content generation
-                system=system,
-                messages=messages
+            system_prompt = self._build_system_prompt()
+
+            flowchart_prompt = f"""Generate a complete, valid draw.io XML flowchart for: {process_name}
+
+**Process Steps:**
+{chr(10).join(f"Phase: {phase} - Steps: {', '.join(steps)}" for phase, steps in process_steps.items())}
+
+**Requirements:**
+1. Output ONLY valid .drawio XML (mxfile > diagram > mxGraphModel > root > mxCell elements)
+2. Use house palette colors: Green #1F3A5F, Gold #FFC107
+3. Phase colors: Phase 1=#1565C0, Phase 2=#E65100, Phase 3=#2E7D32, Phase 4=#6A1B9A
+4. Start terminators: green (#28A745), End terminators: red (#DC3545)
+5. Decision diamonds: Amber (#FFC107) with D1, D2, D3 labels
+6. YES paths: green (#28A745), NO paths: red (#DC3545)
+7. Standard flow arrows: dark blue (#003366), strokeWidth=2
+8. Process shapes: 160x60px, Decision diamonds: 200x100px, Terminators: 120x40px
+9. Vertical spacing: 40px between shapes
+10. Each phase on a separate <diagram> page
+11. Use orthogonal edge routing (edgeStyle=orthogonalEdgeStyle)
+12. Include proper mxGeometry with x, y, width, height for every shape
+13. All mxCell IDs must be unique
+14. Include root cells id="0" and id="1" parent="0" in every diagram
+
+Generate the complete .drawio XML now."""
+
+            response = await self._call_claude(
+                messages=[{"role": "user", "content": flowchart_prompt}],
+                system=system_prompt
             )
-            return response.content[0].text
+
+            # Extract XML from response (strip any markdown formatting)
+            xml_content = response.strip()
+            if xml_content.startswith("```"):
+                xml_content = xml_content.split("\n", 1)[1]
+                if xml_content.endswith("```"):
+                    xml_content = xml_content[:-3].strip()
+
+            logger.agent_complete(self.name, f"draw.io flowchart for {process_name}")
+            return xml_content
+
         except Exception as e:
-            logger.error(f"Claude API error: {e}", agent=self.name)
+            logger.agent_error(self.name, str(e))
             raise
