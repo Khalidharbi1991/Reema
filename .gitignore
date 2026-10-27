@@ -40,6 +40,28 @@ references/**
 !references/README.md
 diagrams/
 
+# Customer-specific scripts and knowledge (kept local, never committed)
+/scripts/conversion/convert_html_to_customer_docx.py
+/scripts/conversion/convert_html_to_customer_docx_v2.py
+/scripts/conversion/extract_bpmn_to_docx.py
+/scripts/generation/create_periodic_access_review_sops.py
+/scripts/generation/create_quality_procedures.py
+/scripts/generation/create_quality_procedures_concise.py
+/scripts/generation/create_quality_procedures_v2.py
+/scripts/generation/create_quality_procedures_v3.py
+/scripts/generation/create_rfp_intune_apple_customer.py
+/scripts/generation/create_sop_apple_mac_customer.py
+/scripts/generation/create_sop_designs.py
+/scripts/generation/create_sop_intune_apple_customer.py
+/scripts/generation/create_sop_sos0301_customer.py
+/scripts/generation/create_sop_sos0301_customer_v2.py
+/scripts/generation/create_sop_v5_customer.py
+/scripts/generation/create_sos01_policy.py
+/scripts/transformation/fill_section_b_definitions.py
+/scripts/transformation/fill_software_purpose.py
+/scripts/transformation/rewrite_sop_to_house_policy.py
+/src/knowledge/taif_research_knowledge.md
+
 # IDEs
 .vscode/
 .idea/
