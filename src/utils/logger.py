@@ -5,6 +5,7 @@ from pathlib import Path
 from datetime import datetime
 from rich.logging import RichHandler
 from rich.console import Console
+from .config import config_manager
 
 console = Console()
 
@@ -17,8 +18,10 @@ class AgentLogger:
         self.logger.setLevel(logging.INFO)
 
         # Create logs directory if it doesn't exist
-        log_dir = Path(__file__).parent.parent.parent / "logs"
-        log_dir.mkdir(exist_ok=True)
+        log_dir = config_manager.system_config.log_dir
+        log_dir.mkdir(parents=True, exist_ok=True)
+        if self.logger.handlers:
+            return
 
         # File handler
         log_file = log_dir / f"{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
@@ -33,7 +36,7 @@ class AgentLogger:
         console_handler = RichHandler(
             console=console,
             rich_tracebacks=True,
-            markup=True
+            markup=False
         )
         console_handler.setLevel(logging.INFO)
 
