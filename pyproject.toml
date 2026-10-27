@@ -1,0 +1,99 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel>=0.41.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reema"
+version = "2.0.0"
+description = "REEMA - Multi-Agent IT Documentation System"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11,<3.15"
+authors = [
+    {name = "Khalid Alharbi"},
+]
+keywords = ["itil", "itom", "itam", "documentation", "multi-agent", "sop"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Information Technology",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Documentation",
+    "Topic :: Office/Business",
+]
+
+dependencies = [
+    # Claude Agent SDK and Anthropic API
+    "anthropic==0.76.0",
+
+    # CLI and Console
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+
+    # Configuration Management
+    "pyyaml>=6.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+
+    # Document Generation
+    "python-docx>=1.2.0",
+    "reportlab>=4.0.0",
+    "weasyprint>=60.0",
+    "markdown2>=2.4.0",
+    "Jinja2>=3.1.0",
+
+    # PDF Processing
+    "pypdf>=6.6.0",
+    "pdfplumber>=0.10.0",
+
+    # Async Operations
+    "aiofiles>=23.0.0",
+
+    # HTML/CSS Processing
+    "beautifulsoup4>=4.12.0",
+    "lxml>=4.9.0",
+
+    # Image Generation (for diagrams)
+    "pillow>=10.0.0",
+    "ezdxf>=1.4.4,<2.0",
+
+    # Data Processing
+    "pandas>=2.0.0",
+    "openpyxl>=3.1.0",
+
+    # Environment
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+]
+
+[project.scripts]
+reema = "src.main:app"
+
+[tool.setuptools.packages.find]
+include = ["src*", "config"]
+
+[tool.setuptools.package-data]
+src = ["knowledge/*.md", "templates/*.md"]
+config = ["*.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 70

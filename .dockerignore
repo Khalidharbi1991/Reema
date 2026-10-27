@@ -1,0 +1,12 @@
+# Allow only application files into the build context.
+**
+!Dockerfile
+!requirements.txt
+!requirements.lock
+!src/
+!src/**
+!config/
+!config/**
+src/**/__pycache__/
+src/**/*.pyc
+src/**/.DS_Store
