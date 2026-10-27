@@ -172,7 +172,8 @@ python -m src.main version
 
 ```
 IT-Consultant/
-├── CLAUDE.MD                      # Project context
+├── AGENTS.md                      # Pointer to CLAUDE.md
+├── CLAUDE.md                      # Project context and agent working rules (source of truth)
 ├── ITOM.pdf                       # Reference material
 ├── README.md                      # This file
 ├── requirements.txt               # Python dependencies
