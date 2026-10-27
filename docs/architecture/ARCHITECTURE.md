@@ -1,5 +1,54 @@
 # System Architecture
 
+> Package 5 (2026-10-16): Current coordination supports bounded Arabic/English
+> intent and optional consent-gated resolution. OS ownership, atomic signed run
+> snapshots and validated review chunks support crash recovery. Arabic/RTL graphs
+> and configured layouts have synthetic export QA. Specialist checks include
+> supplied IAM groups/drift/SoD, causal outcomes, working calendars/lineage and
+> explicit CAD units/transforms. Defaults are configurable Anthropic Sonnet 4.6.
+> See [the current guide](../guides/COMPLETION_AND_EVALUATION.md) and
+> [finite ledger](../reports/PENDING_LEDGER.md). The synthetic canonical-answer
+> benchmark verifies the harness; live quality remains separately authorized.
+
+> Package 4 (2026-10-16): A project-local locked launcher discovers native PDF
+> libraries. The specialist pipeline carries located claim freshness, supplied
+> IAM/incident evidence and deterministic metrics; CAD selection has bounded
+> geometry checks. See [Specialist checks](../guides/SPECIALIST_EVIDENCE_AND_CHECKS.md).
+
+> Package 3 (2026-10-15): The SOP flow carries a typed control register,
+> configured section inventory, located correction records and export checks.
+> See [Document quality](../guides/DOCUMENT_QUALITY.md) for contracts and limits.
+
+> Package 2 (2026-10-15): Ahmad now plans multiple advisory capabilities and
+> Abdullah coordinates them. Explicit session context is separate from verified
+> SOP execution recovery for failed/cancelled research/generation. See
+> [Coordination and recovery](../guides/COORDINATION_AND_RECOVERY.md) for current
+> behavior and limits; the older diagrams below do not describe the chat planner.
+
+> Update (2026-10-15): Specialist handoffs retain complete payloads and use
+> validated internal envelopes; leader phase status now reflects actual execution.
+> See [Handoffs and status](../guides/AGENT_HANDOFFS_AND_STATUS.md) and the
+> [package checkpoint](../reports/AGENT_IMPROVEMENTS_PACKAGE_1.md). The legacy
+> diagrams below are background, not a claim of multi-specialist chat planning
+> or a general persistent execution engine.
+
+> Current personal-assistant entry point: Ahmad coordinates `chat` and local
+> `task` commands; Abdullah leads the separate SOP specialist pipeline. See
+> [Personal assistant](../guides/PERSONAL_ASSISTANT.md). The older diagrams below
+> describe the documentation pipeline only.
+
+> Update (2026-09-29): Runtime calls now use an asynchronous provider boundary
+> with bounded requests and per-run accounting. Source permissions, full-document
+> review, and offline export recovery are described in
+> [Reliability and sources](../guides/RELIABILITY_AND_SOURCES.md). Use that guide
+> and the implementation for current operational behavior.
+
+> Current implementation (2026-09-28): The legacy design below predates explicit
+> external-AI authorization, process-selected specialists, and hash-bound pending
+> human approval records. AI owner/secretary roles do not grant approval or run in
+> the normal generation pipeline. See `../reports/PHASE_0_1_CHECKPOINT.md` and the
+> root README for current behavior.
+
 ## REEMA - Multi-Agent IT Process Documentation System
 
 ---

@@ -15,7 +15,7 @@
    ```
 3. Run the generator:
    ```cmd
-   python generate_workstation_patches.py
+   python3 scripts/generation/generate_workstation_patches.py
    ```
 
 ### Option 2: Full Setup (First time installation)

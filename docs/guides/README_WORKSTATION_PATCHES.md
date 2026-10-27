@@ -269,7 +269,7 @@ Both diagrams will be provided as detailed text descriptions that can be convert
 ### Quick Command
 ```cmd
 set ANTHROPIC_API_KEY=your-key-here
-python generate_workstation_patches.py
+python3 scripts/generation/generate_workstation_patches.py
 ```
 
 ### Generation Time
@@ -303,7 +303,7 @@ C:\Users\Khali\Desktop\Projects\IT Consultant\output\
 
 1. **Review** the `SETUP_INSTRUCTIONS.md` for installation
 2. **Follow** the `QUICK_START.md` for generation steps
-3. **Run** the `generate_workstation_patches.py` script
+3. **Run** `python3 scripts/generation/generate_workstation_patches.py`
 4. **Receive** your professional DOCX and PDF documents
 5. **Customize** the Word doc for your organization
 6. **Distribute** the PDF to your team

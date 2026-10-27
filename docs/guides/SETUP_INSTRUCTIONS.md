@@ -49,7 +49,7 @@ ANTHROPIC_API_KEY=your-api-key-here
 
 ### Method 1: Using the Custom Script (Recommended for this task)
 ```cmd
-python generate_workstation_patches.py
+python3 scripts/generation/generate_workstation_patches.py
 ```
 
 ### Method 2: Using the Main CLI
@@ -99,7 +99,7 @@ If you see import errors:
 ### ITOM.pdf Warning
 If you see "Could not load ITOM knowledge":
 - This is optional - the system will work without it
-- Place ITOM.pdf in the project root if you have it
+- Place ITOM.pdf in `references/itom/` if you have it
 
 ## Expected Generation Time
 
