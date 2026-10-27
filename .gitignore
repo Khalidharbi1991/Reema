@@ -22,11 +22,23 @@ wheels/
 
 # Virtual Environment
 venv/
+.venv/
+.dev-cache/
 env/
 ENV/
 
 # Environment Variables
 .env
+.env.*
+!.env.example
+.local-baseline/
+.claude/settings.local.json
+.claude/worktrees/
+
+# Local customer material (including email and spreadsheets)
+references/**
+!references/README.md
+diagrams/
 
 # IDEs
 .vscode/
