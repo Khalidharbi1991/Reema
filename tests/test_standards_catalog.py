@@ -47,3 +47,18 @@ def test_list_processes_shows_the_mapping_standards(catalog, monkeypatch):
     assert result.exit_code == 0, result.output
     assert "ISO/IEC 27001:2022, NIST Cybersecurity Framework, SOC 2 Type II, CIS Controls" in result.output
     assert "ISO/IEC 20000-1:2018 Section 8.2" in result.output
+
+
+def test_compliance_audits_cover_saudi_frameworks_without_hipaa(catalog):
+    assert catalog.standards_mapping["compliance_audits"] == [
+        "ISO/IEC 27001:2022", "SOC 2 Type II", "NCA ECC-2:2024 (Essential Cybersecurity Controls)",
+        "SDAIA PDPL (Personal Data Protection Law)", "GDPR", "PCI DSS"]
+
+
+def test_nca_ecc_references_use_the_2024_edition(catalog):
+    standards = [value for values in catalog.standards_mapping.values() for value in values]
+    assert [value for value in standards if "ECC" in value] == [
+        "NCA ECC-2:2024 (Essential Cybersecurity Controls)",
+        "NCA ECC-2:2024 Control 2-2 (Identity and Access Management)"]
+    for name in ("mohammad_standards_knowledge_ENHANCED.md", "rakan_access_knowledge_ENHANCED.md"):
+        assert "ECC-1:2018" not in (ROOT / "src" / "knowledge" / name).read_text(encoding="utf-8")

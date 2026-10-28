@@ -2767,7 +2767,7 @@ With 130+ SaaS apps per enterprise, governing SaaS access is critical.
 
 ### 8.1 NCA Essential Cybersecurity Controls (ECC) - Control 2-2: Identity and Access Management
 
-The National Cybersecurity Authority (NCA) of the Kingdom of Saudi Arabia issued the Essential Cybersecurity Controls (ECC-1:2018, updated 2022) applicable to all government and critical national infrastructure organizations.
+The National Cybersecurity Authority (NCA) of the Kingdom of Saudi Arabia issued the Essential Cybersecurity Controls (ECC-2:2024) applicable to all government and critical national infrastructure organizations.
 
 #### 8.1.1 ECC 2-2-1: Identity Management
 

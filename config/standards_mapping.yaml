@@ -58,8 +58,9 @@ security_operations:
 compliance_audits:
   - "ISO/IEC 27001:2022"
   - "SOC 2 Type II"
+  - "NCA ECC-2:2024 (Essential Cybersecurity Controls)"
+  - "SDAIA PDPL (Personal Data Protection Law)"
   - "GDPR"
-  - "HIPAA"
   - "PCI DSS"
 
 risk_management:
@@ -82,7 +83,7 @@ workstation_security_patches:
 access_management:
   - "ISO/IEC 27001:2022 Annex A.5.15-A.5.18 (Access Control)"
   - "ISO/IEC 27001:2022 Annex A.8.2-A.8.5 (Privileged Access)"
-  - "NCA ECC Control 2-2 (Access Control)"
+  - "NCA ECC-2:2024 Control 2-2 (Identity and Access Management)"
   - "SAMA Cybersecurity Framework Domain 3 (Access Control)"
   - "SDAIA PDPL (Data Access Requirements)"
   - "NIST SP 800-53 AC Family"

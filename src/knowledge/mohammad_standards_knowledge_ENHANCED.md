@@ -2470,7 +2470,7 @@ COBIT integrates and aligns with multiple frameworks and standards:
 
 ## 12.1 NATIONAL CYBERSECURITY AUTHORITY (NCA) — الهيئة الوطنية للأمن السيبراني
 
-### 12.1.1 Essential Cybersecurity Controls (ECC-1:2018) — الضوابط الأساسية للأمن السيبراني
+### 12.1.1 Essential Cybersecurity Controls (ECC-2:2024) — الضوابط الأساسية للأمن السيبراني
 
 The NCA ECC is the foundational cybersecurity standard for all government and critical infrastructure entities in Saudi Arabia.
 
@@ -2480,7 +2480,7 @@ The NCA ECC is the foundational cybersecurity standard for all government and cr
 - Semi-government organizations
 - Private sector organizations providing services to government
 
-**ECC Structure — 5 Main Domains:**
+**ECC Structure — 4 Main Domains:**
 
 #### Domain 1: Cybersecurity Governance (حوكمة الأمن السيبراني)
 | Control ID | Control Name (EN) | Control Name (AR) | Description |
@@ -2490,46 +2490,43 @@ The NCA ECC is the foundational cybersecurity standard for all government and cr
 | 1-3 | Cybersecurity Policies and Procedures | سياسات وإجراءات الأمن السيبراني | Develop, approve, and maintain comprehensive cybersecurity policies |
 | 1-4 | Cybersecurity Roles and Responsibilities | أدوار ومسؤوليات الأمن السيبراني | Define and assign cybersecurity roles across the organization |
 | 1-5 | Cybersecurity Risk Management | إدارة مخاطر الأمن السيبراني | Establish systematic risk identification, assessment, and treatment |
-| 1-6 | Cybersecurity in IT Project Management | الأمن السيبراني في إدارة مشاريع تقنية المعلومات | Integrate security into project lifecycle |
-| 1-7 | Compliance with Standards and Regulations | الالتزام بالتشريعات والمعايير | Ensure compliance with national cybersecurity laws and regulations |
-| 1-8 | Cybersecurity Review and Audit | مراجعة وتدقيق الأمن السيبراني | Regular independent review and audit of cybersecurity controls |
+| 1-6 | Cybersecurity in Information and Technology Project Management | الأمن السيبراني في إدارة مشاريع تقنية المعلومات | Integrate security into project lifecycle |
+| 1-7 | Compliance with Cybersecurity Standards, Laws and Regulations | الالتزام بالتشريعات والمعايير | Ensure compliance with national cybersecurity laws and regulations |
+| 1-8 | Periodical Cybersecurity Review and Audit | مراجعة وتدقيق الأمن السيبراني | Regular independent review and audit of cybersecurity controls |
 | 1-9 | Cybersecurity in Human Resources | الأمن السيبراني في الموارد البشرية | Security requirements for personnel lifecycle |
-| 1-10 | Cybersecurity Awareness Program | برنامج التوعية بالأمن السيبراني | Establish and maintain cybersecurity awareness and training |
+| 1-10 | Cybersecurity Awareness and Training Program | برنامج التوعية بالأمن السيبراني | Establish and maintain cybersecurity awareness and training |
 
 #### Domain 2: Cybersecurity Defense (تعزيز الأمن السيبراني)
 | Control ID | Control Name (EN) | Control Name (AR) | Description |
 |-----------|-------------------|-------------------|-------------|
 | 2-1 | Asset Management | إدارة الأصول | Identify, classify, and manage all information assets |
 | 2-2 | Identity and Access Management | إدارة الهويات والصلاحيات | Control access to systems and data based on business needs |
-| 2-3 | Information System Protection | حماية أنظمة المعلومات | Implement technical security controls for information systems |
-| 2-4 | Email Security | أمن البريد الإلكتروني | Protect email systems from threats and misuse |
-| 2-5 | Network Security | أمن الشبكات | Secure network infrastructure and communications |
-| 2-6 | Mobile Device Security | أمن الأجهزة المحمولة | Manage and secure mobile devices |
+| 2-3 | Information System and Processing Facilities Protection | حماية أنظمة المعلومات | Implement technical security controls for information systems |
+| 2-4 | Email Protection | أمن البريد الإلكتروني | Protect email systems from threats and misuse |
+| 2-5 | Networks Security Management | أمن الشبكات | Secure network infrastructure and communications |
+| 2-6 | Mobile Devices Security | أمن الأجهزة المحمولة | Manage and secure mobile devices |
 | 2-7 | Data and Information Protection | حماية البيانات والمعلومات | Classify and protect data throughout its lifecycle |
 | 2-8 | Cryptography | التشفير | Use cryptographic controls to protect information |
-| 2-9 | Backup and Recovery | النسخ الاحتياطي والاستعادة | Ensure availability through backup and recovery |
-| 2-10 | Vulnerability Management | إدارة الثغرات | Identify and remediate vulnerabilities systematically |
+| 2-9 | Backup and Recovery Management | النسخ الاحتياطي والاستعادة | Ensure availability through backup and recovery |
+| 2-10 | Vulnerabilities Management | إدارة الثغرات | Identify and remediate vulnerabilities systematically |
 | 2-11 | Penetration Testing | اختبار الاختراق | Conduct regular penetration testing of critical systems |
-| 2-12 | Cybersecurity Event Logs Management | إدارة سجلات أحداث الأمن السيبراني | Collect, monitor, and analyze security event logs |
+| 2-12 | Cybersecurity Event Logs and Monitoring Management | إدارة سجلات أحداث الأمن السيبراني | Collect, monitor, and analyze security event logs |
 | 2-13 | Cybersecurity Incident and Threat Management | إدارة حوادث وتهديدات الأمن السيبراني | Detect, respond to, and recover from cybersecurity incidents |
 | 2-14 | Physical Security | الأمن المادي | Protect physical assets and environments |
+| 2-15 | Web Application Security | أمن تطبيقات الويب | Protect the entity's external web applications against cyber risks |
 
 #### Domain 3: Cybersecurity Resilience (صمود الأمن السيبراني)
 | Control ID | Control Name (EN) | Control Name (AR) | Description |
 |-----------|-------------------|-------------------|-------------|
-| 3-1 | Cybersecurity Business Continuity Management | إدارة استمرارية الأعمال للأمن السيبراني | Integrate cybersecurity into business continuity |
-| 3-2 | Cybersecurity Disaster Recovery | التعافي من كوارث الأمن السيبراني | Establish disaster recovery capabilities |
+| 3-1 | Cybersecurity Resilience Aspects of Business Continuity Management (BCM) | إدارة استمرارية الأعمال للأمن السيبراني | Include cybersecurity resilience requirements in business continuity management to minimize the impact of cyber disruptions on critical e-services and information processing systems and facilities |
 
-#### Domain 4: Third-Party and Cloud Cybersecurity (الأمن السيبراني للحوسبة السحابية والأطراف الخارجية)
+#### Domain 4: Third-Party and Cloud Computing Cybersecurity (الأمن السيبراني للحوسبة السحابية والأطراف الخارجية)
 | Control ID | Control Name (EN) | Control Name (AR) | Description |
 |-----------|-------------------|-------------------|-------------|
 | 4-1 | Third-Party Cybersecurity | الأمن السيبراني للأطراف الخارجية | Manage third-party cybersecurity risks |
 | 4-2 | Cloud Computing and Hosting Cybersecurity | الأمن السيبراني للحوسبة السحابية والاستضافة | Secure cloud computing and hosting environments |
 
-#### Domain 5: Industrial Control Systems (ICS) Cybersecurity (الأمن السيبراني لأنظمة التحكم الصناعي)
-| Control ID | Control Name (EN) | Control Name (AR) | Description |
-|-----------|-------------------|-------------------|-------------|
-| 5-1 | ICS/OT Cybersecurity | الأمن السيبراني لأنظمة التحكم الصناعي | Protect industrial control systems and operational technology |
+ECC-2:2024 deleted the former main domain 5 (Industrial Control Systems Cybersecurity) of the previous (2018) edition. Its controls moved to the NCA Operational Technology Cybersecurity Controls (OTCC).
 
 **ECC Compliance Levels:**
 
@@ -2882,7 +2879,7 @@ The NCA ECC is the foundational cybersecurity standard for all government and cr
 
 This Standard Operating Procedure has been developed in alignment with:
 
-- National Cybersecurity Authority (NCA) Essential Cybersecurity Controls (ECC-1:2018)
+- National Cybersecurity Authority (NCA) Essential Cybersecurity Controls (ECC-2:2024)
   - Applicable Controls: [List specific control IDs]
 - NCA Critical Systems Cybersecurity Controls (CSCC-1:2019) [if applicable]
   - Applicable Controls: [List specific control IDs]
