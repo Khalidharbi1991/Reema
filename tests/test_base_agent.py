@@ -21,7 +21,7 @@ class TestBaseAgent:
         assert BaseAgent.CONFIG_KEY == ""
         assert BaseAgent.KNOWLEDGE_FILE == ""
         assert BaseAgent.DEFAULT_MAX_TOKENS == 4096
-        assert BaseAgent.DEFAULT_TEMPERATURE == 0.7
+        assert BaseAgent.DEFAULT_TEMPERATURE is None
 
     @patch('src.agents.base_agent.config_manager')
     @patch('src.agents.base_agent.Anthropic')

@@ -29,7 +29,6 @@ class AccessAgent(BaseAgent):
     AGENT_ROLE = "Access Management Agent"
     CONFIG_KEY = "access_agent"
     KNOWLEDGE_FILE = "rakan_access_knowledge_ENHANCED.md"
-    DEFAULT_TEMPERATURE = 0.4
 
     def __init__(self, api_key: Optional[str] = None):
         super().__init__(api_key)

@@ -28,7 +28,6 @@ class ContentAgent(BaseAgent):
     CONFIG_KEY = "content_agent"
     KNOWLEDGE_FILE = "saad_content_knowledge_ENHANCED.md"
     DEFAULT_MAX_TOKENS = 8192  # Higher token limit for content generation
-    DEFAULT_TEMPERATURE = 0.7
 
     def __init__(self, api_key: Optional[str] = None):
         super().__init__(api_key)

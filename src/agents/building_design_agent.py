@@ -14,7 +14,6 @@ class BuildingDesignAgent(BaseAgent):
     AGENT_NAME = "Agent 9"
     AGENT_ROLE = "Building 3D Modeling & Interior/Exterior Design Specialist"
     CONFIG_KEY = "building_design_agent"
-    DEFAULT_TEMPERATURE = 0.5
 
     def create_concept_model(self, dxf_path: Path, output_dir: Path, bounds: tuple[float, float, float, float],
                              *, wall_height=3.0, design_spec: Path | None = None, source_units=None):

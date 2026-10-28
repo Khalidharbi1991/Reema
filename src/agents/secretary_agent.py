@@ -33,7 +33,6 @@ class SecretaryAgent(BaseAgent):
     CONFIG_KEY = "secretary_agent"
     KNOWLEDGE_FILE = "ahmad_secretary_knowledge_ENHANCED.md"
     DEFAULT_MAX_TOKENS = 4096
-    DEFAULT_TEMPERATURE = 0.5
 
     def __init__(self, api_key: Optional[str] = None):
         """

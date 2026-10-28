@@ -26,7 +26,6 @@ class StandardsAgent(BaseAgent):
     AGENT_ROLE = "Standards & Compliance Agent"
     CONFIG_KEY = "standards_agent"
     KNOWLEDGE_FILE = "mohammad_standards_knowledge_ENHANCED.md"
-    DEFAULT_TEMPERATURE = 0.3
 
     def __init__(self, api_key: Optional[str] = None):
         super().__init__(api_key)

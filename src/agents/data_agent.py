@@ -28,7 +28,6 @@ class DataAgent(BaseAgent):
     AGENT_ROLE = "Data & Power BI Agent"
     CONFIG_KEY = "data_agent"
     KNOWLEDGE_FILE = "layla_data_knowledge_complete.md"
-    DEFAULT_TEMPERATURE = 0.5
 
     def __init__(self, api_key: Optional[str] = None):
         super().__init__(api_key)

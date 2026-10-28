@@ -30,7 +30,8 @@ class BaseAgent:
     CONFIG_KEY: str = ""  # Key in agent_config.yaml
     KNOWLEDGE_FILE: str = ""  # Filename in knowledge_dir
     DEFAULT_MAX_TOKENS: int = 4096
-    DEFAULT_TEMPERATURE: float = 0.7
+    # None omits temperature so the model's default sampling applies.
+    DEFAULT_TEMPERATURE: Optional[float] = None
 
     def __init__(self, api_key: Optional[str] = None):
         """Initialize the agent with API key and configuration."""
@@ -48,10 +49,9 @@ class BaseAgent:
             "max_tokens",
             self.DEFAULT_MAX_TOKENS
         )
-        self.temperature = self._agent_config.get(
-            "temperature",
-            self.DEFAULT_TEMPERATURE
-        )
+        # Only an explicit role override is sent; newer API versions reject sampling fields.
+        configured_temperature = self._agent_config.get("temperature")
+        self.temperature = self.DEFAULT_TEMPERATURE if configured_temperature is None else configured_temperature
 
         # Initialize Anthropic client (skip for agents that don't need it, like Bee)
         self.client = None
@@ -128,13 +128,13 @@ class BaseAgent:
                 messages[-1]["content"] += evidence_block(records)
                 for record in records:
                     runtime.sources[record["id"]] = {**runtime.sources.get(record["id"], {}), **{key: value for key, value in record.items() if key != "text"}}
-            return await runtime.call(
-                AnthropicProvider(self.client), agent=self.name, model=self.model,
-                max_tokens=max_tokens or self.max_tokens, temperature=self.temperature,
-                system=(system + f"\n\nCurrent agent display name: {self.name}. "
-                        "Historical names in knowledge sources are not current agent names.\n\n"
-                        + EVIDENCE_POLICY), messages=messages,
-            )
+            request = {"max_tokens": max_tokens or self.max_tokens, "messages": messages,
+                       "system": (system + f"\n\nCurrent agent display name: {self.name}. "
+                                  "Historical names in knowledge sources are not current agent names.\n\n"
+                                  + EVIDENCE_POLICY)}
+            if self.temperature is not None:
+                request["temperature"] = self.temperature
+            return await runtime.call(AnthropicProvider(self.client), agent=self.name, model=self.model, **request)
         except Exception as e:
             logger.error(f"Claude API error: {e}", agent=self.name)
             raise

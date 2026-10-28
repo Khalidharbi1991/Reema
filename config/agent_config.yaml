@@ -3,6 +3,9 @@
 # Agent roles. Human approval is recorded separately; AI roles cannot approve.
 # Model fields are optional overrides. Omitted roles use LEADER_MODEL/WORKER_MODEL
 # (default claude-sonnet-4-6). Explicit role overrides are preserved.
+# temperature is an optional per-role override (0-1). When omitted, no temperature
+# is sent and the model's default sampling applies. API version 2026-10-21 and
+# Claude 4.7+ models reject non-default values, so leave it unset unless needed.
 
 # --- Personal coordination ---
 
@@ -10,7 +13,6 @@ secretary_agent:
   name: "Ahmad"
   role: "Personal Coordination & Task Management Agent"
   max_tokens: 4096
-  temperature: 0.5
   specialization:
     - "Project coordination"
     - "Executive communication"
@@ -27,7 +29,6 @@ leader_agent:
   name: "Abdullah"
   role: "Strategic Leader & Specialist Orchestrator"
   max_tokens: 4096
-  temperature: 0.7
   specialization:
     - "IT strategy and roadmap development"
     - "Portfolio and programme governance"
@@ -46,7 +47,6 @@ research_agent:
   name: "Agent 1"
   role: "Gathers ITIL and IT standards information"
   max_tokens: 4096
-  temperature: 0.5
   specialization:
     - "ITIL v4 framework"
     - "IT Service Management"
@@ -57,7 +57,6 @@ standards_agent:
   name: "Agent 2"
   role: "Ensures regulatory and framework alignment"
   max_tokens: 4096
-  temperature: 0.3
   specialization:
     - "ITIL v4"
     - "ISO 20000"
@@ -70,7 +69,6 @@ access_agent:
   name: "Agent 6"
   role: "Access Management & IAM Compliance Specialist"
   max_tokens: 4096
-  temperature: 0.4
   specialization:
     - "Identity & Access Management (IAM)"
     - "Privileged Access Management (PAM)"
@@ -87,7 +85,6 @@ problem_agent:
   name: "Agent 7"
   role: "Problem Management & RCA Specialist"
   max_tokens: 8192
-  temperature: 0.7
   specialization:
     - "ITIL v4 Problem Management"
     - "Root Cause Analysis (RCA)"
@@ -102,7 +99,6 @@ data_agent:
   name: "Agent 8"
   role: "Data Analytics & Power BI Specialist"
   max_tokens: 4096
-  temperature: 0.5
   specialization:
     - "Data analytics frameworks"
     - "Power BI dashboard design"
@@ -114,7 +110,6 @@ content_agent:
   name: "Agent 3"
   role: "Creates detailed SOP documentation"
   max_tokens: 8192
-  temperature: 0.7
   specialization:
     - "Technical writing"
     - "SOP creation"
@@ -129,7 +124,6 @@ review_agent:
   name: "Agent 4"
   role: "Validates and ensures content quality"
   max_tokens: 4096
-  temperature: 0.3
   quality_threshold: 85
   specialization:
     - "Quality assurance"
@@ -152,7 +146,6 @@ building_design_agent:
   name: "Agent 9"
   role: "Building 3D Modeling & Interior/Exterior Design Specialist"
   max_tokens: 4096
-  temperature: 0.5
   specialization:
     - "Architectural drawing interpretation and modeling briefs"
     - "Building massing, spatial layout, and room planning"

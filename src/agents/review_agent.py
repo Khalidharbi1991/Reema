@@ -28,7 +28,6 @@ class ReviewAgent(BaseAgent):
     CONFIG_KEY = "review_agent"
     KNOWLEDGE_FILE = "faisal_review_knowledge_ENHANCED.md"
     DEFAULT_MAX_TOKENS = 4096
-    DEFAULT_TEMPERATURE = 0.3
 
     def __init__(self, api_key: Optional[str] = None):
         super().__init__(api_key)

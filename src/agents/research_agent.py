@@ -26,7 +26,6 @@ class ResearchAgent(BaseAgent):
     AGENT_ROLE = "Research Agent"
     CONFIG_KEY = "research_agent"
     KNOWLEDGE_FILE = "taif_research_knowledge_ENHANCED.md"
-    DEFAULT_TEMPERATURE = 0.5
 
     def __init__(self, api_key: Optional[str] = None):
         super().__init__(api_key)

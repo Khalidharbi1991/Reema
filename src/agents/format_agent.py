@@ -28,7 +28,6 @@ class FormatAgent(BaseAgent):
     CONFIG_KEY = "format_agent"
     KNOWLEDGE_FILE = "bee_format_knowledge_ENHANCED.md"
     DEFAULT_MAX_TOKENS = 4096
-    DEFAULT_TEMPERATURE = 0.5
 
     def __init__(self, api_key: Optional[str] = None):
         # Bee doesn't need an API key — pass empty to skip Anthropic client

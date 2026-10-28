@@ -42,7 +42,6 @@ class ProblemAgent(BaseAgent):
     CONFIG_KEY = "problem_agent"
     KNOWLEDGE_FILE = "abeer_problem_knowledge_ENHANCED.md"
     DEFAULT_MAX_TOKENS = 8192
-    DEFAULT_TEMPERATURE = 0.7
 
     def __init__(self, api_key: Optional[str] = None):
         super().__init__(api_key)

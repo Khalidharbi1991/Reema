@@ -277,11 +277,15 @@ IT-Consultant/
 Edit `config/agent_config.yaml` to customize agent behavior:
 
 ```yaml
-leader_agent:
+research_agent:
   model: "claude-sonnet-4-6"
   max_tokens: 4096
-  temperature: 0.7
+  # temperature: 0.5   # optional override; omitted by default
 ```
+
+Shipped roles send no `temperature`, so the model's default sampling applies.
+A per-role `temperature` (0–1) is sent only when set explicitly; API version
+2026-10-21 and Claude 4.7+ models reject non-default values.
 
 Shipped roles inherit `LEADER_MODEL` or `WORKER_MODEL`, defaulting to
 `claude-sonnet-4-6`. An explicit per-role `model` takes precedence. Existing user
