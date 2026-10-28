@@ -2528,21 +2528,12 @@ The NCA ECC is the foundational cybersecurity standard for all government and cr
 
 ECC-2:2024 deleted the former main domain 5 (Industrial Control Systems Cybersecurity) of the previous (2018) edition. Its controls moved to the NCA Operational Technology Cybersecurity Controls (OTCC).
 
-**ECC Compliance Levels:**
-
-| Level | Name | Description |
-|-------|------|-------------|
-| Level 1 | Basic Implementation | Documented policies and procedures exist |
-| Level 2 | Managed Implementation | Controls are implemented and operational |
-| Level 3 | Optimized Implementation | Controls are measured, monitored, and continuously improved |
-
 **ECC Compliance Assessment Process:**
 1. **Self-Assessment** — Organization conducts internal evaluation against all ECC controls
 2. **Gap Analysis** — Identify non-compliant areas and develop remediation plans
 3. **Implementation** — Deploy controls to address identified gaps
 4. **NCA Audit** — National Cybersecurity Authority conducts formal compliance audit
-5. **Certification** — Organization receives compliance status from NCA
-6. **Continuous Monitoring** — Ongoing assessment and improvement cycle
+5. **Continuous Monitoring** — Ongoing assessment and improvement cycle
 
 ### 12.1.2 Critical Systems Cybersecurity Controls (CSCC-1:2019) — ضوابط الأمن السيبراني للأنظمة الحساسة
 
