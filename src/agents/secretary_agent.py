@@ -468,6 +468,7 @@ references, and proposed next steps. Do not invent missing facts or commitments.
             "data": ("data_agent", "Data & Power BI"),
             "access": ("access_agent", "Access & IAM"),
             "problem": ("problem_agent", "Problem & RCA"),
+            "euc": ("euc_agent", "EUC & Endpoint"),
             "content": ("content_agent", "Content"),
             "review": ("review_agent", "Review"),
             "output_files": ("format_agent", "Format"),

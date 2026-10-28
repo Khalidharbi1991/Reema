@@ -23,6 +23,7 @@ from .agents.access_agent import AccessAgent
 from .agents.problem_agent import ProblemAgent
 from .agents.secretary_agent import SecretaryAgent
 from .agents.building_design_agent import BuildingDesignAgent
+from .agents.euc_agent import EUCAgent
 from .assistant import AssistantSession
 from .utils.logger import logger
 from .utils.config import config_manager
@@ -307,7 +308,7 @@ def initialize_system(specialists: Optional[List[str]] = None) -> dict:
     leader = LeaderAgent()
     for cls in (ResearchAgent, StandardsAgent, ContentAgent, ReviewAgent, FormatAgent):
         leader.register_worker(cls.__name__, cls())
-    optional = {"access": AccessAgent, "problem": ProblemAgent, "data": DataAgent}
+    optional = {"access": AccessAgent, "problem": ProblemAgent, "data": DataAgent, "euc": EUCAgent}
     for name in sorted(set(specialists or [])):
         cls = optional[name]
         leader.register_worker(cls.__name__, cls())
@@ -346,7 +347,7 @@ def generate(
         help="Output directory (default: ./output)"
     ),
     custom: bool = typer.Option(False, "--custom", help="Allow a process outside the configured catalog"),
-    specialists: Optional[List[str]] = typer.Option(None, "--specialist", help="Additional specialist: access, problem, data (repeatable)"),
+    specialists: Optional[List[str]] = typer.Option(None, "--specialist", help="Additional specialist: access, problem, data, euc (repeatable)"),
     allow_external_ai: bool = typer.Option(False, "--allow-external-ai", help="Authorize sending this run's input and reference excerpts to Anthropic"),
     objective: Optional[str] = typer.Option(None, "--objective", help="Specific objective for this SOP"),
     constraints: Optional[List[str]] = typer.Option(None, "--constraint", help="Explicit constraint; repeatable"),
@@ -376,8 +377,8 @@ def generate(
         selected = sorted(set(definition.get("specialists", [])) | set(specialists or []))
         if specialist_data:
             selected = sorted(set(selected) | SpecialistInputs.model_validate(specialist_data).required_specialists())
-        if set(selected) - {"access", "problem", "data"}:
-            raise ValueError("Specialists must be access, problem, or data")
+        if set(selected) - {"access", "problem", "data", "euc"}:
+            raise ValueError("Specialists must be access, problem, data, or euc")
         formats = validate_formats(config_manager.system_config.default_formats if formats is None else formats)
     except ValueError as error:
         console.print(str(error), markup=False)

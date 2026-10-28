@@ -12,7 +12,7 @@ from .documents import DocumentProfile
 from .specialists import SpecialistPolicy
 
 OutputFormat = Literal["pdf", "docx", "markdown", "html"]
-Specialist = Literal["access", "problem", "data"]
+Specialist = Literal["access", "problem", "data", "euc"]
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 SOURCE_CHECKOUT = (PACKAGE_ROOT / "pyproject.toml").is_file()
 

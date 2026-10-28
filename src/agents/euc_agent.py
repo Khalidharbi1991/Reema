@@ -1,10 +1,16 @@
 """Agent 10: end-user computing (EUC) and endpoint-management advice.
 
-Advisory only. Scripts, change requests and runbooks are drafts for human
-review; nothing is executed against tenants, devices or directories.
+Advises in chat and, when a process selects the "euc" specialist, adds an
+endpoint deployment analysis and SOP appendix. Scripts, change requests and
+runbooks are drafts for human review; nothing is executed against tenants,
+devices or directories.
 """
 
+from typing import Dict, List
+
 from .base_agent import BaseAgent
+from ..utils.handoffs import payload_json
+from ..utils.logger import logger
 
 
 class EUCAgent(BaseAgent):
@@ -12,9 +18,115 @@ class EUCAgent(BaseAgent):
     AGENT_ROLE = "End-User Computing & Endpoint Management Specialist"
     CONFIG_KEY = "euc_agent"
 
-    def _build_system_prompt(self) -> str:
-        """Build the endpoint-engineering protocol used for advisory consultations."""
-        return """You are Agent 10, a senior Endpoint Management / End-User Computing (EUC) Infrastructure Engineer and IT Service Management specialist with 15+ years in large, regulated enterprises (aviation-grade uptime, 24/7 operations, distributed sites, and airport, kiosk and shared devices).
+    ADVISORY_CLOSING = """
+
+**Closing:** End the advice with "Next step:" (the single most useful action) and, only if any remain, "Open risks / assumptions:". Record those assumptions in the metadata assumptions list as well."""
+
+    async def analyze_endpoint_requirements(self, process_name: str, standards: List[str]) -> Dict:
+        """Phase 2: endpoint deployment, rollback and change requirements for a process."""
+        logger.agent_start(self.name, f"Analyzing endpoint requirements for {process_name}")
+        try:
+            response = await self._call_claude(
+                messages=[{"role": "user", "content": self._build_endpoint_analysis_prompt(process_name, standards)}],
+                system=self._build_system_prompt(advisory=False))
+            logger.agent_complete(self.name, f"Endpoint analysis for {process_name}")
+            return {
+                "process_name": process_name,
+                "endpoint_analysis": response,
+                "sections": self._extract_sections(response),
+                "timestamp": self._get_timestamp(),
+            }
+        except Exception as e:
+            logger.agent_error(self.name, str(e))
+            raise
+
+    async def generate_endpoint_content(self, process_name: str, endpoint_requirements: Dict) -> str:
+        """Phase 3b: endpoint deployment appendix for the SOP draft."""
+        logger.agent_start(self.name, f"Generating endpoint content for {process_name}")
+        try:
+            response = await self._call_claude(
+                messages=[{"role": "user", "content": self._build_endpoint_content_prompt(process_name, endpoint_requirements)}],
+                system=self._build_system_prompt(advisory=False))
+            logger.agent_complete(self.name, f"Endpoint content for {process_name}")
+            return response
+        except Exception as e:
+            logger.agent_error(self.name, str(e))
+            raise
+
+    def _build_endpoint_analysis_prompt(self, process_name: str, standards: List[str]) -> str:
+        return f"""Analyze end-user device requirements for the IT process: {process_name}
+
+Applicable Standards/Regulations: {', '.join(standards)}
+
+No fleet data, tenant configuration or calendar has been supplied. Do not invent device counts, group names, dates or product settings; write "[to confirm]" where the organization must supply a value.
+
+## 1. SCOPE AND BLAST RADIUS
+- Device types and populations in scope (including shared, kiosk and airport devices) and what is out of scope
+- Business units and services affected if a deployment fails
+
+## 2. DEPLOYMENT RING STRATEGY
+- Pilot, early, broad and critical/exception rings with entry criteria and target sizing rules
+- Soak periods, promotion gates and deadline/grace-period principles
+
+## 3. MAINTENANCE WINDOWS AND CALENDAR
+- Asia/Riyadh windows, Sunday–Thursday work week, 24/7 operations
+- Change freezes around Ramadan, Hajj, Umrah seasons and Eid (dates to confirm)
+
+## 4. ROLLBACK, KILL SWITCH AND IRREVERSIBLE STEPS
+- Rollback or uninstall path and expected duration per change type
+- Kill switch (pause ring, unassign, expire deployment)
+- Irreversible actions (BitLocker recovery key loss, feature update past its rollback window, wipe or retire) and required warnings
+
+## 5. TOOLING AND PACKAGING CONSIDERATIONS
+- Platform responsibilities (Intune, MECM/co-management, Windows Update for Business/Autopatch, WSUS) marked as needing verification for the organization's versions and licensing
+- Packaging, detection rules, supersedence and third-party patch handling
+
+## 6. CHANGE ENABLEMENT
+- Standard, normal and emergency change criteria, CAB evidence and out-of-band/zero-day handling
+
+## 7. COMPLIANCE REPORTING AND METRICS
+- Patch compliance %, mean time to patch, deployment success rate, top failed installs; definitions only, no invented results
+
+## 8. COMMUNICATIONS AND ESCALATION
+- Bilingual (Arabic/English) user and management communications, escalation path and owners
+
+## 9. OPEN QUESTIONS
+- Facts the organization must confirm before this SOP can be approved"""
+
+    def _build_endpoint_content_prompt(self, process_name: str, endpoint_requirements: Dict) -> str:
+        return f"""Generate endpoint deployment content for the SOP: {process_name}
+
+Based on this endpoint analysis:
+{payload_json(endpoint_requirements)}
+
+Create professional SOP appendix sections:
+
+## DEPLOYMENT RING PLAN
+- Table of rings with purpose, entry criteria, sizing rule, soak period and promotion gate
+
+## MAINTENANCE WINDOWS AND CHANGE FREEZES
+- Window rules in Asia/Riyadh time and freeze periods to confirm
+
+## DEPLOYMENT RUNBOOK
+- Numbered steps with expected results and validation checks
+
+## ROLLBACK AND KILL SWITCH
+- Rollback or uninstall path with duration, kill-switch steps, and an explicit warning before any irreversible action
+
+## CHANGE RECORD REQUIREMENTS
+- Title, business justification, scope, implementation plan, test evidence, rollback plan, risk and impact rating, schedule, communication plan, approvers
+
+## COMPLIANCE REPORTING AND KPIs
+- Metric definitions, data sources and reporting cadence
+
+## ESCALATION AND COMMUNICATIONS
+- Escalation path, owners and bilingual communication points
+
+Keep "[to confirm]" markers for organization-specific values. Do not include credentials, tenant identifiers or real user data. Format with tables and numbered lists suitable for SOP inclusion."""
+
+    def _build_system_prompt(self, advisory: bool = True) -> str:
+        """Build the endpoint-engineering protocol; chat advice adds the closing format."""
+        prompt = """You are Agent 10, a senior Endpoint Management / End-User Computing (EUC) Infrastructure Engineer and IT Service Management specialist with 15+ years in large, regulated enterprises (aviation-grade uptime, 24/7 operations, distributed sites, and airport, kiosk and shared devices).
 
 You support an IT Section Manager who owns Patch Management, Image Management, Software Distribution, RPA, and end-user device technology coordination. Treat the user as a peer, not a beginner.
 
@@ -45,6 +157,5 @@ You support an IT Section Manager who owns Patch Management, Image Management, S
 
 **Context:**
 - Saudi Arabian enterprise: Asia/Riyadh (UTC+3), work week Sunday to Thursday. Plan maintenance windows, change freezes and communications around business peaks such as Ramadan, Hajj, Umrah seasons and Eid holidays; treat exact dates as needing confirmation.
-- Communications may need to be bilingual (Arabic/English) and suitable for senior management.
-
-**Closing:** End the advice with "Next step:" (the single most useful action) and, only if any remain, "Open risks / assumptions:". Record those assumptions in the metadata assumptions list as well."""
+- Communications may need to be bilingual (Arabic/English) and suitable for senior management."""
+        return prompt + self.ADVISORY_CLOSING if advisory else prompt

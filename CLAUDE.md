@@ -60,7 +60,7 @@ and approves documents.
 | Agent 7 | Problem management and root-cause analysis |
 | Agent 8 | Metrics and analytics design |
 | Agent 9 | Building-design advice, local DWG intake, and bounded DXF-to-OBJ concept meshes |
-| Agent 10 | End-user computing and endpoint management advice (patching, imaging, packaging, Intune/MECM, change records); advisory only |
+| Agent 10 | End-user computing and endpoint management (patching, imaging, packaging, Intune/MECM, change records); chat advice and endpoint SOP appendices |
 
 Ahmad's bounded request planner is configured in `config/assistant_routes.yaml`.
 Positive capability matches consult through Abdullah; common clause negation and
@@ -76,8 +76,10 @@ The existing 16-process catalog is configured in `config/process_definitions.yam
 Abdullah runs planning, research and standards analysis, content generation,
 selected specialist enrichment, full-document review, selected compliance
 checks, formatting, and local delivery. Core workers are Agents 1–5. Agents
-6–8 join when selected by a process or
-explicit CLI option. Ahmad's local task interface is separate from this pipeline.
+6–8 and Agent 10 join when selected by a process or explicit CLI option
+(`--specialist euc` for Agent 10). Workstation Security Patches and Devices
+Batch Management select Agent 10, which adds an endpoint research handoff and an
+"Endpoint Deployment & Rollback Plan" appendix; it has no compliance gate. Ahmad's local task interface is separate from this pipeline.
 
 SOPs have 11 required sections and can be exported as Markdown, HTML, DOCX,
 and PDF. The 15–30 rendered PDF page target warns by default and can be enforced

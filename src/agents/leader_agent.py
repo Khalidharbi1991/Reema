@@ -4,7 +4,7 @@ Pipeline Phases:
   Phase 1: Planning — workflow + standards identification
   Phase 2: Research — Taif + Mohammad + explicitly selected specialists
   Phase 3a: Content Generation — Saad writes SOP (15-30 pages)
-  Phase 3b: Enrichment — Layla (dashboards) + Rakan (access) + Abeer (problem) merge into SOP
+  Phase 3b: Enrichment — Layla (dashboards) + Rakan (access) + Abeer (problem) + Agent 10 (endpoint) merge into SOP
   Phase 4a: Review — Faisal quality scoring (max 2 cycles, configured threshold)
   Phase 4b: Compliance Validation — Rakan (access) + Abeer (problem) validate compliance
   Phase 5: Formatting — Bee converts to PDF/DOCX/MD/HTML
@@ -301,10 +301,11 @@ class LeaderAgent:
         if inputs:
             inputs.validate_limits(config_manager.specialist_policy)
         selected = set(definition.get("specialists", [])) | set(specialists or []) | (inputs.required_specialists() if inputs else set())
-        if selected - {"access", "problem", "data"}:
-            raise ValueError("Specialists must be access, problem, or data")
+        if selected - {"access", "problem", "data", "euc"}:
+            raise ValueError("Specialists must be access, problem, data, or euc")
         required_workers = {"ResearchAgent", "StandardsAgent", "ContentAgent", "ReviewAgent", "FormatAgent"}
-        required_workers.update({"access": "AccessAgent", "problem": "ProblemAgent", "data": "DataAgent"}[key] for key in selected)
+        required_workers.update({"access": "AccessAgent", "problem": "ProblemAgent", "data": "DataAgent",
+                                 "euc": "EUCAgent"}[key] for key in selected)
         missing = required_workers - self.worker_agents.keys()
         if missing:
             raise ValueError(f"Required agents missing: {', '.join(sorted(missing))}")
@@ -692,7 +693,7 @@ class LeaderAgent:
         supplied = self.context.get("request", {}).get("specialist_inputs")
         if supplied and supplied.get("as_of"):
             requests[0][1]["research_context"] = {"as_of": supplied["as_of"]}
-        for name in ("data", "access", "problem"):
+        for name in ("data", "access", "problem", "euc"):
             if self._uses_specialist(name):
                 args = {"process_name": process_name}
                 args["kpis" if name == "data" else "standards"] = workflow.get("kpis", []) if name == "data" else workflow["applicable_standards"]
@@ -721,7 +722,7 @@ class LeaderAgent:
                     raise RuntimeError(f"Research phase '{task_name}' failed") from result
                 field = {"research": "raw_research", "standards": "compliance_analysis",
                          "data": "analytics_framework", "access": "access_analysis",
-                         "problem": "problem_research"}[task_name]
+                         "problem": "problem_research", "euc": "endpoint_analysis"}[task_name]
                 self._record_handoff(process_name, task_name, "research", result, text_key=field)
                 results[task_name] = result
 
@@ -770,6 +771,9 @@ class LeaderAgent:
         if self._uses_specialist("problem") and "ProblemAgent" in self.worker_agents:
             enrichment_tasks.append(("problem_content", self._invoke("problem_content", {"process_name": process_name,
                 "research_data": self._research_payload("problem", research_data.get("problem", {}))})))
+        if self._uses_specialist("euc") and "EUCAgent" in self.worker_agents:
+            enrichment_tasks.append(("euc_content", self._invoke("euc_content", {"process_name": process_name,
+                "endpoint_requirements": self._research_payload("euc", research_data.get("euc", {}))})))
 
         if enrichment_tasks:
             results = await asyncio.gather(
@@ -802,6 +806,10 @@ class LeaderAgent:
                     problem_section = self._format_problem_section(result, process_name)
                     enriched_content += f"\n\n{problem_section}"
                     logger.info("Problem management content appended to SOP", agent=self.name)
+
+                elif task_name == "euc_content" and result:
+                    enriched_content += f"\n\n{self._format_euc_section(result, process_name)}"
+                    logger.info("Endpoint deployment content appended to SOP", agent=self.name)
 
         return enriched_content
 
@@ -846,6 +854,21 @@ class LeaderAgent:
 ## Appendix: Problem Management & Root Cause Analysis
 
 *Analyzed by Agent 7 (Problem Management Specialist)*
+
+{content}
+"""
+
+    def _format_euc_section(self, euc_data, process_name=None) -> str:
+        """Format Agent 10's endpoint deployment content into a SOP section."""
+        self._record_handoff(process_name or "Unspecified process", "euc_content", "enrichment",
+                             euc_data, text_key="endpoint_content")
+        content = euc_data["endpoint_content"] if isinstance(euc_data, dict) else euc_data
+
+        return f"""---
+
+## Appendix: Endpoint Deployment & Rollback Plan
+
+*Analyzed by Agent 10 (End-User Computing Specialist)*
 
 {content}
 """

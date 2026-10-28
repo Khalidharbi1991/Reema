@@ -215,7 +215,7 @@ class DocumentationRequest(Contract):
     process_name: str = Field(min_length=1)
     custom: bool = False
     formats: list[Literal["markdown", "html", "docx", "pdf"]] = Field(min_length=1)
-    specialists: list[Literal["access", "problem", "data"]] = Field(default_factory=list)
+    specialists: list[Literal["access", "problem", "data", "euc"]] = Field(default_factory=list)
     objective: str = Field(min_length=1, max_length=8000)
     constraints: list[str] = Field(default_factory=list)
     required_deliverables: list[str] = Field(default_factory=list)

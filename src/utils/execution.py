@@ -17,7 +17,8 @@ from .ownership import RunLease
 PHASES = {"planned", "researched", "generated", "drafted", "reviewed", "ready", "exported"}
 FIELDS = {"research": "raw_research", "standards": "compliance_analysis", "data": "analytics_framework",
           "access": "access_analysis", "problem": "problem_research", "dashboard": "dashboard_design",
-          "access_content": "access_content", "problem_content": "problem_content"}
+          "access_content": "access_content", "problem_content": "problem_content",
+          "euc": "endpoint_analysis", "euc_content": "endpoint_content"}
 
 
 def digest(value):
@@ -109,7 +110,7 @@ def validate_result(capability, result, process_name, sources):
         raise ValueError("Unknown recoverable capability")
     try:
         adapt_handoff(process_name, capability,
-                      "research" if capability in {"research", "standards", "data", "access", "problem"} else "enrichment",
+                      "research" if capability in {"research", "standards", "data", "access", "problem", "euc"} else "enrichment",
                       result, text_key=FIELDS[capability], sources=sources)
     except ValueError:
         raise ValueError(f"Invalid {capability} output; check {FIELDS[capability]}, process identity and metadata") from None

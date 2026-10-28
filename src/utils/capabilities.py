@@ -43,6 +43,11 @@ class AccessInputs(Inputs):
     access_requirements: dict[str, JsonValue]
 
 
+class EndpointInputs(Inputs):
+    process_name: str = Field(min_length=1)
+    endpoint_requirements: dict[str, JsonValue]
+
+
 class DashboardInputs(Inputs):
     process_name: str = Field(min_length=1)
     metrics: list[dict[str, JsonValue]]
@@ -80,9 +85,11 @@ PIPELINE_CAPABILITIES = {
     "data": ("DataAgent", "design_analytics_framework", AnalyticsInputs),
     "access": ("AccessAgent", "analyze_access_requirements", AccessResearchInputs),
     "problem": ("ProblemAgent", "research_problem_management", ProblemResearchInputs),
+    "euc": ("EUCAgent", "analyze_endpoint_requirements", ResearchInputs),
     "content": ("ContentAgent", "generate_sop", ContentInputs),
     "access_content": ("AccessAgent", "generate_access_content", AccessInputs),
     "problem_content": ("ProblemAgent", "generate_problem_content", ContentInputs),
+    "euc_content": ("EUCAgent", "generate_endpoint_content", EndpointInputs),
     "dashboard": ("DataAgent", "create_dashboard_design", DashboardInputs),
     "review": ("ReviewAgent", "review_content", ReviewInputs),
     "refine": ("ContentAgent", "refine_content", RefineInputs),

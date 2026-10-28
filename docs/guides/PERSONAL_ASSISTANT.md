@@ -20,8 +20,12 @@ around Asia/Riyadh time, the Sunday–Thursday week and seasonal change freezes.
 It drafts PowerShell with a `-WhatIf` mode, change requests, runbooks, KB
 articles and RCA records for human review. It cannot browse documentation,
 run scripts or reach tenants, devices or directories, so version- and
-licensing-dependent statements are marked for verification. It does not yet
-take part in SOP generation.
+licensing-dependent statements are marked for verification. In SOP generation,
+Workstation Security Patches and Devices Batch Management select Agent 10, and
+`--specialist euc` adds it to another process. It contributes an endpoint
+research handoff and an "Endpoint Deployment & Rollback Plan" appendix that
+marks organization-specific values as "[to confirm]"; the draft still needs
+review and human approval.
 
 Agent 9 can be consulted about building layout, interiors, exteriors, and
 modeling requirements during an authorized advisory chat. To check a local

@@ -87,7 +87,7 @@ and decision authority. Run `python3 scripts/dev.py run agents` for the active r
 | Agent 7 | Problem management and root-cause analysis |
 | Agent 8 | Analytics and KPI design |
 | Agent 9 | Building-design advice, local DWG intake, and assumption-labeled concept meshes from selected DXF wall linework |
-| Agent 10 | End-user computing advice: patching and deployment rings, OS images, software packaging, Intune/MECM, endpoint compliance, change requests and runbooks (advisory only) |
+| Agent 10 | End-user computing advice: patching and deployment rings, OS images, software packaging, Intune/MECM, endpoint compliance, change requests and runbooks; endpoint appendix for patch and device-batch SOPs |
 
 ## Installation
 
@@ -176,7 +176,9 @@ reference excerpts, and agent knowledge to Anthropic. Review the material first;
 see [Data handling](docs/guides/DATA_HANDLING.md). It is disabled by default.
 `ALLOW_EXTERNAL_AI=true` is a persistent alternative only for a pre-authorized
 environment. Unknown process names fail unless `--custom` is supplied. Additional
-specialists can be selected with `--specialist access`, `problem`, or `data`.
+specialists can be selected with `--specialist access`, `problem`, `data`, or `euc`.
+Workstation Security Patches and Devices Batch Management include Agent 10 (`euc`)
+by default; it adds an Endpoint Deployment & Rollback Plan appendix.
 Missing PDF dependencies fail a PDF request explicitly; select `-f markdown`
 when PDF is not needed.
 
