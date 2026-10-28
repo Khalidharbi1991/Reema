@@ -3,7 +3,7 @@
 `cases.json` contains only invented requests, people, observations, numbers and
 locations. `prompts.json` contains short role instructions written for this
 benchmark. No application knowledge, customer reference, task database or chat
-history is part of the dataset or live payload. All eleven roles have two cases.
+history is part of the dataset or live payload. All twelve roles have two cases.
 
 Expected structured fields are exact factual and authority checks. Each case also
 has a human rubric for reasoning, clarity and unsupported claims. Exact grading

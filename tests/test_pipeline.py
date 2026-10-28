@@ -157,16 +157,17 @@ class TestAllAgentsImportable:
             AccessAgent,
             ProblemAgent,
             BuildingDesignAgent,
+            EUCAgent,
         )
 
         classes = [
             BaseAgent, LeaderAgent, SecretaryAgent,
             ResearchAgent, StandardsAgent, ContentAgent,
             ReviewAgent, FormatAgent, DataAgent, AccessAgent, ProblemAgent,
-            BuildingDesignAgent
+            BuildingDesignAgent, EUCAgent
         ]
 
-        assert len(classes) == 12  # BaseAgent plus the eleven active roles.
+        assert len(classes) == 13  # BaseAgent plus the twelve active roles.
         for cls in classes:
             assert cls is not None
             assert hasattr(cls, '__name__')
@@ -177,7 +178,7 @@ class TestAllAgentsImportable:
             LeaderAgent, SecretaryAgent,
             ResearchAgent, StandardsAgent, ContentAgent,
             ReviewAgent, FormatAgent, DataAgent, AccessAgent,
-            ProblemAgent, BuildingDesignAgent,
+            ProblemAgent, BuildingDesignAgent, EUCAgent,
         )
 
         expected = {
@@ -192,6 +193,7 @@ class TestAllAgentsImportable:
             ProblemAgent: "Agent 7",
             DataAgent: "Agent 8",
             BuildingDesignAgent: "Agent 9",
+            EUCAgent: "Agent 10",
         }
 
         for agent_cls, expected_name in expected.items():

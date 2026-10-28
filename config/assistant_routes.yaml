@@ -40,6 +40,59 @@ routes:
   - اثاث
   - واجهة
   - نموذج مبنى
+- agent: euc_agent
+  keywords:
+  - patch
+  - patches
+  - patching
+  - patch management
+  - patch tuesday
+  - out-of-band update
+  - zero-day patch
+  - intune
+  - mecm
+  - sccm
+  - configmgr
+  - co-management
+  - autopilot
+  - wsus
+  - windows update
+  - autopatch
+  - deployment ring
+  - deployment rings
+  - feature update
+  - windows 11 upgrade
+  - os image
+  - golden image
+  - reference image
+  - image management
+  - task sequence
+  - software packaging
+  - software distribution
+  - app packaging
+  - msix
+  - intunewin
+  - psadt
+  - bitlocker
+  - laps
+  - endpoint management
+  - endpoint compliance
+  - end-user device
+  - end-user devices
+  - euc
+  - eud
+  - kiosk devices
+  - التحديثات الامنية
+  - تحديثات ويندوز
+  - تحديثات الاجهزة
+  - الترقيعات
+  - ادارة التحديثات
+  - صورة النظام
+  - توزيع البرامج
+  - تغليف البرامج
+  - حزم البرامج
+  - اجهزة المستخدمين
+  - الاجهزة الطرفية
 - agent: access_agent
   keywords:
   - access

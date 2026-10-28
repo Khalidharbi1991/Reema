@@ -15,7 +15,8 @@ DATASET = ROOT / 'evaluations/v1/cases.json'
 PROMPTS = ROOT / 'evaluations/v1/prompts.json'
 RATES = ROOT / 'evaluations/v1/rates.json'
 ROLES = {'secretary_agent','leader_agent','research_agent','standards_agent','content_agent',
-         'review_agent','format_agent','access_agent','problem_agent','data_agent','building_design_agent'}
+         'review_agent','format_agent','access_agent','problem_agent','data_agent','building_design_agent',
+         'euc_agent'}
 
 
 def digest(value):

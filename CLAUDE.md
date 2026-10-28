@@ -6,7 +6,7 @@ agent on this repository. Follow `README.md` for setup and CLI commands.
 Package 5 completes the finite software roadmap with bilingual intent/context,
 kernel-owned crash recovery, separately validated review chunks, Arabic/RTL
 graphs and layouts, bounded IAM/causal/calendar/CAD depth, and a versioned
-synthetic eleven-role evaluation harness. Shipped models inherit configurable
+synthetic all-role evaluation harness (twelve roles since Agent 10). Shipped models inherit configurable
 Sonnet 4.6 defaults. See `docs/guides/COMPLETION_AND_EVALUATION.md` and
 `docs/reports/PENDING_LEDGER.md`. Live evaluation still requires an API key and
 authorization of its exact synthetic material; the offline canonical-answer mock
@@ -41,7 +41,7 @@ model inference. Conversation transcripts remain session-only.
 
 ## Current team
 
-There are eleven active agent roles. The user speaks to **Ahmad**, the personal
+There are twelve active agent roles. The user speaks to **Ahmad**, the personal
 coordinator. **Abdullah** leads specialist work and carries the former owner
 agent's strategy, governance, quality, and business-value responsibilities.
 The former owner agent has been removed. The user makes consequential decisions
@@ -60,6 +60,7 @@ and approves documents.
 | Agent 7 | Problem management and root-cause analysis |
 | Agent 8 | Metrics and analytics design |
 | Agent 9 | Building-design advice, local DWG intake, and bounded DXF-to-OBJ concept meshes |
+| Agent 10 | End-user computing and endpoint management advice (patching, imaging, packaging, Intune/MECM, change records); advisory only |
 
 Ahmad's bounded request planner is configured in `config/assistant_routes.yaml`.
 Positive capability matches consult through Abdullah; common clause negation and
@@ -123,7 +124,9 @@ Chat can help plan, research, and draft; it cannot send communications or alter
 external accounts. Actual account integration requires the user's chosen
 provider and authorization. Agent 9 can produce a limited, editable OBJ concept
 mesh and PNG preview from a selected DXF area, but not a verified full-building
-model or detailed furnished rendering. See `docs/guides/PERSONAL_ASSISTANT.md`.
+model or detailed furnished rendering. Agent 10 advises on end-user devices and
+drafts scripts, change requests and runbooks; it cannot run scripts or reach
+tenants, devices or directories. See `docs/guides/PERSONAL_ASSISTANT.md`.
 
 ## Engineering map
 

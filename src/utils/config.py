@@ -165,7 +165,7 @@ class ConfigManager:
         specialist_policy = self._read("specialist_policy.yaml", SpecialistPolicy)
         routable = {"secretary_agent", "leader_agent", "research_agent", "standards_agent",
                     "content_agent", "review_agent", "access_agent",
-                    "problem_agent", "data_agent", "building_design_agent"}
+                    "problem_agent", "data_agent", "building_design_agent", "euc_agent"}
         if routing.default_agent not in routable or any(
             rule.agent not in routable or any(not word.strip() for word in rule.keywords)
             for rule in routing.routes

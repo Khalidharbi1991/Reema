@@ -1,7 +1,7 @@
 """Main entry point for the IT Process Documentation System (REEMA).
 
 REEMA — personal assistance and IT process documentation
-11-role architecture: Ahmad, Abdullah, Agents 1–8, and building-design Agent 9.
+12-role architecture: Ahmad, Abdullah, Agents 1–8, building-design Agent 9, and EUC Agent 10.
 """
 
 import asyncio
@@ -252,7 +252,7 @@ def agents():
     table.add_column("Role")
     for key in ("secretary_agent", "leader_agent", "research_agent", "standards_agent",
                 "content_agent", "review_agent", "format_agent", "access_agent",
-                "problem_agent", "data_agent", "building_design_agent"):
+                "problem_agent", "data_agent", "building_design_agent", "euc_agent"):
         item = config_manager.get_agent_config(key)
         table.add_row(item["name"], item["role"])
     console.print(table)

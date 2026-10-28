@@ -143,7 +143,7 @@ Sonnet 4.6 at USD 3 input / 15 output per million base tokens, checked 16 Octobe
 
 ## Evaluation and exact live material
 
-`evaluations/v1/` contains 22 invented cases, two for each of eleven roles, expected
+`evaluations/v1/` contains 24 invented cases, two for each of twelve roles, expected
 structured facts, human rubrics, benchmark-specific short role prompts and a
 dated public price card. It contains no private knowledge, references, memory,
 task database or transcript. The offline provider returns canonical expected
@@ -158,7 +158,7 @@ python3 scripts/dev.py python scripts/evaluate_agents.py proposal --output outpu
 ```
 
 The proposal lists every exact Messages request, model, source file hash and material
-digest. It permits 22 sequential requests, no retries, at most 512 output tokens
+digest. It permits 24 sequential requests, no retries, at most 512 output tokens
 per request, conservative pre-transmission reservations and a USD 5 modeled limit.
 The rate card plans at ten times the documented Sonnet 4.6 base prices; configured
 higher rates are retained. This is a conservative estimate, not an invoice cap.
@@ -168,6 +168,8 @@ Only after the user authorizes those exact synthetic requests and configures a
 usable Anthropic key, run the live command recorded in the package report with
 `--authorize-material-sha256`. Environment authorization alone is insufficient.
 Changed material/models/bounds invalidate the proposal before client construction.
+Adding Agent 10's two cases changed the material, so the digest recorded in the
+package 5 report no longer opens the gate; regenerate and review the proposal first.
 The endpoint is explicitly Anthropic, and the benchmark bypasses BaseAgent retrieval.
 Provider failure saves partial results/usage and stops further requests. A hard
 kill of this standalone benchmark is not an exactly-once recovery protocol.

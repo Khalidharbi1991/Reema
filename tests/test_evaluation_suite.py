@@ -31,7 +31,7 @@ async def test_offline_baseline_covers_every_role_without_model_client(catalog,m
     constructor=MagicMock(side_effect=AssertionError('No live client in offline mode'))
     monkeypatch.setattr(anthropic,'AsyncAnthropic',constructor)
     report=await evaluation.run_suite(catalog)
-    assert report['passed']==report['total']==22 and report['mode']=='offline_mock'
+    assert report['passed']==report['total']==24 and report['mode']=='offline_mock'
     assert {r['role'] for r in report['results']}==evaluation.ROLES
     constructor.assert_not_called()
 
@@ -58,7 +58,7 @@ async def test_live_gate_requires_exact_unchanged_material_before_client_creatio
 
 def test_proposal_contains_exact_payloads_and_bounded_egress(catalog):
     plan=evaluation.proposal(catalog)
-    assert plan['request_count']==22 and plan['retries']==0 and plan['concurrency']==1
+    assert plan['request_count']==24 and plan['retries']==0 and plan['concurrency']==1
     assert plan['modeled_cost_ceiling_usd']<=plan['maximum_modeled_cost_usd']
     serialized=json.dumps(plan['requests'],ensure_ascii=False)
     assert 'knowledge_records' not in serialized and 'reference_manifest' not in serialized
@@ -72,7 +72,7 @@ async def test_live_provider_failure_preserves_partial_report_and_stops_paid_att
     monkeypatch.setattr(anthropic,'AsyncAnthropic',MagicMock(return_value=client))
     plan=evaluation.proposal(catalog)
     report=await evaluation.run_suite(catalog,live=True,approved_proposal=plan,authorize_material_sha256=plan['material_sha256'])
-    assert report['status']=='interrupted' and report['attempted']==1 and len(report['not_attempted'])==21
+    assert report['status']=='interrupted' and report['attempted']==1 and len(report['not_attempted'])==23
     assert report['usage']['accounted_tokens']>0
     client.messages.create.assert_awaited_once();client.close.assert_awaited_once()
 

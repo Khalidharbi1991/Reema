@@ -48,7 +48,7 @@ is recorded in the [phase checkpoint](docs/reports/PHASE_2_5_CHECKPOINT.md).
 
 ## Overview
 
-This system provides 11 agent roles. Ahmad coordinates the user's tasks and
+This system provides 12 agent roles. Ahmad coordinates the user's tasks and
 conversations; Abdullah leads specialist work. Generation runs use a leader, five core workers,
 and only the specialists selected for the process. They produce draft Standard
 Operating Procedures (SOPs) in multiple formats. The 15–30 page target warns by
@@ -57,7 +57,7 @@ Every successful run requires separate human approval.
 
 ### Key Features
 
-- **Multi-Agent Architecture**: 11 coordinated roles, including Ahmad and Abdullah
+- **Multi-Agent Architecture**: 12 coordinated roles, including Ahmad and Abdullah
 - **Personal Task Lists**: Separate local work and personal tasks, priorities, due dates, and daily views
 - **Persistent Personal Context**: Editable profiles, preferences, project goals, correction lessons, and matching examples shared with Ahmad and specialists
 - **Conversational Coordination**: Ahmad uses bounded request plans and Abdullah-led multi-specialist consultations
@@ -87,6 +87,7 @@ and decision authority. Run `python3 scripts/dev.py run agents` for the active r
 | Agent 7 | Problem management and root-cause analysis |
 | Agent 8 | Analytics and KPI design |
 | Agent 9 | Building-design advice, local DWG intake, and assumption-labeled concept meshes from selected DXF wall linework |
+| Agent 10 | End-user computing advice: patching and deployment rings, OS images, software packaging, Intune/MECM, endpoint compliance, change requests and runbooks (advisory only) |
 
 ## Installation
 

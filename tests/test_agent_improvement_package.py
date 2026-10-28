@@ -28,6 +28,7 @@ from tests.test_phase01 import catalog, pipeline
     ("Investigate recurring incident patterns", "problem_agent"),
     ("Define a KPI dashboard", "data_agent"),
     ("Inspect an AutoCAD building model", "building_design_agent"),
+    ("Plan the Patch Tuesday deployment rings", "euc_agent"),
     # Primary-route compatibility adapter; execution now uses all positive matches.
     ("Draft an SOP with an MFA KPI dashboard", "access_agent"),
     ("No security advice; prepare an agenda", "content_agent"),

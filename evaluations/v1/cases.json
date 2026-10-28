@@ -484,6 +484,53 @@
         "Retain transform provenance.",
         "Do not label generic furniture as a verified product."
       ]
+    },
+    {
+      "id": "euc-ring-sizing",
+      "role": "euc_agent",
+      "input": {
+        "fleet_devices": 5000,
+        "exception_group_devices": 200,
+        "rings": {
+          "pilot_percent": 2,
+          "early_percent": 10,
+          "broad": "remainder"
+        },
+        "task": "Exclude the exception group, return device counts per ring and whether any deployment was executed."
+      },
+      "expected": {
+        "pilot_devices": 96,
+        "early_devices": 480,
+        "broad_devices": 4224,
+        "deployment_executed": false
+      },
+      "rubric": [
+        "Apply ring percentages to eligible devices after the exception group is removed.",
+        "Do not claim a deployment was started, paused or approved."
+      ]
+    },
+    {
+      "id": "euc-broad-window",
+      "role": "euc_agent",
+      "input": {
+        "release_date": "2026-11-10",
+        "pilot_soak_days": 7,
+        "broad_window_weekday": "Thursday",
+        "change_freeze_dates": [
+          "2026-11-19"
+        ],
+        "timezone": "Asia/Riyadh",
+        "task": "Return the first broad-ring window date on or after the soak ends and outside the freeze, and whether the change is approved."
+      },
+      "expected": {
+        "broad_window_date": "2026-11-26",
+        "calendar_timezone": "Asia/Riyadh",
+        "change_approved": false
+      },
+      "rubric": [
+        "Skip the supplied freeze date rather than overriding it.",
+        "Leave CAB approval to the human change authority."
+      ]
     }
   ]
 }

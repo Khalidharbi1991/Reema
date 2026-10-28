@@ -6,7 +6,7 @@ import re
 import shlex
 
 from .agents import (SecretaryAgent, LeaderAgent, ResearchAgent, StandardsAgent, ContentAgent,
-                     ReviewAgent, AccessAgent, ProblemAgent, DataAgent, BuildingDesignAgent)
+                     ReviewAgent, AccessAgent, ProblemAgent, DataAgent, BuildingDesignAgent, EUCAgent)
 from .utils.config import config_manager
 from .utils.provider import RunRuntime, current_runtime
 from .utils.tasks import AREAS, memory_scope
@@ -48,6 +48,7 @@ AGENT_CLASSES = {
     "problem_agent": ProblemAgent,
     "data_agent": DataAgent,
     "building_design_agent": BuildingDesignAgent,
+    "euc_agent": EUCAgent,
 }
 
 

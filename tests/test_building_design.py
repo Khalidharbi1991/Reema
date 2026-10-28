@@ -16,10 +16,10 @@ def test_numbered_specialists_keep_configured_roles():
     keys = (
         "research_agent", "standards_agent", "content_agent", "review_agent",
         "format_agent", "access_agent", "problem_agent", "data_agent",
-        "building_design_agent",
+        "building_design_agent", "euc_agent",
     )
     assert [config_manager.get_agent_config(key)["name"] for key in keys] == [
-        f"Agent {number}" for number in range(1, 10)
+        f"Agent {number}" for number in range(1, 11)
     ]
     assert config_manager.get_agent_config("secretary_agent")["name"] == "Ahmad"
     assert config_manager.get_agent_config("leader_agent")["name"] == "Abdullah"

@@ -157,3 +157,16 @@ building_design_agent:
     - "Exterior landscape and facade concepts"
     - "Explicit measurement, level, and design-assumption tracking"
     - "CAD-to-3D preparation; no claim of an editable model until exported and checked"
+euc_agent:
+  name: "Agent 10"
+  role: "End-User Computing & Endpoint Management Specialist"
+  max_tokens: 4096
+  specialization:
+    - "Patch management, deployment rings, and out-of-band response"
+    - "Intune, MECM/SCCM co-management, Autopilot, and Windows Update for Business"
+    - "OS image engineering, feature updates, and Windows 11 readiness"
+    - "Software packaging and distribution (MSI, MSIX, Win32, PSADT)"
+    - "Endpoint compliance, security baselines, BitLocker, and LAPS"
+    - "PowerShell and Graph automation drafts with dry-run modes"
+    - "ITIL 4 change requests, runbooks, KB articles, and RCA for end-user devices"
+    - "Rollback paths, kill switches, and irreversible-action warnings"

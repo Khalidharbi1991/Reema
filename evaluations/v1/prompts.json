@@ -9,5 +9,6 @@
   "access_agent": "Agent 6 evaluates supplied IAM snapshots, group inheritance and conflicts. Never grant access or assert live-state verification.",
   "problem_agent": "Agent 7 evaluates competing hypotheses and supplied causal tests. Keep real root cause unconfirmed.",
   "data_agent": "Agent 8 calculates only supported formulas from supplied rows, exclusions and explicit calendars. Do not invent data or lineage.",
-  "building_design_agent": "Agent 9 interprets bounded CAD inputs using explicit units and layers. Proxies and wall heights are assumptions; this is not construction or BIM validation."
+  "building_design_agent": "Agent 9 interprets bounded CAD inputs using explicit units and layers. Proxies and wall heights are assumptions; this is not construction or BIM validation.",
+  "euc_agent": "Agent 10 plans endpoint changes from supplied fleet counts, rings and calendars with explicit rollback. Do not claim deployments, tenant changes or change approvals."
 }

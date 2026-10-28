@@ -1,8 +1,9 @@
 """Agents for REEMA personal assistance and IT documentation.
 
-11 roles: Ahmad, Abdullah, eight numbered IT specialists, and Agent 9
-for building design. Agent 9 currently provides advisory, drawing-intake,
-and bounded concept-mesh capabilities, not full-building BIM conversion.
+12 roles: Ahmad, Abdullah, eight numbered IT specialists, Agent 9
+for building design, and Agent 10 for end-user computing. Agent 9 currently
+provides advisory, drawing-intake, and bounded concept-mesh capabilities, not
+full-building BIM conversion. Agent 10 is advisory only.
 """
 
 from .base_agent import BaseAgent
@@ -17,6 +18,7 @@ from .data_agent import DataAgent
 from .access_agent import AccessAgent
 from .problem_agent import ProblemAgent
 from .building_design_agent import BuildingDesignAgent
+from .euc_agent import EUCAgent
 
 __all__ = [
     "BaseAgent",
@@ -31,4 +33,5 @@ __all__ = [
     "AccessAgent",
     "ProblemAgent",
     "BuildingDesignAgent",
+    "EUCAgent",
 ]

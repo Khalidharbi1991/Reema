@@ -11,7 +11,8 @@ from .handoffs import HandoffMetadata, payload_json
 from .specialists import SpecialistInputs
 
 AGENT_KEYS = {"leader_agent", "research_agent", "standards_agent", "content_agent",
-              "review_agent", "access_agent", "problem_agent", "data_agent", "building_design_agent"}
+              "review_agent", "access_agent", "problem_agent", "data_agent", "building_design_agent",
+              "euc_agent"}
 
 
 class Contract(BaseModel):
@@ -114,8 +115,8 @@ def plan_request(message, routing, objective=""):
 
 class IntentResolution(Contract):
     intent: Literal["advisory", "unsupported_action", "local_action"]
-    agents: list[str] = Field(max_length=9)
-    excluded_agents: list[str] = Field(default_factory=list, max_length=9)
+    agents: list[str] = Field(max_length=10)
+    excluded_agents: list[str] = Field(default_factory=list, max_length=10)
     status: Literal["ready", "needs_clarification"]
     questions: list[str]
     rationale: str = Field(min_length=1, max_length=1500)

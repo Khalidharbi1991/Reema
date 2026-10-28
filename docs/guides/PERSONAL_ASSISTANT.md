@@ -4,10 +4,24 @@ REEMA now has one local chat entry point through Ahmad for work and personal
 assistance. Ahmad handles local tasks and coordinates relevant IT specialists.
 Abdullah leads specialist work in the document pipeline and carries the former
 owner agent's strategy, governance, quality, and business-value guidance.
-The user remains the decision authority. There are eleven active agent roles.
+The user remains the decision authority. There are twelve active agent roles.
 The IT specialists use display names Agent 1 through Agent 8. Agent 9 is the
 building-design specialist. It can check a DWG locally and create a limited
 OBJ concept mesh plus PNG preview from one selected area of a DXF working copy.
+Agent 10 is the end-user computing (EUC) and endpoint-management specialist.
+
+Agent 10 is consulted in an authorized advisory chat when a request mentions
+patching, deployment rings, Intune, MECM/SCCM, Autopilot, OS images, software
+packaging or distribution, BitLocker, LAPS or end-user devices, in English or
+Arabic (for example التحديثات الامنية or توزيع البرامج). Its advice frames the
+objective, scope and blast radius first, and every endpoint change states a
+pilot ring, rollback path, kill switch and any irreversible step. It plans
+around Asia/Riyadh time, the Sunday–Thursday week and seasonal change freezes.
+It drafts PowerShell with a `-WhatIf` mode, change requests, runbooks, KB
+articles and RCA records for human review. It cannot browse documentation,
+run scripts or reach tenants, devices or directories, so version- and
+licensing-dependent statements are marked for verification. It does not yet
+take part in SOP generation.
 
 Agent 9 can be consulted about building layout, interiors, exteriors, and
 modeling requirements during an authorized advisory chat. To check a local
