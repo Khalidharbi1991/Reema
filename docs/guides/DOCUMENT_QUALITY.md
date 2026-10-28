@@ -13,18 +13,31 @@ when customizing order, instructions, review-cycle limits, the control-reference
 gate or export style. Missing/swapped/duplicate IDs fail early. Process-specific
 objectives and constraints retain their existing configuration and CLI options.
 
-Content requests a `SectionDraft` containing every configured `section_id` and
-Markdown `body` exactly once. Local assembly uses configured order/headings and
-preserves bodies. Bodies allow level-three subheadings, tables, lists, citations
-and supported diagrams, but cannot introduce top-level sections. Missing/blank
-sections and malformed JSON fail. The public API still returns Markdown. Legacy
-narrative remains supported, subject to mandatory-section and unambiguous section
-checks in the pipeline.
+Agent 3 writes the SOP one configured section per model request, in profile
+order. Each reply is a `SectionBody` JSON object (`section_id`, Markdown `body`);
+a reply for another section, a blank body or malformed JSON fails. `max_tokens`
+therefore bounds one section, not the document. Local assembly then builds a
+`SectionDraft` in configured order with configured headings and preserves bodies.
+Bodies allow level-three subheadings, tables, lists, citations and supported
+diagrams, but cannot introduce top-level sections. The public API still returns
+Markdown.
 
-Complete research, standards, request context and specialist appendices remain.
-Extension sections receive stable IDs/locations; ambiguous duplicate headings
-fail. This is one structured generation request with local assembly, not
-independent per-section generation or automatic context summarization.
+Every request repeats the complete research, standards and request context first,
+then the section's instructions, its optional `target_pages` range and the
+applicable control IDs that target it. Once written, Definitions & Acronyms and
+Roles & Responsibilities are included in every later request so terms and the
+RACI stay consistent. Diagram schemas go only to Detailed Procedures and Process
+Flow Diagrams. The shipped ranges total 17–30 pages within the 15–30 page target.
+
+Sections run sequentially, so a run makes eleven content requests and resends the
+shared context each time. Each finished section is stored in the signed run
+journal; model-phase recovery reuses finished sections and requests only the
+rest. A reply cut off at `max_tokens` fails the run and names the section; it is
+not retried or silently assembled. Agent 3's per-section limit is 16,000 tokens
+with its own 480-second timeout (`agent_config.yaml`).
+
+Specialist appendices remain. Extension sections receive stable IDs/locations;
+ambiguous duplicate headings fail. There is no automatic context summarization.
 
 ## Evidence-linked controls
 

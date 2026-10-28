@@ -27,6 +27,14 @@ class SectionSpec(Contract):
     title: str = Field(min_length=1)
     instructions: str = Field(min_length=1)
     display_title: str | None = None
+    # Optional [min, max] rendered pages guiding Agent 3's per-section request.
+    target_pages: list[int] | None = Field(default=None, min_length=2, max_length=2)
+
+    @model_validator(mode="after")
+    def page_range(self):
+        if self.target_pages is not None and not 1 <= self.target_pages[0] <= self.target_pages[1] <= 15:
+            raise ValueError("target_pages must be an ordered [min, max] range from 1 to 15")
+        return self
 
 
 class ExportStyle(Contract):

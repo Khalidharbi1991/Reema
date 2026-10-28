@@ -5,8 +5,8 @@ from .base_agent import BaseAgent
 from ..utils.logger import logger
 from ..utils.config import config_manager
 from ..utils.handoffs import payload_json
-from ..utils.documents import SectionDraft, SectionPatch, section_map, sha
-from ..utils.quality import parse_json_response, is_structured_response
+from ..utils.documents import SectionBody, SectionDraft, SectionPatch, section_map, sha, validate_body
+from ..utils.quality import parse_json_response, checkpointed_call
 from ..utils.diagrams import SequenceFlow, GraphFlow
 import json
 
@@ -27,7 +27,7 @@ class ContentAgent(BaseAgent):
     AGENT_ROLE = "Content Generation Agent"
     CONFIG_KEY = "content_agent"
     KNOWLEDGE_FILE = "saad_content_knowledge_ENHANCED.md"
-    DEFAULT_MAX_TOKENS = 8192  # Higher token limit for content generation
+    DEFAULT_MAX_TOKENS = 16000  # Per section reply; the SOP is written one section per request
 
     def __init__(self, api_key: Optional[str] = None):
         super().__init__(api_key)
@@ -145,7 +145,11 @@ class ContentAgent(BaseAgent):
         self, process_name: str, research_data: Dict
     ) -> str:
         """
-        Generate complete SOP document.
+        Generate the SOP one configured section per model request, then assemble it.
+
+        max_tokens bounds each section reply, not the whole document. Sections run in
+        order so later ones reuse the written definitions and RACI. Each finished
+        section is checkpointed in the signed run journal and reused on recovery.
 
         Args:
             process_name: Name of the IT process
@@ -157,18 +161,30 @@ class ContentAgent(BaseAgent):
         logger.agent_start(self.name, f"Generating SOP for {process_name}")
 
         try:
-            system_prompt = self._build_system_prompt()
-            content_prompt = self._build_content_prompt(process_name, research_data)
+            profile = config_manager.document_profile
+            shared = self._build_shared_context(process_name, research_data)
+            controls = self._section_controls(research_data)
+            written, sections = {}, []
+            for number, section in enumerate(profile.sections, 1):
+                prompt = self._build_section_prompt(shared, number, section, written, controls.get(section.id, []))
 
-            response = await self._call_claude(
-                messages=[{"role": "user", "content": content_prompt}],
-                system=system_prompt
-            )
+                def check(result, expected=section.id):
+                    if result.section_id != expected:
+                        raise ValueError(f"Reply was for section {result.section_id!r}")
+                    validate_body(result.body)
 
-            # Structure the response into a complete SOP
-            if is_structured_response(response):
-                response = parse_json_response(response, SectionDraft).assemble(process_name, config_manager.document_profile)
-            sop_document = self._format_sop_document(response, process_name)
+                try:
+                    result = await checkpointed_call(self, prompt, SectionBody, check)
+                except (ValueError, RuntimeError) as error:
+                    hint = f"; it exceeded max_tokens={self.max_tokens}" if "max_tokens" in str(error) else ""
+                    category = ValueError if isinstance(error, ValueError) else RuntimeError
+                    raise category(f"Section {number} ({section.title}) failed: {error}{hint}") from error
+                written[section.id] = result.body
+                sections.append(result)
+                logger.info(f"Section {number}/{len(profile.sections)} written: {section.title}", agent=self.name)
+
+            document = SectionDraft(sections=sections).assemble(process_name, profile)
+            sop_document = self._format_sop_document(document, process_name)
 
             logger.agent_complete(self.name, f"SOP generation for {process_name}")
             return sop_document
@@ -250,7 +266,7 @@ Your expertise includes:
 Guidelines for SOP creation:
 1. Use professional, clear language
 2. Be specific and actionable
-3. Include all necessary details (15-30 pages target)
+3. Include all necessary details (the whole SOP targets 15-30 pages; each request writes one section to its own length target)
 4. Follow standard SOP structure (11 sections)
 5. Use tables, lists, and formatting for clarity
 6. Include examples where helpful
@@ -264,110 +280,64 @@ Create documentation that is immediately usable by IT teams."""
             "You have 100% domain expertise in technical writing, SOP creation, and documentation best practices. Use this knowledge to create professional documentation:"
         )
 
-    def _build_content_prompt(
-        self, process_name: str, research_data: Dict
-    ) -> str:
-        """Build the content generation prompt."""
-        research_summary = self._extract_research_summary(research_data)
-        compliance_summary = self._extract_compliance_summary(research_data)
+    # Written early and shared with every later section so terms and RACI stay consistent.
+    FOUNDATION_SECTIONS = ("sec-definitions", "sec-roles")
+    DIAGRAM_SECTIONS = ("sec-procedures", "sec-flow")
 
-        prompt = f"""Create a comprehensive Standard Operating Procedure (SOP) document for: {process_name}
+    def _build_shared_context(self, process_name: str, research_data: Dict) -> str:
+        """Context repeated verbatim at the start of every section request."""
+        profile = config_manager.document_profile
+        low, high = config_manager.system_config.page_target
+        outline = [{"number": number, "id": section.id, "title": section.display_title or section.title}
+                   for number, section in enumerate(profile.sections, 1)]
+        return (f"Standard Operating Procedure (SOP) under preparation: {process_name}\n"
+                f"Whole-document target: {low}-{high} pages across {len(outline)} sections, "
+                "written one section per request.\n\n"
+                f"**Research Findings:**\n{self._extract_research_summary(research_data)}\n\n"
+                f"**Compliance Requirements:**\n{self._extract_compliance_summary(research_data)}\n\n"
+                "ALL SECTIONS:\n" + payload_json(outline))
 
-**Target Length:** 15-30 pages
-**Format:** Professional SOP following industry standards
+    @staticmethod
+    def _section_controls(research_data: Dict) -> Dict[str, List[str]]:
+        """Applicable control IDs per target section, from the standards control register."""
+        standards = research_data.get("standards") if isinstance(research_data, dict) else None
+        register = standards.get("control_register") if isinstance(standards, dict) else None
+        controls = register.get("controls", []) if isinstance(register, dict) else []
+        targets = {}
+        for control in controls:
+            if isinstance(control, dict) and control.get("applicability") == "applicable":
+                for section_id in control.get("target_sections", []):
+                    targets.setdefault(section_id, []).append(control["id"])
+        return targets
 
-**Research Findings:**
-{research_summary}
-
-**Compliance Requirements:**
-{compliance_summary}
-
-**Required SOP Structure:**
-
-### 1. INTRODUCTION (2-3 pages)
-- Purpose and objectives
-- Scope and boundaries
-- Target audience
-- Document applicability
-
-### 2. DEFINITIONS & ACRONYMS (1-2 pages)
-- Complete glossary of IT terms
-- Acronym definitions
-- Process-specific terminology
-
-### 3. ROLES & RESPONSIBILITIES (2-3 pages)
-- RACI matrix with Activity followed by role columns; exactly one A and at least one R for each activity (R/A is allowed)
-- Detailed role descriptions
-- Authority levels
-- Escalation paths
-
-### 4. PROCESS OVERVIEW (2-3 pages)
-- High-level process description
-- Process triggers and inputs
-- Process outputs and deliverables
-- Success criteria
-
-### 5. DETAILED PROCEDURES (5-8 pages)
-- Step-by-step instructions for each major activity
-- Decision points and criteria
-- Exception handling
-- Sub-processes
-- Detailed workflows
-
-### 6. PROCESS FLOW DIAGRAMS (2-3 pages)
-- Text descriptions of process flows
-- Swimlane diagram descriptions
-- Decision tree descriptions
-- Integration points
-
-### 7. KEY PERFORMANCE INDICATORS (1-2 pages)
-- Process metrics and KPIs
-- Measurement methods
-- Target values
-- Reporting frequency
-- Dashboard requirements
-
-### 8. TOOLS & SYSTEMS (1-2 pages)
-- Required ITSM tools
-- System integrations
-- Access requirements
-- Training needs
-
-### 9. COMPLIANCE & STANDARDS (2-3 pages)
-- ITIL/framework alignment
-- Regulatory requirements
-- Audit requirements
-- Documentation requirements
-
-### 10. APPENDICES (2-3 pages)
-- Templates and forms
-- Checklists
-- Reference materials
-- Examples and scenarios
-
-### 11. DOCUMENT CONTROL (1 page)
-- Version history
-- Approval signatures
-- Review schedule
-- Distribution list
-
-**IMPORTANT:**
-- Make this a complete, production-ready SOP
-- Include specific, actionable content
-- Use professional formatting (headings, tables, lists)
-- Provide sufficient detail to achieve 15-30 pages
-- Include real-world examples and scenarios
-- Reference ITIL and other standards throughout
-
-Generate the complete SOP document now."""
-
-        return prompt + ("\nReturn only a section draft JSON matching:\n" + json.dumps(SectionDraft.model_json_schema())
-            + "\nAssemble exactly these configured section IDs; bodies may contain headings at level three and below:\n"
-            + payload_json([s.model_dump() for s in config_manager.document_profile.sections])
-            + "\nInclude each applicable control ID in square brackets in EVERY target section listed in the control register. "
-            "A reference demonstrates traceability, not compliance. Identify missing evidence. "
-            "Optional diagrams use a reema-flow fenced JSON sequence or bounded forward graph with lanes and labelled decisions:\n"
-            + json.dumps(SequenceFlow.model_json_schema()) + "\nGRAPH SCHEMA:\n" + json.dumps(GraphFlow.model_json_schema()))
+    def _build_section_prompt(self, shared: str, number: int, section, written: Dict[str, str],
+                              controls: List[str]) -> str:
+        """Request one section body; the shared context stays first so prompts share a prefix."""
+        profile = config_manager.document_profile
+        prompt = shared
+        foundation = {key: written[key] for key in self.FOUNDATION_SECTIONS if key in written}
+        if foundation:
+            prompt += ("\n\nALREADY WRITTEN SECTIONS (reuse these terms, roles and RACI exactly):\n"
+                       + payload_json(foundation))
+        prompt += (f"\n\nWRITE SECTION {number} of {len(profile.sections)}: "
+                   f"{section.display_title or section.title} (id {section.id}).\n"
+                   f"Instructions: {section.instructions}\n")
+        if section.target_pages:
+            prompt += f"Target length: {section.target_pages[0]}-{section.target_pages[1]} pages.\n"
+        prompt += ("Write only this section's body: no level one or two headings (the section heading is added "
+                   "automatically); use level three and below. Be specific and actionable; use tables, numbered "
+                   "steps and real-world examples where useful. Reference relevant standards. Never invent "
+                   "signatures or approvals.\n")
+        if controls:
+            prompt += ("Include each of these applicable control IDs in square brackets in this section: "
+                       + ", ".join(controls) + ". A reference demonstrates traceability, not compliance. "
+                       "Identify missing evidence.\n")
+        if section.id in self.DIAGRAM_SECTIONS:
+            prompt += ("Optional diagrams use a reema-flow fenced JSON sequence or bounded forward graph with lanes "
+                       "and labelled decisions:\n" + json.dumps(SequenceFlow.model_json_schema())
+                       + "\nGRAPH SCHEMA:\n" + json.dumps(GraphFlow.model_json_schema()) + "\n")
+        return (prompt + "Return only JSON matching:\n" + json.dumps(SectionBody.model_json_schema())
+                + f'\nSet section_id to "{section.id}".')
 
     def _extract_research_summary(self, research_data: Dict) -> str:
         """Legacy method name: retain the full research handoffs, including metadata."""

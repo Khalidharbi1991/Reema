@@ -3,6 +3,7 @@ import json
 from unittest.mock import AsyncMock
 import pytest
 from src import agents
+from src.utils.config import config_manager
 
 
 CASES = [
@@ -27,12 +28,16 @@ CASES = [
 @pytest.mark.asyncio
 @pytest.mark.parametrize("cls,method,args", CASES)
 @pytest.mark.parametrize("failed", [False, True])
-async def test_agent_calls_preserve_contracts_and_propagate_failure(cls, method, args, failed):
+async def test_agent_calls_preserve_contracts_and_propagate_failure(cls, method, args, failed, section_replies, sample_sop_content):
     agent = getattr(agents, cls)(api_key="")
     response = "## Executive Summary\nUseful summary\n## Compliance Checklist\n- [ ] Check access\n## Required Controls\n- Role review\n## Strategic Priorities\nRestore service\n## Recommendations\n- Review evidence"
     if method == "generate_drawio_flowchart":
         response = "```xml\n<mxfile><diagram /></mxfile>\n```"
     agent._call_claude = AsyncMock(return_value=response, side_effect=RuntimeError("Synthetic failure") if failed else None)
+    sectioned = method == "generate_sop" and not failed
+    if sectioned:
+        # Agent 3 asks for one section per request.
+        agent._call_claude = AsyncMock(side_effect=section_replies(sample_sop_content))
     if failed:
         with pytest.raises(RuntimeError, match="Synthetic failure"):
             await getattr(agent, method)(*args)
@@ -43,7 +48,7 @@ async def test_agent_calls_preserve_contracts_and_propagate_failure(cls, method,
             assert result["delivery_status"] == "awaiting_human_approval"
         if method == "generate_drawio_flowchart":
             assert result.startswith("<mxfile>") and "```" not in result
-    agent._call_claude.assert_awaited_once()
+    assert agent._call_claude.await_count == (len(config_manager.document_profile.sections) if sectioned else 1)
 
 
 @pytest.mark.asyncio

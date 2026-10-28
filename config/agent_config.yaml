@@ -109,7 +109,11 @@ data_agent:
 content_agent:
   name: "Agent 3"
   role: "Creates detailed SOP documentation"
-  max_tokens: 8192
+  # Agent 3 writes one section per request, so this caps a section, not the SOP.
+  # 16,000 tokens at ~40 tokens/s plus latency fits 480 s, below the SDK's
+  # 10-minute non-streaming limit. Other roles keep API_TIMEOUT_SECONDS.
+  max_tokens: 16000
+  timeout_seconds: 480
   specialization:
     - "Technical writing"
     - "SOP creation"

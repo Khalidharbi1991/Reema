@@ -16,37 +16,49 @@ style:
   body_pt: 11
   margin_inches: 0.8
   line_spacing: 1.15
+# target_pages guide Agent 3's one-request-per-section drafting; totals span 17-30 pages.
 sections:
   - id: sec-introduction
     title: Introduction
     instructions: Explain purpose, scope, audience and explicit request constraints.
+    target_pages: [1, 2]
   - id: sec-definitions
     title: Definitions & Acronyms
     instructions: Define terms used in this procedure and distinguish local assumptions.
+    target_pages: [1, 2]
   - id: sec-roles
     title: Roles & Responsibilities
     instructions: Include an activity by role RACI with exactly one accountable and at least one responsible role per activity.
+    target_pages: [2, 3]
   - id: sec-overview
     title: Process Overview
     instructions: Identify triggers, inputs, outputs, dependencies and escalation authority.
+    target_pages: [1, 2]
   - id: sec-procedures
     title: Detailed Procedures
     instructions: Give numbered actions, owners, prerequisites, decision criteria and retained evidence.
+    target_pages: [5, 8]
   - id: sec-flow
     title: Process Flow Diagrams
     instructions: Explain the workflow. A reema-flow fenced JSON sequence may illustrate two to six steps. A graph may contain two to eight nodes, one to three lanes and explicit labelled decision branches. Use only supplied decisions; do not invent branches or encode XML.
+    target_pages: [1, 3]
   - id: sec-kpis
     title: Key Performance Indicators
     instructions: Define metric formula, unit, source, exclusions, owner and review frequency; distinguish proposed targets.
+    target_pages: [1, 2]
   - id: sec-tools
     title: Tools & Systems
     instructions: State authorized tools, access requirements and integration assumptions.
+    target_pages: [1, 2]
   - id: sec-compliance
     title: Compliance & Standards
     instructions: Reference applicable control IDs in square brackets and identify missing evidence and unresolved applicability without certifying compliance.
+    target_pages: [2, 3]
   - id: sec-appendices
     title: Appendices
     instructions: Supply useful forms, checklists and located references without discarding specialist material.
+    target_pages: [1, 2]
   - id: sec-control
     title: Document Control
     instructions: State version, owner, review schedule and pending human approval; never invent signatures or approval.
+    target_pages: [1, 1]

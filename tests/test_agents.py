@@ -214,7 +214,7 @@ class TestContentAgent:
         from src.agents.content_agent import ContentAgent
         agent = ContentAgent(api_key="test-key")
         assert agent.name == "Agent 3"
-        assert agent.max_tokens == 8192  # Higher token limit
+        assert agent.max_tokens == 16000  # Per-section reply limit
 
     @patch('src.agents.content_agent.config_manager')
     @patch('src.agents.base_agent.config_manager')

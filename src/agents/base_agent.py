@@ -52,6 +52,8 @@ class BaseAgent:
         # Only an explicit role override is sent; newer API versions reject sampling fields.
         configured_temperature = self._agent_config.get("temperature")
         self.temperature = self.DEFAULT_TEMPERATURE if configured_temperature is None else configured_temperature
+        # None uses API_TIMEOUT_SECONDS; long-output roles configure their own deadline.
+        self.timeout_seconds = self._agent_config.get("timeout_seconds")
 
         # Initialize Anthropic client (skip for agents that don't need it, like Bee)
         self.client = None
@@ -134,7 +136,8 @@ class BaseAgent:
                                   + EVIDENCE_POLICY)}
             if self.temperature is not None:
                 request["temperature"] = self.temperature
-            return await runtime.call(AnthropicProvider(self.client), agent=self.name, model=self.model, **request)
+            return await runtime.call(AnthropicProvider(self.client), agent=self.name, model=self.model,
+                                      timeout_seconds=self.timeout_seconds, **request)
         except Exception as e:
             logger.error(f"Claude API error: {e}", agent=self.name)
             raise

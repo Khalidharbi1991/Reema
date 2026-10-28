@@ -26,6 +26,10 @@ class LLMProvider(Protocol):
     async def complete(self, **request) -> Completion: ...
 
 
+class IncompleteResponseError(ValueError):
+    """The model stopped early (for example at max_tokens), refused, or returned no text."""
+
+
 class AnthropicProvider:
     """Adapter accepts an AsyncAnthropic client (or a deterministic test double)."""
 
@@ -65,7 +69,8 @@ class RunRuntime:
             isinstance(error, APIStatusError) and (error.status_code in (408, 409, 429) or error.status_code >= 500)
         )
 
-    async def call(self, provider, *, agent, **request):
+    async def call(self, provider, *, agent, timeout_seconds=None, **request):
+        """timeout_seconds overrides API_TIMEOUT_SECONDS for one role's long replies."""
         if not self.settings.allow_external_ai:
             raise PermissionError("External AI has not been authorized")
         serialized = json.dumps(request, ensure_ascii=False)
@@ -87,7 +92,8 @@ class RunRuntime:
                     self.in_flight[reservation_id] = {**event, "reserved_tokens": estimate, "status": "transmission_uncertain_if_interrupted"}
                     if self.on_event:
                         self.on_event(self.summary())  # Durable before the provider can receive this request.
-                    result = await asyncio.wait_for(provider.complete(**request), self.settings.api_timeout_seconds)
+                    result = await asyncio.wait_for(provider.complete(**request),
+                                                    timeout_seconds or self.settings.api_timeout_seconds)
                     used = result.input_tokens + result.output_tokens
                     self.tokens += used
                     event.update(input_tokens=result.input_tokens, output_tokens=result.output_tokens,
@@ -98,7 +104,8 @@ class RunRuntime:
                         if rates is not None else None
                     )
                     if result.stop_reason != "end_turn" or not result.text.strip():
-                        raise ValueError("Model response was empty, refused, or incomplete; delivery blocked")
+                        raise IncompleteResponseError(f"stop reason {result.stop_reason}" if result.stop_reason != "end_turn"
+                                                      else "empty response")
                     event["status"] = "completed"
                     return result.text
                 except BaseException as error:
@@ -110,6 +117,9 @@ class RunRuntime:
                         # Do not expose provider exception bodies (may contain prompt material).
                         if isinstance(error, (asyncio.CancelledError, KeyboardInterrupt, SystemExit)):
                             raise
+                        if isinstance(error, IncompleteResponseError):
+                            # The stop reason is provider metadata, not prompt material.
+                            raise RuntimeError(f"Model response was empty, refused, or incomplete ({error}); delivery blocked") from None
                         raise RuntimeError(f"Model call failed ({type(error).__name__}); see run usage metadata") from None
                 finally:
                     self.reserved -= estimate

@@ -24,6 +24,8 @@ class AgentConfig(BaseModel):
     model: str | None = None
     max_tokens: int = Field(default=4096, gt=0)
     temperature: float | None = Field(default=None, ge=0, le=1)
+    # Per-attempt deadline for this role; must stay under the SDK's 10-minute non-streaming limit.
+    timeout_seconds: float | None = Field(default=None, gt=0, le=600)
     specialization: List[str] = Field(default_factory=list)
     quality_threshold: int = Field(default=85, ge=0, le=100)
     min_quality_for_delivery: int = Field(default=85, ge=0, le=100)

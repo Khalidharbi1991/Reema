@@ -221,3 +221,22 @@ def sample_review_result_failing():
         "feedback": ["Add RACI matrix", "Expand procedures"],
         "full_review": "Quality below threshold."
     }
+
+
+@pytest.fixture
+def section_replies():
+    """Fake Agent 3 model: answer each one-section request with that section's body from a full SOP."""
+    import json
+    import re
+    from src.utils.config import config_manager
+    from src.utils.documents import section_map
+
+    def factory(document):
+        locations = section_map(document, config_manager.document_profile, require_complete=True)
+        bodies = {key: document[place["body_start"]:place["end"]].strip() for key, place in locations.items()}
+
+        async def reply(messages, system="", max_tokens=None):
+            section_id = re.search(r'Set section_id to "(sec-[a-z0-9-]+)"', messages[-1]["content"]).group(1)
+            return json.dumps({"section_id": section_id, "body": bodies[section_id]})
+        return reply
+    return factory

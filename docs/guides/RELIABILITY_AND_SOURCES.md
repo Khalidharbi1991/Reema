@@ -47,7 +47,7 @@ All controls are documented in `.env.example`:
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `API_TIMEOUT_SECONDS` | 120 | Deadline per provider attempt, not the entire run |
+| `API_TIMEOUT_SECONDS` | 120 | Deadline per provider attempt, not the entire run; a role's `timeout_seconds` in `agent_config.yaml` overrides it (Agent 3: 480) |
 | `API_MAX_RETRIES` | 2 | Additional attempts only for connection/timeouts and transient statuses |
 | `MAX_CONCURRENT_AGENTS` | 5 | Simultaneous provider calls per run |
 | `MAX_RUN_TOKENS` | 1000000 | Conservative reservation gate before each request |

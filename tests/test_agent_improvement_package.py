@@ -126,7 +126,7 @@ def test_contradictory_compliance_gate_is_rejected():
 
 
 @pytest.mark.asyncio
-async def test_long_handoffs_reach_real_prompt_builders_review_and_export(pipeline, sample_sop_content):
+async def test_long_handoffs_reach_real_prompt_builders_review_and_export(pipeline, sample_sop_content, section_replies):
     leader, config, workers = pipeline
     source_id = "SRC-tail"
     source = {"source": "synthetic-controls.md", "location": "block 99", "sha256": "a" * 64}
@@ -145,7 +145,7 @@ async def test_long_handoffs_reach_real_prompt_builders_review_and_export(pipeli
     workers["ProblemAgent"].generate_problem_content = problem.generate_problem_content
     workers["DataAgent"].create_dashboard_design.return_value = {"dashboard_design": "D" * 9000 + "DASHBOARD-END [SRC-tail]"}
     content = ContentAgent(api_key="")
-    content._call_claude = AsyncMock(return_value=sample_sop_content)
+    content._call_claude = AsyncMock(side_effect=section_replies(sample_sop_content))
     workers["ContentAgent"].generate_sop = content.generate_sop
     review = ReviewAgent(api_key="")
     review._call_claude = AsyncMock(return_value=json.dumps({"quality_score": 95, "decision": "acceptable",
@@ -154,7 +154,7 @@ async def test_long_handoffs_reach_real_prompt_builders_review_and_export(pipeli
     outputs = await leader.generate_documentation("Change Management", ["markdown"], specialists=["access", "problem", "data"])
     prompt = access._call_claude.await_args.kwargs["messages"][0]["content"]
     assert "REQ-END [SRC-tail]" in prompt and "Directory vendor unconfirmed" in prompt
-    assert "REQ-END [SRC-tail]" in content._call_claude.await_args.kwargs["messages"][0]["content"]
+    assert all("REQ-END [SRC-tail]" in call.args[0][0]["content"] for call in content._call_claude.await_args_list)
     assessment_prompts = "\n".join(call.args[0][0]["content"] for call in review._call_claude.await_args_list)
     exported = Path(outputs["markdown"]).read_text()
     for tail in ("ACCESS-END", "PROBLEM-END", "DASHBOARD-END"):

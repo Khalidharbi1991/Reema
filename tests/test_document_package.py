@@ -1,6 +1,7 @@
 """Located document behavior with synthetic model responses and no live HTTP."""
 
 import json
+import re
 from copy import deepcopy
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -102,13 +103,20 @@ async def test_actual_standards_returns_typed_register_and_explicit_legacy_uncer
 
 
 @pytest.mark.asyncio
+def requested_section(messages):
+    return re.search(r'Set section_id to "(sec-[a-z0-9-]+)"', messages[-1]["content"]).group(1)
+
+
 async def test_actual_content_assembles_in_config_order_and_preserves_payload_tail():
     agent = ContentAgent(api_key="")
-    sections = [{"section_id": s.id, "body": "Content for " + s.title} for s in config_manager.document_profile.sections]
-    agent._call_claude = AsyncMock(return_value=json.dumps({"sections": sections[::-1]}))
+    async def reply(messages, system=""):
+        return json.dumps({"section_id": requested_section(messages), "body": "Content for " + requested_section(messages)})
+    agent._call_claude = AsyncMock(side_effect=reply)
     document = await agent.generate_sop("Example", {"research": {"raw_research": "x" * 15000 + "UNIQUE_TAIL"}})
     assert list(section_map(document, config_manager.document_profile, require_complete=True)) == [s.id for s in config_manager.document_profile.sections]
-    assert "UNIQUE_TAIL" in agent._call_claude.await_args.kwargs["messages"][0]["content"]
+    prompts = [call.args[0][0]["content"] for call in agent._call_claude.await_args_list]
+    assert len(prompts) == len(config_manager.document_profile.sections)
+    assert all("UNIQUE_TAIL" in prompt for prompt in prompts)
 
 
 @pytest.mark.asyncio
@@ -116,9 +124,14 @@ async def test_actual_content_assembles_in_config_order_and_preserves_payload_ta
 @pytest.mark.parametrize("valid", [True, False])
 async def test_fenced_json_without_language_is_validated_instead_of_legacy_fallback(kind, valid):
     agent = StandardsAgent(api_key="") if kind == "standards" else ContentAgent(api_key="")
-    data = {"compliance_analysis": "Evidence absent", "control_register": {"controls": [control()]}} if kind == "standards" else {
-        "sections": [{"section_id": s.id, "body": "Section content"} for s in config_manager.document_profile.sections]}
-    agent._call_claude = AsyncMock(return_value="```\n" + json.dumps(data if valid else [data]) + "\n```")
+    if kind == "standards":
+        data = {"compliance_analysis": "Evidence absent", "control_register": {"controls": [control()]}}
+        agent._call_claude = AsyncMock(return_value="```\n" + json.dumps(data if valid else [data]) + "\n```")
+    else:
+        async def reply(messages, system=""):
+            item = {"section_id": requested_section(messages), "body": "Section content"}
+            return "```\n" + json.dumps(item if valid else [item]) + "\n```"
+        agent._call_claude = AsyncMock(side_effect=reply)
     async def invoke():
         return await agent.analyze_compliance("Example", ["ITIL v4"]) if kind == "standards" else await agent.generate_sop("Example", {})
     if valid:
@@ -312,11 +325,11 @@ async def test_real_document_agents_pipeline_revises_rechecks_and_enforces_cover
             return json.dumps({"base_document_sha256": data["base_document_sha256"], "patches": [
                 {"section_id": k, "base_section_sha256": v["sha256"], "body": v["body"].replace("BADSTEP", "The service desk records the decision.")}
                 for k, v in data["sections"].items()]})
-        sections = [{"section_id": s.id, "body": "Preserved text for " + s.title} for s in catalog.document_profile.sections]
-        for item in sections:
-            if item["section_id"] == "sec-procedures": item["body"] = "BADSTEP" + ("" if missing_control else " [CTRL-LOG]")
-            if item["section_id"] == "sec-roles": item["body"] = "| Activity | Owner | Operator |\n| --- | --- | --- |\n| Record decision | A | R |"
-        return json.dumps({"sections": sections})
+        section_id = requested_section(messages)
+        body = "Preserved text for " + next(s.title for s in catalog.document_profile.sections if s.id == section_id)
+        if section_id == "sec-procedures": body = "BADSTEP" + ("" if missing_control else " [CTRL-LOG]")
+        if section_id == "sec-roles": body = "| Activity | Owner | Operator |\n| --- | --- | --- |\n| Record decision | A | R |"
+        return json.dumps({"section_id": section_id, "body": body})
 
     async def review_call(messages, **kwargs):
         prompt = messages[0]["content"]
@@ -355,7 +368,9 @@ async def test_real_document_agents_pipeline_revises_rechecks_and_enforces_cover
     assert leader.workflow_status == "awaiting_human_approval"
     assert len(ready["revision_history"]) == 1 and ready["revision_history"][0]["target_sections"] == ["sec-procedures"]
     assert ready["quality"]["control_coverage"]["controls"][0]["referenced_sections"] == ["sec-procedures"]
-    assert content._call_claude.await_count == 2 and review._call_claude.await_count == 3
+    # One request per section, then one targeted revision.
+    assert content._call_claude.await_count == len(catalog.document_profile.sections) + 1
+    assert review._call_claude.await_count == 3
     assert "The service desk records the decision." in Path(outputs["markdown"]).read_text()
     resumed = await leader.resume_formatting(leader.context["run_dir"], ["html"])
     assert Path(resumed["html"]).exists() and leader.workflow_status == "awaiting_human_approval"
