@@ -76,6 +76,28 @@ class TestLeaderAgent:
         assert "Access Request Fulfillment Time" in kpis
         assert "MFA Adoption Rate" in kpis
 
+    @pytest.mark.parametrize("process, expected", [
+        ("Incident Management", "Mean Time to Resolve (MTTR)"),
+        ("Change Management", "Change Success Rate"),
+        ("Problem Management", "Known Error Resolution Time"),
+        ("Access Management", "Access Request Fulfillment Time"),
+        ("Service Request Management", "Request Fulfillment Time"),
+        ("service_request_management", "Request Fulfillment Time"),
+    ])
+    @patch('src.agents.leader_agent.config_manager')
+    @patch('src.agents.leader_agent.Anthropic')
+    def test_leader_matches_every_kpi_category_by_display_name(self, mock_anthropic, mock_cm, process, expected):
+        """Multi-word categories such as Service Request match the configured display name."""
+        mock_cm.system_config.anthropic_api_key = "test-key"
+        mock_cm.system_config.leader_model = "claude-sonnet-4-6"
+
+        from src.agents.leader_agent import LeaderAgent
+        leader = LeaderAgent(api_key="test-key")
+
+        kpis = leader._get_process_kpis(process, {})
+        assert kpis[0] == expected
+        assert "Process Cycle Time" not in kpis
+
     @patch('src.agents.leader_agent.config_manager')
     @patch('src.agents.leader_agent.Anthropic')
     def test_leader_get_process_kpis_generic(self, mock_anthropic, mock_cm):

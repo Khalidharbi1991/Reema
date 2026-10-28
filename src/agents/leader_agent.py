@@ -20,7 +20,7 @@ from uuid import uuid4
 from typing import Dict, List, Optional
 from anthropic import AsyncAnthropic as Anthropic
 from ..utils.logger import logger
-from ..utils.config import config_manager, selected_model
+from ..utils.config import config_manager, normalize_process_name, selected_model
 from ..utils.approvals import create_pending_record
 from ..utils.validation import validate_formats, validate_sop, validate_output_files
 from ..utils.provider import RunRuntime, current_runtime, AnthropicProvider
@@ -665,10 +665,11 @@ class LeaderAgent:
             ]
         }
 
-        # Match process name to category
-        process_lower = process_name.lower()
+        # Match on the normalized name ("Service Request Management" -> "service_request_management")
+        # so multi-word categories such as "service_request" match display names.
+        process_key = normalize_process_name(process_name)
         for category, kpis in kpi_defaults.items():
-            if category in process_lower:
+            if category in process_key:
                 return kpis
 
         # Generic fallback
