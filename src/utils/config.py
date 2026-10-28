@@ -36,7 +36,8 @@ class ProcessConfig(BaseModel):
     name: str = Field(min_length=1)
     category: str = Field(min_length=1)
     description: str = Field(min_length=1)
-    standards: List[str] = Field(min_length=1)
+    # Retired: standards_mapping.yaml is the only source. Kept so old catalogs get a clear error.
+    standards: List[str] = Field(default_factory=list)
     complexity: Literal["low", "medium", "high"]
     estimated_pages: int = Field(gt=0)
     kpis: List[str] = Field(default_factory=list)
@@ -168,6 +169,10 @@ class ConfigManager:
             for rule in routing.routes
         ):
             raise ValueError("Assistant routes must refer to configured conversational agents")
+        retired = sorted(key for key, process in processes.items() if process.standards)
+        if retired:
+            raise ValueError("Process standards are read only from standards_mapping.yaml; remove 'standards' "
+                             "from process_definitions.yaml for: " + ", ".join(retired))
         if processes.keys() != standards.keys() or any(
             not values or any(not value.strip() for value in values)
             for values in standards.values()
@@ -183,7 +188,7 @@ class ConfigManager:
                     raise ValueError(f"Ambiguous process name: {alias}")
                 self._process_aliases[normalized] = key
         self.agents_config = {key: value.model_dump() for key, value in agents.items()}
-        self.process_definitions = {key: value.model_dump() for key, value in processes.items()}
+        self.process_definitions = {key: value.model_dump(exclude={"standards"}) for key, value in processes.items()}
         self.standards_mapping = standards
         self.assistant_routing = routing
         self.document_profile = profile

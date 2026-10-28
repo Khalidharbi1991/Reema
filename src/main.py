@@ -525,7 +525,7 @@ def list_processes():
     for process_id, details in processes.items():
         name = details.get("name", process_id)
         category = details.get("category", "N/A")
-        standards = ", ".join(details.get("standards", []))
+        standards = ", ".join(config_manager.standards_mapping.get(process_id, []))
         complexity = details.get("complexity", "N/A")
 
         table.add_row(name, category, standards, complexity)

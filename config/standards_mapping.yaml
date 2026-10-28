@@ -50,13 +50,13 @@ license_management:
   - "SAM (Software Asset Management)"
 
 security_operations:
-  - "ISO/IEC 27001:2013"
+  - "ISO/IEC 27001:2022"
   - "NIST Cybersecurity Framework"
   - "SOC 2 Type II"
   - "CIS Controls"
 
 compliance_audits:
-  - "ISO/IEC 27001:2013"
+  - "ISO/IEC 27001:2022"
   - "SOC 2 Type II"
   - "GDPR"
   - "HIPAA"
@@ -64,7 +64,7 @@ compliance_audits:
 
 risk_management:
   - "ISO 31000:2018"
-  - "ISO/IEC 27001:2013"
+  - "ISO/IEC 27001:2022"
   - "COBIT 2019"
   - "NIST Risk Management Framework"
 

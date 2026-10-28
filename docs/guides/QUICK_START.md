@@ -99,7 +99,7 @@ As **Abdullah** (Leader Agent), I will coordinate with my team:
 
 #### 9. Compliance & Standards (2-3 pages)
   - ITIL v4 alignment
-  - ISO 27001:2013 A.12.6.1
+  - ISO 27001:2022 A.8.8
   - NIST CSF PR.IP-12
   - CIS Control 3 & 7
 

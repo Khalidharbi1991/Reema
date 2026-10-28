@@ -192,9 +192,9 @@ Will convert the final content to professional DOCX and PDF formats.
   - Change Enablement
   - Service Configuration Management
 
-- **ISO 27001:2013**:
-  - A.12.6.1 Management of technical vulnerabilities
-  - A.14.2.2 System change control procedures
+- **ISO 27001:2022**:
+  - A.8.8 Management of technical vulnerabilities
+  - A.8.32 Change management
 
 - **NIST Cybersecurity Framework**:
   - PR.IP-12: A vulnerability management plan

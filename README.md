@@ -302,14 +302,16 @@ Add or modify IT processes in `config/process_definitions.yaml`:
 custom_process:
   name: "My Custom Process"
   category: "Custom"
-  standards:
-    - "ITIL v4"
-    - "Custom Standard"
+  description: "What the process achieves"
   complexity: "medium"
   estimated_pages: 20
 ```
 
 ### Standards Mapping
+
+`config/standards_mapping.yaml` is the only source of a process's standards. The
+pipeline and `list-processes` both read it, and every process ID needs an entry.
+A `standards` list in `process_definitions.yaml` is rejected with an error.
 
 Map processes to standards in `config/standards_mapping.yaml`:
 
