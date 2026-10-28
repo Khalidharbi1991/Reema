@@ -27,6 +27,7 @@ from .assistant import AssistantSession
 from .utils.logger import logger
 from .utils.config import config_manager
 from .utils.validation import validate_formats
+from .utils.output_safety import unignored_output
 from .utils.approvals import read_record, record_decision
 from .utils.tasks import AREAS
 from .utils.specialists import SpecialistInputs
@@ -314,6 +315,15 @@ def initialize_system(specialists: Optional[List[str]] = None) -> dict:
     return {"leader": leader}
 
 
+def _warn_if_output_unignored(directory: Path):
+    """Drafts and checkpoints can hold customer content; flag folders Git would not ignore."""
+    root = unignored_output(directory)
+    if root is not None:
+        console.print(f"Warning: output folder {directory} is inside the Git repository at {root} and is not "
+                      "ignored by .gitignore. Drafts, run checkpoints and source excerpts written there could be "
+                      "committed. Use a folder under output/ or add it to .gitignore.", markup=False)
+
+
 async def _generate_and_close(leader, *args, **kwargs):
     try:
         return await leader.generate_documentation(*args, **kwargs)
@@ -374,6 +384,7 @@ def generate(
         raise typer.Exit(code=2)
 
     settings = config_manager.system_config
+    _warn_if_output_unignored(Path(output_dir).expanduser().resolve() if output_dir else settings.output_dir)
     if not (allow_external_ai or settings.allow_external_ai):
         console.print("This run sends input and reference excerpts to Anthropic. Use --allow-external-ai after confirming permission for those documents.")
         raise typer.Exit(code=2)
@@ -458,6 +469,7 @@ def resume(
     try:
         if output_dir is not None:
             config_manager.system_config.output_dir = output_dir.expanduser().resolve()
+        _warn_if_output_unignored(config_manager.system_config.output_dir)
         asyncio.run(execute())
     except (ValueError, OSError, KeyError, PermissionError, RuntimeError) as error:
         console.print(str(error), markup=False)

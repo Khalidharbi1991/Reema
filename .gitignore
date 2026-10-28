@@ -79,6 +79,16 @@ output/
 *.docx
 *.html
 
+# Customer data, email, CAD/diagram sources and local stores, in any folder
+*.xlsx
+*.csv
+*.msg
+*.dwg
+*.dxf
+*.drawio
+*.sqlite3
+.recovery-key
+
 # OS
 .DS_Store
 Thumbs.db

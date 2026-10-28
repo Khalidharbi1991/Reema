@@ -163,8 +163,12 @@ python3 scripts/dev.py run generate "Problem Management" -f pdf -f docx -f markd
 Custom output directory:
 
 ```bash
-python3 scripts/dev.py run generate "Service Request Management" --output ./my-docs --allow-external-ai
+python3 scripts/dev.py run generate "Service Request Management" --output ./output/my-docs --allow-external-ai
 ```
+
+Keep custom output folders under `output/` or another Git-ignored path. Drafts,
+run checkpoints and source excerpts are written there; `generate` and `resume`
+print a warning when the folder is inside the repository but not ignored.
 
 `--allow-external-ai` explicitly authorizes sending this run's inputs, selected
 reference excerpts, and agent knowledge to Anthropic. Review the material first;
