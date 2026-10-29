@@ -1,9 +1,11 @@
 # REEMA personal assistant: current scope
 
 REEMA now has one local chat entry point through Ahmad for work and personal
-assistance. Ahmad handles local tasks and coordinates relevant IT specialists.
-Abdullah leads specialist work in the document pipeline and carries the former
-owner agent's strategy, governance, quality, and business-value guidance.
+assistance. Ahmad handles local tasks and consults relevant IT specialists
+directly. He also answers strategy, roadmap, budget and prioritization questions
+himself, framing advice in the former owner agent's strategy, governance,
+quality, and business-value terms. Abdullah leads only the SOP generation
+pipeline and is not consulted in chat.
 The user remains the decision authority. There are twelve active agent roles.
 The IT specialists use display names Agent 1 through Agent 8. Agent 9 is the
 building-design specialist. It can check a DWG locally and create a limited
@@ -184,8 +186,9 @@ python -m src.main chat "Plan the MFA rollout" --area work --project Alpha --all
 
 The interactive form accepts messages until `/exit`. Ahmad builds a validated,
 bounded request plan using phrase rules in `config/assistant_routes.yaml`.
-Abdullah coordinates every positively matched specialist, collects failures and
-explicitly reported differences, and gives Ahmad a briefing. Common clause
+Ahmad consults every positively matched specialist directly, collects failures
+and explicitly reported differences in a consultation record, and answers from
+it. Common clause
 negation is handled; ambiguous or overbroad requests ask for clarification without
 model calls. Unmatched advice stays with Ahmad. There is no general tool executor.
 

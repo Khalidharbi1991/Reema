@@ -45,15 +45,16 @@ model inference. Conversation transcripts remain session-only.
 ## Current team
 
 There are twelve active agent roles. The user speaks to **Ahmad**, the personal
-coordinator. **Abdullah** leads specialist work and carries the former owner
-agent's strategy, governance, quality, and business-value responsibilities.
-The former owner agent has been removed. The user makes consequential decisions
-and approves documents.
+coordinator, who consults chat specialists directly and frames advice in the
+former owner agent's strategy, governance, quality, and business-value terms.
+**Abdullah** leads only the SOP generation pipeline and is not consulted in chat;
+his strategic guidance still feeds pipeline planning. The former owner agent has
+been removed. The user makes consequential decisions and approves documents.
 
 | Agent | Responsibility |
 | --- | --- |
-| Ahmad | Task management, planning, communication, coordination |
-| Abdullah | Strategy, specialist orchestration, document workflow |
+| Ahmad | Task management, planning, communication, direct specialist consultation, strategy/governance framing in chat |
+| Abdullah | SOP pipeline leader: planning, specialist orchestration, document workflow, recovery |
 | Agent 1 | Research and IT service practices |
 | Agent 2 | Standards and control alignment |
 | Agent 3 | Writing and SOP content |
@@ -66,9 +67,12 @@ and approves documents.
 | Agent 10 | End-user computing and endpoint management (patching, imaging, packaging, Intune/MECM, change records); chat advice and endpoint SOP appendices |
 
 Ahmad's bounded request planner is configured in `config/assistant_routes.yaml`.
-Positive capability matches consult through Abdullah; common clause negation and
-ambiguous/overbroad requests are handled deterministically. Unmatched advice stays
-with Ahmad. Explicit task context and exact user turns survive the recent response
+Ahmad consults positive capability matches directly
+(`AssistantSession._consult_specialists`); common clause negation and
+ambiguous/overbroad requests are handled deterministically. Unmatched advice,
+including strategy, roadmap, budget and prioritization, stays with Ahmad.
+`leader_agent` is not a chat capability: configuration loading fails with the
+file path if `assistant_routes.yaml` names it. Explicit task context and exact user turns survive the recent response
 window within a bounded session, without becoming permanent memory. The old agent
 knowledge files remain source material; historical references to the prior
 hierarchy inside them do not grant authority.

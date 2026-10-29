@@ -49,7 +49,8 @@ is recorded in the [phase checkpoint](docs/reports/PHASE_2_5_CHECKPOINT.md).
 ## Overview
 
 This system provides 12 agent roles. Ahmad coordinates the user's tasks and
-conversations; Abdullah leads specialist work. Generation runs use a leader, five core workers,
+conversations and consults specialists directly; Abdullah leads the SOP generation
+pipeline. Generation runs use a leader, five core workers,
 and only the specialists selected for the process. They produce draft Standard
 Operating Procedures (SOPs) in multiple formats. The 15–30 page target warns by
 default; `ENFORCE_PAGE_TARGET=true` makes it mandatory and requires PDF output.
@@ -60,7 +61,7 @@ Every successful run requires separate human approval.
 - **Multi-Agent Architecture**: 12 coordinated roles, including Ahmad and Abdullah
 - **Personal Task Lists**: Separate local work and personal tasks, priorities, due dates, and daily views
 - **Persistent Personal Context**: Editable profiles, preferences, project goals, correction lessons, and matching examples shared with Ahmad and specialists
-- **Conversational Coordination**: Ahmad uses bounded request plans and Abdullah-led multi-specialist consultations
+- **Conversational Coordination**: Ahmad uses bounded request plans and consults multiple specialists directly
 - **Standards Review**: Structured checks and gap findings, not compliance certification
 - **Multi-Format Output**: PDF, Word (DOCX), Markdown, and HTML
 - **Source-Aware**: Retrieves traceable excerpts from explicitly authorized references
@@ -69,15 +70,17 @@ Every successful run requires separate human approval.
 
 ## Agent Team
 
-Ahmad is the user's main coordinator. Abdullah leads the specialist agents.
-The former Khalid owner agent was removed; its strategy, governance, quality,
-and business-value guidance now belongs to Abdullah. The user retains approval
+Ahmad is the user's main coordinator and consults chat specialists directly.
+Abdullah leads only the SOP generation pipeline and is not consulted in chat.
+The former Khalid owner agent was removed; Ahmad frames chat advice in its
+strategy, governance, quality, and business-value terms, and the same guidance
+still feeds Abdullah's pipeline planning. The user retains approval
 and decision authority. Run `python3 scripts/dev.py run agents` for the active roster.
 
 | Agent | Current responsibility |
 | --- | --- |
-| Ahmad | Main coordinator for tasks, preferences, planning, and conversations |
-| Abdullah | Strategic leader and specialist orchestrator |
+| Ahmad | Main coordinator for tasks, preferences, planning, conversations, and direct specialist consultation |
+| Abdullah | SOP pipeline leader and specialist orchestrator |
 | Agent 1 | Research and IT service practices |
 | Agent 2 | Standards and control alignment for human verification |
 | Agent 3 | Writing and SOP content |

@@ -1,5 +1,11 @@
 # System Architecture
 
+> Update (2026-10-29): Abdullah is no longer in the chat path. Ahmad consults the
+> selected specialists directly and answers strategy, budget and prioritization
+> requests himself; Abdullah leads only the SOP pipeline below. Where older notes
+> or diagrams say Abdullah coordinates chat consultations, this update wins. See
+> [Coordination and recovery](../guides/COORDINATION_AND_RECOVERY.md).
+
 > Package 5 (2026-10-16): Current coordination supports bounded Arabic/English
 > intent and optional consent-gated resolution. OS ownership, atomic signed run
 > snapshots and validated review chunks support crash recovery. Arabic/RTL graphs

@@ -1,10 +1,10 @@
 # Coordinated advice and recoverable SOP execution
 
 REEMA's supported workflows are advisory chat, its existing local commands and
-the configured SOP pipeline. Ahmad remains the conversational entry point.
-Abdullah now coordinates the selected advisory capabilities and the recoverable
-document workflow. The runtime is Anthropic; document approval remains a separate
-human action.
+the configured SOP pipeline. Ahmad remains the conversational entry point and
+consults the selected advisory capabilities directly. Abdullah leads only the
+recoverable document workflow and is not consulted in chat. The runtime is
+Anthropic; document approval remains a separate human action.
 The [document quality guide](DOCUMENT_QUALITY.md) covers the later control,
 section/correction and export contracts included in current recovery identity.
 
@@ -12,10 +12,12 @@ section/correction and export contracts included in current recovery identity.
 
 The planner uses validated phrase rules in `config/assistant_routes.yaml` and
 selects every positive matching capability. For example, a request to draft an
-SOP with MFA and a KPI dashboard selects Content, Access and Data. Abdullah runs
-those consultations under the existing concurrency/token limits and supplies a
-structured briefing to Ahmad. A leader model completion is used only when
-strategic advice is selected; orchestration itself is deterministic.
+SOP with MFA and a KPI dashboard selects Content, Access and Data. Ahmad runs
+those consultations under the existing concurrency/token limits, builds a
+structured consultation record (`coordinator: "Ahmad"`), and answers from it.
+The fan-out itself is deterministic and makes no extra model call. Strategy,
+roadmap, budget and prioritization requests select no specialist; Ahmad answers
+them with strategy, governance, quality and business-value framing.
 
 Negation applies within clauses. `No security advice; prepare an agenda` selects
 Content. Exclusions such as `standard applications` prevent the generic
