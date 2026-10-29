@@ -1,7 +1,10 @@
-# REEMA - Personal Coordination and IT Documentation
+# REEMA - Personal Assistant
 
-**REEMA** coordinates local work and personal tasks, offers a single conversational
-entry point through Ahmad, and retains its IT documentation specialists. The
+**REEMA** is Khalid's personal assistant. It knows his life and supports him
+across his professional work, personal life, daily tasks, and designing his home.
+Work comes first: SOPs, reports and presentations. The first new feature, not yet
+built, will turn SCCM and Intune data into a patch report PowerPoint. Ahmad is the
+single conversational entry point, backed by the IT documentation specialists. The
 conversational and document-generation features use Anthropic's Claude API only
 after explicit authorization; local task commands work without an API key.
 

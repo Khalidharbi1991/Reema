@@ -5,6 +5,11 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md); open external requirements live in the
 [finite ledger](PENDING_LEDGER.md).
 
+## 2026-10-29 — Personal assistant purpose
+
+Purpose changed to personal assistant; work-first priority; patch report
+PowerPoint as first new feature.
+
 ## 2026-10-29 — Ahmad consults chat specialists directly
 
 Abdullah was removed from the chat path and now leads only the SOP generation

@@ -2,11 +2,17 @@
 
 ## Purpose
 
-REEMA coordinates a user's work and personal tasks and supports IT process
-documentation. It is a Python CLI with an Anthropic-backed, asynchronous agent
-runtime; shipped models inherit configurable Sonnet 4.6 defaults, and the
-application has not moved to OpenAI. Local task commands use SQLite and make no
-model calls. The user makes consequential decisions and approves documents.
+REEMA is Khalid's personal assistant. It knows his life and supports him across
+his professional work, personal life, daily tasks, and designing his home. Work
+comes first: SOPs, reports and presentations, starting with turning SCCM and
+Intune data into a patch report PowerPoint.
+
+Not yet built: patch report PowerPoint (PPTX export) and SCCM/Intune export intake.
+
+It is a Python CLI with an Anthropic-backed, asynchronous agent runtime; shipped
+models inherit configurable Sonnet 4.6 defaults, and the application has not
+moved to OpenAI. Local task commands use SQLite and make no model calls. The user
+makes consequential decisions and approves documents.
 
 This file describes the current application and the working rules for any coding
 agent (Claude Code, Codex, or others) that maintains, tests, and evolves this
@@ -29,6 +35,12 @@ commands. Change history is in `docs/reports/CHANGELOG.md`.
   with permission and a matching SHA-256 in the local manifest may enter model
   context. `--allow-external-ai` authorizes the relevant conversation or
   generation input to Anthropic; it does not approve distribution.
+- REEMA never sends email or any external communication without Khalid's
+  explicit permission.
+- Customer data is stored locally only. It may be sent to Claude for processing
+  only with explicit authorization (`--allow-external-ai` or a pre-authorized
+  `ALLOW_EXTERNAL_AI` environment), in addition to the reference manifest rule.
+  Do not weaken or bypass that consent.
 - Preserve existing user changes: the worktree may be dirty.
 
 ## Current team
