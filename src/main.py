@@ -590,7 +590,7 @@ def version():
 
     console.print(f"\n[bold cyan]REEMA - Regulatory & Enterprise Management Automation[/bold cyan]")
     console.print(f"Version: {__version__}")
-    console.print("Agents: 11 (Ahmad, Abdullah, Agents 1–9)\n")
+    console.print("Agents: 12 (Ahmad, Abdullah, Agents 1–10)\n")
 
 
 if __name__ == "__main__":
