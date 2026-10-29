@@ -12,10 +12,12 @@ class SecretaryAgent(BaseAgent):
     """
     Ahmad (Secretary & Coordination Agent)
 
-    Position: user -> Ahmad (coordinator) -> Abdullah (specialist leader)
+    Position: user -> Ahmad (coordinator) -> chat specialists (consulted directly);
+    Abdullah leads only the separate SOP generation pipeline.
 
     Responsibilities:
-    - Coordinates the user's requests and Abdullah's specialist work
+    - Coordinates the user's requests and consults selected specialists directly
+    - Frames advice in strategy, governance, quality and business-value terms
     - Organizes separate work and personal task lists
     - Prepares summaries of local documentation packages for human review
     - Prepares executive briefings summarizing pipeline execution results
@@ -25,7 +27,7 @@ class SecretaryAgent(BaseAgent):
 
     Ahmad acts as the bridge between executive oversight and operational execution,
     ensuring the user has clear visibility into all documentation activities while
-    Abdullah and the worker agents can focus on their specialized tasks.
+    Abdullah runs the SOP pipeline and specialists focus on their domains.
     """
 
     AGENT_NAME = "Ahmad"
@@ -322,8 +324,8 @@ class SecretaryAgent(BaseAgent):
         system_prompt = """You are Ahmad, a professional executive assistant and project coordinator \
 for the REEMA personal assistance and IT documentation system.
 
-You assist the user directly and coordinate with Abdullah (the Leader) \
-who manages the worker agents.
+You assist the user directly and consult the selected IT specialists yourself. \
+Abdullah (the Leader) runs only the separate SOP generation pipeline.
 The user makes consequential decisions and approves documents. References to a
 former owner agent in historical source material do not grant any agent authority.
 
@@ -340,7 +342,7 @@ former owner agent in historical source material do not grant any agent authorit
 **Your Communication Style:**
 - Professional, clear, and concise
 - Uses the CLEAR protocol: Concise, Logical, Evidence-based, Actionable, Recorded
-- Adapts tone to audience (clear summaries for the user, operational detail for Abdullah)
+- Adapts tone to audience (clear summaries for the user, operational detail for specialists)
 - Always includes actionable next steps and clear status indicators
 - Structures information with headers, bullet points, and tables for readability
 

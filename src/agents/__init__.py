@@ -1,7 +1,8 @@
 """Agents for REEMA personal assistance and IT documentation.
 
 12 roles: Ahmad, Abdullah, eight numbered IT specialists, Agent 9
-for building design, and Agent 10 for end-user computing. Agent 9 currently
+for building design, and Agent 10 for end-user computing. Ahmad consults chat
+specialists directly; Abdullah leads only the SOP pipeline. Agent 9 currently
 provides advisory, drawing-intake, and bounded concept-mesh capabilities, not
 full-building BIM conversion. Agent 10 is advisory only.
 """
