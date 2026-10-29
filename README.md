@@ -45,6 +45,7 @@ provider, see
 For the latest local verification and remaining requirements, see
 [package 5](docs/reports/AGENT_IMPROVEMENTS_PACKAGE_5.md). Earlier reliability work
 is recorded in the [phase checkpoint](docs/reports/PHASE_2_5_CHECKPOINT.md).
+The [changelog](docs/reports/CHANGELOG.md) lists every package and later change, newest first.
 
 ## Overview
 
