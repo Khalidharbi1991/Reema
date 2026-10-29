@@ -22,6 +22,6 @@ The reproducible local environment and specialist validators are described in
 [Specialist evidence and checks](guides/SPECIALIST_EVIDENCE_AND_CHECKS.md) and
 [Package 4 checkpoint](reports/AGENT_IMPROVEMENTS_PACKAGE_4.md).
 
-The repository root keeps only the primary `README.md`, the main `CLAUDE.md`
-entry point (the source of truth for coding agents), and `AGENTS.md`, which
-points to `CLAUDE.md`.
+The repository root keeps only the primary `README.md`, the main `AGENTS.md`
+entry point (the source of truth for coding agents), and `CLAUDE.md`, which
+imports `AGENTS.md`.

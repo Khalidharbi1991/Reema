@@ -34,10 +34,10 @@ depth and the consent-ready synthetic evaluation.
 
 ## Working with coding agents
 
-This repository includes [CLAUDE.md](CLAUDE.md), which gives any coding agent
+This repository includes [AGENTS.md](AGENTS.md), which gives any coding agent
 (Claude Code, Codex, or others) focused, project-specific instructions for safe
-maintenance and enhancement. [AGENTS.md](AGENTS.md) is only a pointer to
-CLAUDE.md. Neither file changes the application's current Claude runtime. For
+maintenance and enhancement. [CLAUDE.md](CLAUDE.md) only imports
+AGENTS.md. Neither file changes the application's current Claude runtime. For
 the staged plan to improve the system or migrate the application to another LLM
 provider, see
 [docs/migration/CODEX_ADOPTION.md](docs/migration/CODEX_ADOPTION.md).
@@ -255,8 +255,8 @@ python3 scripts/dev.py run version
 
 ```
 IT-Consultant/
-├── AGENTS.md                      # Pointer to CLAUDE.md
-├── CLAUDE.md                      # Project context and agent working rules (source of truth)
+├── AGENTS.md                      # Project context and agent working rules (source of truth)
+├── CLAUDE.md                      # Imports AGENTS.md
 ├── README.md                      # This file
 ├── pyproject.toml                 # Package and test configuration
 ├── requirements.txt               # Python dependencies

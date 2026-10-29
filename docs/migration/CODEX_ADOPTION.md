@@ -3,7 +3,7 @@
 ## Current state
 
 Codex can now work in this repository: it reads the root `AGENTS.md`, which
-points to the project instructions in `CLAUDE.md`. The application remains an
+holds the project instructions. The application remains an
 Anthropic-powered Python CLI. Calls now pass through the
 async `LLMProvider` boundary and `AnthropicProvider` adapter; configuration still
 reads `ANTHROPIC_API_KEY`. Reliability, retrieval, checkpoint recovery, and quality
@@ -62,8 +62,8 @@ Do this only when the desired deployment and API access are confirmed:
 ## Why this order
 
 Coding-agent repository instructions and an application LLM provider solve different
-problems. `CLAUDE.md` guides future maintenance work; Codex reads `AGENTS.md`,
-which points to it. The provider
+problems. `AGENTS.md` guides future maintenance work; Codex reads it directly and
+`CLAUDE.md` imports it. The provider
 abstraction prevents a future API migration from requiring invasive edits across
 all eleven agents.
 
