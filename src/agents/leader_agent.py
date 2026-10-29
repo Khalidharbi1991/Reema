@@ -33,8 +33,8 @@ from ..utils.documents import (ControlRegister, legacy_register, control_coverag
 from ..utils.diagrams import extract_flows
 from ..utils.specialists import SpecialistInputs, validate_analytics_result
 from ..utils.ownership import RunLease
-from ..utils.coordination import RequestPlan, AdvisoryInput, Briefing, Consultation, parse_advice, DocumentationRequest, WorkflowPlan
-from ..utils.capabilities import invoke_advice, invoke_pipeline
+from ..utils.coordination import DocumentationRequest, WorkflowPlan
+from ..utils.capabilities import invoke_pipeline
 from ..utils.execution import ExecutionJournal, load_execution, execution_identity, validate_result, digest, FIELDS
 
 
@@ -70,7 +70,7 @@ class LeaderAgent:
     - Performs final quality control and validation
     - Assembles final output in requested format(s)
     - Manages state and context across the agent team
-    - Coordinates specialist work while Ahmad organizes requests for the user
+    - Leads the SOP pipeline only; Ahmad consults chat specialists directly
     """
 
     def __init__(self, api_key: Optional[str] = None):
@@ -88,7 +88,6 @@ class LeaderAgent:
         self.workflow_status = "idle"
         self.current_phase = None
         self._task_store = None
-        self.consultation_status = {"status": "idle", "selected": [], "completed": [], "failed": []}
         self._journal = None
 
         logger.info("Leader Agent initialized", agent=self.name)
@@ -97,68 +96,6 @@ class LeaderAgent:
         """Register a worker agent."""
         self.worker_agents[agent_name] = agent_instance
         logger.info(f"Registered worker: {agent_name}", agent=self.name)
-
-    async def coordinate_consultations(self, plan, inputs, resolve_agent, system_for):
-        """Execute only the validated advisory capabilities; no redundant leader completion."""
-        plan = RequestPlan.model_validate(plan)
-        inputs = AdvisoryInput.model_validate(inputs)
-        runtime = current_runtime.get()
-        if not runtime or not runtime.settings.allow_external_ai:
-            raise PermissionError("Authorize advisory consultation input before coordination")
-        if plan.intent != "advisory" or plan.status != "ready":
-            raise ValueError("Consultation plan is not executable")
-        if len(plan.selections) > config_manager.assistant_routing.max_specialists:
-            raise ValueError("Consultation plan exceeds the configured specialist limit")
-        if self.consultation_status["status"] == "consulting":
-            raise RuntimeError("A consultation is already running")
-        self.consultation_status = {"status": "consulting", "selected": [s.agent for s in plan.selections],
-                                    "completed": [], "failed": []}
-        slots = asyncio.Semaphore(runtime.settings.max_concurrent_agents)
-
-        async def consult(selection):
-            agent = None
-            try:
-                agent = resolve_agent(selection.agent)
-                async with slots:
-                    response = await invoke_advice(agent, inputs, system_for(selection.agent))
-                advice = parse_advice(response)
-                handoff = adapt_handoff(inputs.session.objective or inputs.message, selection.agent,
-                    "enrichment", {"advice": advice.advice, "handoff_metadata": advice.metadata.model_dump()},
-                    sources=runtime.sources)
-                advice.metadata = handoff.metadata
-                result = Consultation(agent=selection.agent, name=agent.name, status="completed", result=advice)
-                self.consultation_status["completed"].append(selection.agent)
-                return result
-            except Exception as error:
-                self.consultation_status["failed"].append(selection.agent)
-                return Consultation(agent=selection.agent, name=agent.name if agent else selection.agent,
-                                    status="failed", error_type=type(error).__name__)
-
-        try:
-            results = await asyncio.gather(*(consult(s) for s in plan.selections))
-        except BaseException:
-            self.consultation_status["status"] = "cancelled"
-            raise
-        failures = [r for r in results if r.status == "failed"]
-        status = "partial" if failures and len(failures) < len(results) else "failed" if failures else "ready"
-        self.consultation_status["status"] = status
-        positions = {}
-        questions = [f"{r.name} consultation failed ({r.error_type}); advice is unavailable." for r in failures]
-        for result in results:
-            if result.result:
-                questions.extend(result.result.metadata.unresolved_questions)
-                for position in result.result.positions:
-                    positions.setdefault(position.topic.casefold().strip(), []).append((result.name, position.stance))
-        disagreements = ["Reported positions differ for " + topic + ": " + "; ".join(f"{name}: {stance}" for name, stance in values)
-                         for topic, values in positions.items() if len({stance.casefold().strip() for _, stance in values}) > 1]
-        next_steps = (["Retry or clarify failed consultations before relying on their advice."] if failures else [])
-        if disagreements:
-            next_steps.append("Obtain user direction on the reported position differences; no consensus is established.")
-        if questions:
-            next_steps.append("Resolve the open questions before acting on uncertain advice.")
-        return Briefing(status=status, consultations=results, disagreements=disagreements,
-                        objective=plan.objective, next_steps=next_steps,
-                        unresolved_questions=list(dict.fromkeys(questions)))
 
     def _begin_workflow(self, process_name, phases):
         if self.workflow_status == "running":

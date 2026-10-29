@@ -22,12 +22,17 @@ secretary_agent:
     - "Stakeholder management"
     - "Work and personal task organization"
     - "Daily planning and follow-up"
+    - "Direct consultation of selected IT specialists"
+    - "IT strategy, roadmap and prioritization advice"
+    - "Governance, risk escalation and audit readiness for human review"
+    - "Quality expectations and acceptance criteria"
+    - "Business value, cost-benefit and business-case framing"
 
-# --- Leader ---
+# --- SOP pipeline leader (not consulted in chat) ---
 
 leader_agent:
   name: "Abdullah"
-  role: "Strategic Leader & Specialist Orchestrator"
+  role: "SOP Pipeline Leader & Specialist Orchestrator"
   max_tokens: 4096
   specialization:
     - "IT strategy and roadmap development"

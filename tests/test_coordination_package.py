@@ -39,7 +39,7 @@ def chat(tmp_path, monkeypatch):
     monkeypatch.setattr(config_manager.system_config, "task_data_dir", tmp_path)
     monkeypatch.setattr(config_manager.system_config, "allow_external_ai", False)
     session = AssistantSession("work", project="Alpha", api_key="synthetic")
-    for key, name in [("secretary_agent", "Ahmad"), ("leader_agent", "Abdullah"),
+    for key, name in [("secretary_agent", "Ahmad"),
                       ("access_agent", "Agent 6"), ("data_agent", "Agent 8"),
                       ("content_agent", "Agent 3"), ("research_agent", "Agent 1"),
                       ("standards_agent", "Agent 2"), ("problem_agent", "Agent 7")]:
@@ -69,16 +69,20 @@ def test_request_planner_acceptance(chat, message, selected):
 
 
 @pytest.mark.asyncio
-async def test_mixed_request_uses_abdullah_coordinator_and_every_needed_specialist(chat):
+async def test_mixed_request_ahmad_consults_every_needed_specialist_directly(chat, monkeypatch):
+    def no_leader(*args, **kwargs):
+        raise AssertionError("Chat must not construct the SOP pipeline leader")
+
+    monkeypatch.setattr(LeaderAgent, "__init__", no_leader)
     result = await chat.reply("Draft an SOP with MFA and a KPI dashboard", allow_external_ai=True)
-    assert isinstance(chat._coordination_leader, LeaderAgent)
     assert result["consulted_agents"] == ["Agent 6", "Agent 8", "Agent 3"]
-    assert result["coordination"]["coordinator"] == "Abdullah"
+    assert result["coordination"]["coordinator"] == "Ahmad"
     assert result["coordination"]["consensus"] == "not_established"
+    assert chat.consultation_status["status"] == "ready"
     for key in ("access_agent", "data_agent", "content_agent", "secretary_agent"):
         chat.agents[key]._call_claude.assert_awaited_once()
-    chat.agents["leader_agent"]._call_claude.assert_not_awaited()  # No redundant leader completion.
-    assert "Abdullah coordination briefing" in prompt(chat)
+    assert "leader_agent" not in chat.agents
+    assert "Specialist consultation record" in prompt(chat) and "Abdullah" not in prompt(chat)
 
 
 @pytest.mark.asyncio
@@ -174,7 +178,7 @@ async def test_agent_initialization_failure_does_not_abandon_sibling_consultatio
     answer = await chat.reply("Explain MFA and KPI dashboards", allow_external_ai=True)
     assert answer["coordination"]["status"] == "partial"
     chat.agents["data_agent"]._call_claude.assert_awaited_once()
-    assert chat._coordination_leader.consultation_status["completed"] == ["data_agent"]
+    assert chat.consultation_status["completed"] == ["data_agent"]
 
 
 @pytest.mark.asyncio

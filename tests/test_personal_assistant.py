@@ -112,7 +112,8 @@ async def test_ahmad_routes_specialist_and_sends_only_selected_area(tmp_path, mo
     prompt = work.agents["secretary_agent"]._call_claude.await_args.args[0][-1]["content"]
     assert "Confidential work task" not in prompt and "Private personal task" not in prompt
 
-    work.agents["leader_agent"] = FakeAgent("Abdullah")
-    assert work.route("Help me compare strategy options") == "leader_agent"
+    # Strategy advice is Ahmad's own; Abdullah leads only the SOP pipeline.
+    assert work.route("Help me compare strategy options") == "secretary_agent"
     strategic = await work.reply("Help me compare strategy options", allow_external_ai=True)
-    assert strategic["consulted"] == "Abdullah"
+    assert strategic["consulted"] is None and strategic["consulted_agents"] == []
+    assert "leader_agent" not in work.agents

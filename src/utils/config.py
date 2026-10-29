@@ -163,7 +163,14 @@ class ConfigManager:
         routing = self._read("assistant_routes.yaml", AssistantRouting)
         profile = self._read("document_profile.yaml", DocumentProfile)
         specialist_policy = self._read("specialist_policy.yaml", SpecialistPolicy)
-        routable = {"secretary_agent", "leader_agent", "research_agent", "standards_agent",
+        routes_path = self.system_config.config_dir / "assistant_routes.yaml"
+        leader_entries = (["default_agent"] if routing.default_agent == "leader_agent" else []) + [
+            f"routes[{index}]" for index, rule in enumerate(routing.routes) if rule.agent == "leader_agent"]
+        if leader_entries:
+            raise ValueError(f"{routes_path} still names leader_agent in {', '.join(leader_entries)}. Abdullah now leads only "
+                             "the SOP pipeline and Ahmad consults specialists directly; remove that leader_agent "
+                             "entry from the file.")
+        routable = {"secretary_agent", "research_agent", "standards_agent",
                     "content_agent", "review_agent", "access_agent",
                     "problem_agent", "data_agent", "building_design_agent", "euc_agent"}
         if routing.default_agent not in routable or any(

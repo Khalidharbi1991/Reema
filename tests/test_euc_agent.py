@@ -71,7 +71,7 @@ async def test_agent_10_consultation_is_advisory_and_uses_its_protocol(chat):
     system = agent._call_claude.await_args.kwargs["system"]
     assert "Reversibility first" in system and "personal contexts separate" in system
     assert "Do not execute actions or claim approvals" in system
-    chat.agents["leader_agent"]._call_claude.assert_not_awaited()
+    assert "leader_agent" not in chat.agents
 
 
 @pytest.mark.asyncio

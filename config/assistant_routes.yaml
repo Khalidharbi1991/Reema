@@ -1,4 +1,7 @@
 # Bounded bilingual hints; optional structured resolution requires model consent.
+# Ahmad (default_agent) consults matched specialists directly and answers strategy,
+# roadmap, budget and prioritization requests himself. leader_agent (Abdullah) leads
+# only the SOP pipeline and is rejected here.
 default_agent: secretary_agent
 memory_example_limit: 3
 max_specialists: 6
@@ -110,19 +113,6 @@ routes:
   - امن
   - الامن
   - الامان
-- agent: leader_agent
-  keywords:
-  - strategy
-  - roadmap
-  - business case
-  - prioritize
-  - decision
-  - budget
-  - خطة استراتيجية
-  - ميزانية
-  - الاولويات
-  - قرار
-  - استراتيجية
 - agent: problem_agent
   keywords:
   - root cause

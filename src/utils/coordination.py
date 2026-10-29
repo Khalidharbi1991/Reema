@@ -10,7 +10,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .handoffs import HandoffMetadata, payload_json
 from .specialists import SpecialistInputs
 
-AGENT_KEYS = {"leader_agent", "research_agent", "standards_agent", "content_agent",
+# Specialists Ahmad may consult in chat. Abdullah (leader_agent) leads only the SOP pipeline.
+AGENT_KEYS = {"research_agent", "standards_agent", "content_agent",
               "review_agent", "access_agent", "problem_agent", "data_agent", "building_design_agent",
               "euc_agent"}
 
@@ -201,7 +202,7 @@ class Consultation(Contract):
 
 
 class Briefing(Contract):
-    coordinator: Literal["Abdullah"] = "Abdullah"
+    coordinator: Literal["Ahmad"] = "Ahmad"
     status: Literal["ready", "partial", "failed"]
     consultations: list[Consultation]
     disagreements: list[str] = Field(default_factory=list)

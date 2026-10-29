@@ -20,7 +20,7 @@ from tests.test_phase01 import catalog, pipeline
 
 @pytest.mark.parametrize("message,expected", [
     ("Plan my day", "secretary_agent"),
-    ("Compare our strategy and budget", "leader_agent"),
+    ("Compare our strategy and budget", "secretary_agent"),
     ("Research the service practice", "research_agent"),
     ("Assess ISO 27001 compliance", "standards_agent"),
     ("Draft an SOP", "content_agent"),
