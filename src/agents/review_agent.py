@@ -5,7 +5,7 @@ from .base_agent import BaseAgent
 from ..utils.logger import logger
 from ..utils.config import config_manager
 from ..utils.quality import Assessment, assess_all
-from ..utils.quality import parse_json_response, UnparsedReplyError
+from ..utils.quality import parse_json_response, parse_fenced_json_response, UnparsedReplyError
 from ..utils.documents import (LocatedAssessment, CorrectionAssessment, ExistingSopAssessment, LocatedFinding,
                                section_map, locate_findings, sha)
 import json
@@ -126,7 +126,8 @@ class ReviewAgent(BaseAgent):
                 "summaries": [result.summary for result in results], "coverage": coverage,
                 "section_locations": locations, "verification": "unverified"}
 
-    async def recheck_corrections(self, content: str, findings: List[Dict], require_complete: bool = True) -> Dict:
+    async def recheck_corrections(self, content: str, findings: List[Dict], require_complete: bool = True,
+                                  finished_sop: bool = False) -> Dict:
         profile = config_manager.document_profile
         locations = section_map(content, profile, require_complete=require_complete)
         targets = {f["section_id"] for f in findings}
@@ -141,7 +142,7 @@ class ReviewAgent(BaseAgent):
                   + "\nCORRECTION DATA:\n" + json.dumps(data))
         response = await self._call_claude([{"role": "user", "content": prompt}], system=self._build_system_prompt())
         try:
-            parsed = parse_json_response(response, CorrectionAssessment)
+            parsed = (parse_fenced_json_response if finished_sop else parse_json_response)(response, CorrectionAssessment)
         except ValueError as error:
             raise UnparsedReplyError(str(error), response) from None
         result = parsed.validate_against(content, findings, profile, require_complete)

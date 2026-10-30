@@ -366,3 +366,62 @@ async def test_finished_sop_prompt_limits_scope_but_generate_prompt_does_not(tmp
     generator._call_claude = AsyncMock(return_value=patch_reply(source.content, {"sec-procedures": NEW_ESCALATION}))
     await generator.revise_sections(source.content, findings)
     assert "finished SOP" not in generator._call_claude.await_args.args[0][0]["content"]
+
+
+def fenced(reply, prose="I need to apply the finding once, in the most fitting place."):
+    return prose + "\n\n```json\n" + reply + "\n```\n"
+
+
+@pytest.mark.asyncio
+async def test_prose_before_one_fenced_block_is_accepted_for_finished_sops(tmp_path, output_root):
+    path = tmp_path / "incident.md"
+    path.write_text(template_sop())
+    source = load_sop(path)
+    findings = instruction_findings(source.content, PROFILE, "Add a 15 minute rule", ["sec-procedures"])
+    leader, _, _ = leader_with(fenced(patch_reply(source.content, {"sec-procedures": NEW_ESCALATION})),
+                               lambda *a, **k: fenced(recheck_reply(findings, "within 15 minutes"), "Checking each finding."))
+    outputs = await leader.revise_existing(source, findings, allow_external_ai=True)
+    assert Path(outputs["markdown"]).read_text() == template_sop({"Detailed Procedures": NEW_ESCALATION})
+    assert not (Path(leader.context["run_dir"]) / "unparsed_reply.txt").exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("shape", ["no block", "two blocks"])
+async def test_prose_without_exactly_one_block_still_fails_and_is_saved(tmp_path, output_root, shape):
+    path = tmp_path / "incident.md"
+    path.write_text(template_sop())
+    source = load_sop(path)
+    findings = instruction_findings(source.content, PROFILE, "Add a rule", ["sec-procedures"])
+    patch = patch_reply(source.content, {"sec-procedures": NEW_ESCALATION})
+    reply = "Here it is: " + patch if shape == "no block" else fenced(patch) + fenced(patch, "Or this one.")
+    leader, _, review = leader_with(reply, "{}")
+    with pytest.raises(ValueError, match="Invalid structured SectionPatch"):
+        await leader.revise_existing(source, findings, allow_external_ai=True)
+    assert (Path(leader.context["run_dir"]) / "unparsed_reply.txt").read_text() == reply
+    review._call_claude.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_fenced_block_with_stale_hash_still_fails_the_stale_check(tmp_path, output_root):
+    path = tmp_path / "incident.md"
+    path.write_text(template_sop())
+    source = load_sop(path)
+    findings = instruction_findings(source.content, PROFILE, "Add a rule", ["sec-procedures"])
+    stale = patch_reply(source.content + "older copy", {"sec-procedures": NEW_ESCALATION})
+    leader, _, _ = leader_with(fenced(stale), "{}")
+    with pytest.raises(ValueError, match="stale document"):
+        await leader.revise_existing(source, findings, allow_external_ai=True)
+
+
+@pytest.mark.asyncio
+async def test_generate_style_calls_still_reject_prose_before_json(tmp_path):
+    content = template_sop()
+    findings = instruction_findings(content, PROFILE, "Add a rule", ["sec-procedures"])
+    writer, checker = ContentAgent(api_key=""), ReviewAgent(api_key="")
+    writer._call_claude = AsyncMock(return_value=fenced(patch_reply(content, {"sec-procedures": NEW_ESCALATION})))
+    with pytest.raises(ValueError, match="Invalid structured SectionPatch"):
+        await writer.revise_sections(content, findings)
+    revised = template_sop({"Detailed Procedures": NEW_ESCALATION})
+    checker._call_claude = AsyncMock(return_value=fenced(recheck_reply(findings, "within 15 minutes")))
+    with pytest.raises(ValueError, match="Invalid structured CorrectionAssessment"):
+        await checker.recheck_corrections(revised, findings)

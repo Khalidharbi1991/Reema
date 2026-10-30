@@ -1091,8 +1091,8 @@ class LeaderAgent:
                 assert_only_targets_changed(content, revised, targets, profile, require_complete=complete)
                 assert_no_new_references(content, revised, targets, profile, require_complete=complete)
             async with self._phase("recheck"):
-                recheck = await self._invoke("recheck", {"content": revised, "findings": findings,
-                                                         "require_complete": complete})
+                recheck = await self._invoke("recheck_finished", {"content": revised, "findings": findings,
+                                                                  "require_complete": complete, "finished_sop": True})
                 checked = CorrectionAssessment.model_validate({"corrections": recheck.get("corrections")}).validate_against(
                     revised, findings, profile, complete)
                 if recheck.get("document_sha256") != sha(revised):

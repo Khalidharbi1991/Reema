@@ -62,6 +62,20 @@ def parse_json_response(text, schema):
         raise ValueError(f"Invalid structured {schema.__name__}; check required fields, locations and types") from None
 
 
+def parse_fenced_json_response(text, schema):
+    """parse_json_response, else the reply's single ```json block (finished-SOP revisions only).
+
+    No block, or more than one, keeps the original error; the block meets the same schema.
+    """
+    try:
+        return parse_json_response(text, schema)
+    except ValueError:
+        blocks = re.findall(r"```json[ \t]*\n(.*?)```", text, re.S)
+        if len(blocks) != 1:
+            raise
+        return parse_json_response(blocks[0], schema)
+
+
 def is_structured_response(text):
     value = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
     return text.strip().startswith("```json") or value.startswith(("{", "["))

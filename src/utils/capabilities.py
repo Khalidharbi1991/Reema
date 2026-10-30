@@ -105,6 +105,7 @@ PIPELINE_CAPABILITIES = {
     "revise_sections": ("ContentAgent", "revise_sections", LocatedRevisionInputs),
     "revise_finished": ("ContentAgent", "revise_sections", FinishedRevisionInputs),
     "recheck": ("ReviewAgent", "recheck_corrections", LocatedRevisionInputs),
+    "recheck_finished": ("ReviewAgent", "recheck_corrections", FinishedRevisionInputs),
     "access_compliance": ("AccessAgent", "validate_access_compliance", AccessComplianceInputs),
     "problem_compliance": ("ProblemAgent", "validate_problem_compliance", ProblemComplianceInputs),
     "format": ("FormatAgent", "convert_to_formats", FormatInputs),
