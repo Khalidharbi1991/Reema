@@ -327,18 +327,12 @@ def generate(
                   markup=False, soft_wrap=True)
 
 
-@app.command()
-def resume(
-    run: Path = typer.Argument(..., exists=True, file_okay=False, help="Run directory containing verified checkpoints"),
-    formats: Optional[List[str]] = typer.Option(None, "--format", "-f"),
-    output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Output root (default: ./output)"),
-):
-    """Export a run's checked draft again into a NEW run, with no model call."""
+def _export(run: Path, formats: Optional[List[str]], output_dir: Optional[Path]):
     async def execute():
         leader = LeaderAgent(api_key="")
         leader.register_worker("FormatAgent", FormatAgent())
         try:
-            outputs = await leader.resume_formatting(run, formats)
+            outputs = await leader.export_run(run, formats)
             for fmt, path in outputs.items():
                 console.print(f"{fmt}: {path}", markup=False)
             console.print("Awaiting human approval: " + leader.context["delivery"]["approval_record"], markup=False)
@@ -355,6 +349,26 @@ def resume(
         raise typer.Exit(code=1)
     finally:
         config_manager.system_config.output_dir = previous_output
+
+
+@app.command()
+def export(
+    run: Path = typer.Argument(..., exists=True, file_okay=False, help="Generate run folder with a ready checkpoint"),
+    formats: Optional[List[str]] = typer.Option(None, "--format", "-f", help="Formats to export (default: the run's own)"),
+    output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Output root (default: ./output)"),
+):
+    """Export a run's checked draft again into a NEW run awaiting approval, with no model call."""
+    _export(run, formats, output_dir)
+
+
+@app.command(hidden=True)
+def resume(
+    run: Path = typer.Argument(..., exists=True, file_okay=False),
+    formats: Optional[List[str]] = typer.Option(None, "--format", "-f"),
+    output_dir: Optional[Path] = typer.Option(None, "--output", "-o"),
+):
+    """Old name for export."""
+    _export(run, formats, output_dir)
 
 
 @app.command()

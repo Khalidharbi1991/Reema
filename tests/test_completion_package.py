@@ -12,34 +12,12 @@ import pytest
 
 from src.utils.config import config_manager
 from src.utils.diagrams import parse_flow, png_flow, svg_flow
-from src.utils.execution import ExecutionJournal, load_execution
 from src.utils.ownership import RunLease
 from src.utils.provider import RunRuntime, current_runtime
-from src.utils.quality import assess_all, ComplianceAssessment
-from src.utils.runs import RunStore
 from src.utils.specialists import (SpecialistPolicy, IAMSnapshot, check_iam, ProblemCase, Hypothesis, assess_problem, MetricSpec, calculate_metric)
 from src.utils.domain_depth import iam_drift
 from tests.test_phase01 import catalog
 from tests.test_specialist_package import source, evidence, snapshot, hypotheses, case
-
-
-CHILD_OWNER = '''
-import sys
-from pathlib import Path
-from src.utils.config import ConfigManager, SystemConfig
-from src.utils.coordination import DocumentationRequest
-from src.utils.runs import RunStore
-from src.utils.execution import ExecutionJournal
-root=Path(sys.argv[1])
-config=ConfigManager(SystemConfig(_env_file=None, project_root=root, config_dir=root/'config', output_dir=root/'output'))
-store=RunStore(root/'output/runs/child', 'Synthetic', ['markdown'])
-request=DocumentationRequest(process_name='Synthetic',formats=['markdown'],objective='Synthetic checks')
-journal=ExecutionJournal(store,config,request,{'synthetic':'same'})
-store.state['usage']={'accounted_tokens':2048,'in_flight':[{'reserved_tokens':2048}]}
-store.flush()
-print('READY',flush=True)
-sys.stdin.read()
-'''
 
 
 def owner_child(catalog):
@@ -55,21 +33,6 @@ def owner_child(catalog):
         process.kill(); process.wait(timeout=5); raise
     finally: selector.close()
     return process, catalog.system_config.output_dir/'runs/child'
-
-
-def test_real_owner_blocks_reads_and_hard_kill_releases_authenticated_running_recovery(catalog):
-    process, directory = owner_child(catalog)
-    try:
-        with pytest.raises(RuntimeError, match='active owner'): load_execution(directory,catalog)
-        process.kill(); process.wait(timeout=5)
-        # Simulate a kill between the unsigned run write and the signed commit.
-        (directory/'run.json').write_text('{partial unsigned write')
-        record,_ = load_execution(directory,catalog)
-        assert record.run_state['status'] == 'running'
-        assert record.usage['accounted_tokens'] == 2048 and record.usage['in_flight']
-    finally:
-        if process.poll() is None: process.kill(); process.wait(timeout=5)
-        for stream in [process.stdin,process.stdout,process.stderr]: stream.close()
 
 
 def test_ownership_refuses_cross_host_and_symlink(tmp_path):
@@ -104,36 +67,6 @@ async def test_failed_reservation_write_never_transmits(catalog):
     provider=SimpleNamespace(complete=AsyncMock())
     with pytest.raises(OSError): await runtime.call(provider,agent='Test',model='synthetic',max_tokens=100)
     provider.complete.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_review_chunk_checkpoint_survives_interruption_and_revalidates_cached_results(catalog,monkeypatch):
-    monkeypatch.setattr(config_manager.system_config,'review_chunk_chars',1000)
-    from src.utils.coordination import DocumentationRequest
-    store=RunStore(catalog.system_config.output_dir/'runs/chunks','Synthetic',['markdown'])
-    request=DocumentationRequest(process_name='Synthetic',formats=['markdown'],objective='Synthetic')
-    journal=ExecutionJournal(store,catalog,request,{'synthetic':'stable'})
-    runtime=RunRuntime(catalog.system_config);runtime.execution_journal=journal
-    token=current_runtime.set(runtime)
-    answer=json.dumps({'compliant':False,'findings':['Needs owner evidence'],'summary':'Unverified'})
-    worker=SimpleNamespace(name='Review',model='synthetic',_build_system_prompt=lambda:'Synthetic system',
-        _call_claude=AsyncMock(side_effect=[answer,RuntimeError('Synthetic outage')]))
-    content=('First excerpt. '*60)+'\n\n'+('Second excerpt. '*60)
-    try:
-        with pytest.raises(RuntimeError): await assess_all(worker,content,ComplianceAssessment,'Review supplied data')
-        assert len(journal.data['completed_assessments']) == 1
-        before=worker._call_claude.await_count
-        worker._call_claude.side_effect=None;worker._call_claude.return_value=answer
-        results,coverage=await assess_all(worker,content,ComplianceAssessment,'Review supplied data')
-        assert coverage['chunks_reviewed']>=2 and worker._call_claude.await_count-before == len(results)-1
-        checkpointed=worker._call_claude.await_count
-        def invalid(result,offset,part): raise ValueError('Synthetic invalid location')
-        with pytest.raises(ValueError): await assess_all(worker,content,ComplianceAssessment,'Review supplied data',invalid)
-        assert worker._call_claude.await_count == checkpointed
-        await assess_all(worker,content,ComplianceAssessment,'Changed review instructions')
-        assert worker._call_claude.await_count > checkpointed
-    finally:
-        current_runtime.reset(token);store.close()
 
 
 def graph():

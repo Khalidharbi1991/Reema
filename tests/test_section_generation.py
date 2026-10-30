@@ -105,43 +105,6 @@ async def test_truncated_section_reply_fails_closed_through_the_real_runtime(tmp
     assert "temperature" not in agent.client.messages.create.await_args.kwargs
 
 
-class Journal:
-    """Minimal stand-in for the signed run journal's assessment store."""
-
-    def __init__(self):
-        self.data = {"identity": {"run": "synthetic"}, "completed_assessments": {}}
-
-    def assessment(self, key, value, sources):
-        self.data["completed_assessments"][key] = value
-
-
-@pytest.mark.asyncio
-async def test_interrupted_generation_reuses_finished_sections():
-    journal = Journal()
-    token = current_runtime.set(SimpleNamespace(execution_journal=journal, sources={}))
-    try:
-        interrupted = ContentAgent(api_key="")
-
-        async def fail_on_procedures(messages, system=""):
-            if requested(messages[-1]["content"]) == "sec-procedures":
-                raise RuntimeError("Synthetic interruption")
-            return await fake_reply(messages, system)
-
-        interrupted._call_claude = AsyncMock(side_effect=fail_on_procedures)
-        with pytest.raises(RuntimeError, match=r"Section 5 \(Detailed Procedures\) failed"):
-            await interrupted.generate_sop("Example", RESEARCH)
-        assert len(journal.data["completed_assessments"]) == 4
-
-        resumed = ContentAgent(api_key="")
-        resumed._call_claude = AsyncMock(side_effect=fake_reply)
-        document = await resumed.generate_sop("Example", RESEARCH)
-    finally:
-        current_runtime.reset(token)
-    asked = [requested(call.args[0][0]["content"]) for call in resumed._call_claude.await_args_list]
-    assert asked == [s.id for s in SECTIONS[4:]]
-    assert all(body_for(s.id) in document for s in SECTIONS)
-
-
 def test_agent_three_has_its_own_section_budget_and_timeout():
     content = ContentAgent(api_key="")
     assert (content.max_tokens, content.timeout_seconds) == (16000, 480)

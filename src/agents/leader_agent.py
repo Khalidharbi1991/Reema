@@ -15,7 +15,6 @@ import hashlib
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from copy import deepcopy
 from pathlib import Path
 from uuid import uuid4
 from typing import Dict, List, Optional
@@ -35,7 +34,6 @@ from ..utils.specialists import SpecialistInputs, specialist_checks
 from ..utils.ownership import RunLease
 from ..utils.coordination import DocumentationRequest, WorkflowPlan
 from ..utils.capabilities import invoke_pipeline
-from ..utils.execution import validate_result, digest, FIELDS
 
 
 class AgentTask:
@@ -49,14 +47,12 @@ class AgentTask:
         self.started_at = None
         self.finished_at = None
         self.error_type = None
-        self.reused_calls = 0
         self.executed_calls = 0
 
     def snapshot(self):
         return {"agent": self.agent_name, "phase": self.task_type, "status": self.status,
                 "started_at": self.started_at, "finished_at": self.finished_at,
-                "error_type": self.error_type, "reused_calls": self.reused_calls,
-                "executed_calls": self.executed_calls}
+                "error_type": self.error_type, "executed_calls": self.executed_calls}
 
 
 class LeaderAgent:
@@ -87,7 +83,6 @@ class LeaderAgent:
         self.workflow_status = "idle"
         self.current_phase = None
         self._task_store = None
-        self._journal = None
 
         logger.info("Leader Agent initialized", agent=self.name)
 
@@ -110,7 +105,7 @@ class LeaderAgent:
             self._task_store.flush()
 
     @asynccontextmanager
-    async def _phase(self, name, *, reused=False):
+    async def _phase(self, name):
         task = next(task for task in self.current_tasks if task.task_type == name)
         task.status = "in_progress"
         task.started_at = datetime.now(timezone.utc).isoformat()
@@ -123,7 +118,7 @@ class LeaderAgent:
             task.error_type = type(error).__name__
             raise
         else:
-            task.status = "reused" if reused or (task.reused_calls and not task.executed_calls) else "completed"
+            task.status = "completed"
         finally:
             task.finished_at = datetime.now(timezone.utc).isoformat()
             self._save_task_status()
@@ -148,26 +143,11 @@ class LeaderAgent:
         return handoff
 
     async def _invoke(self, capability, arguments):
-        """Reuse only authenticated completed calls with identical validated inputs."""
         task = next((t for t in self.current_tasks if t.task_type == self.current_phase), None)
-        cached = self._journal.data["completed_calls"].get(capability) if self._journal else None
-        runtime = current_runtime.get()
-        if cached is not None:
-            if cached["arguments_sha256"] != digest(arguments):
-                raise ValueError("Recovered capability inputs differ; cached work cannot be reused")
-            validate_result(capability, cached["result"], self.context["request"]["process_name"], runtime.sources)
-            if task:
-                task.reused_calls += 1
-                self._save_task_status()
-            return deepcopy(cached["result"])
         if task:
             task.executed_calls += 1
             self._save_task_status()
-        result = await invoke_pipeline(self.worker_agents, capability, arguments)
-        if self._journal and capability in {*FIELDS, "content"}:
-            validate_result(capability, result, self.context["request"]["process_name"], runtime.sources)
-            self._journal.record(capability, arguments, result, runtime.sources)
-        return result
+        return await invoke_pipeline(self.worker_agents, capability, arguments)
 
     @staticmethod
     def documentation_request(process_name, output_formats=None, *, custom=False, specialists=None, objective=None,
@@ -317,12 +297,16 @@ class LeaderAgent:
         elif config_manager.system_config.enforce_page_target:
             raise ValueError("ENFORCE_PAGE_TARGET requires PDF output")
 
-    async def resume_formatting(self, directory, formats=None):
-        """Recover exports from an unchanged ready checkpoint without model calls."""
-        with RunLease(directory) as lease:
-            return await self._resume_formatting(directory, formats, lease)
+    async def export_run(self, directory, formats=None):
+        """Export a run's unchanged ready checkpoint again, into a NEW run awaiting approval; no model call.
 
-    async def _resume_formatting(self, directory, formats, lease):
+        A Claude Code generate run has no model review: its draft runs through every local check again.
+        An older API run keeps its review gate. Either way the new run needs a fresh human decision.
+        """
+        with RunLease(directory) as lease:
+            return await self._export_run(directory, formats, lease)
+
+    async def _export_run(self, directory, formats, lease):
         if self.workflow_status == "running":
             raise RuntimeError("This leader already has a running workflow; use a separate instance")
         state, ready = load_ready(directory, lease=lease)
@@ -330,29 +314,34 @@ class LeaderAgent:
         formatter = self.worker_agents["FormatAgent"]
         formatter.validate_requested_formats(formats)
         review = ready["review"]
-        gate = ReviewResult.from_legacy(review)
-        threshold = config_manager.get_agent_config("review_agent")["quality_threshold"]
-        if (gate.quality_score < threshold or gate.needs_revision
-                or gate.approval_status not in {None, "APPROVED"}
-                or any(issue.severity == "critical" or issue.blocking for issue in gate.issues)):
-            raise ValueError("Checkpoint review does not meet the current quality gate")
-        quality = validate_quality(ready["content"], ready["standards"], ready["sources"])
-        validate_located_review(review, ready["content"], config_manager.document_profile)
-        if "control_register" in ready:
-            if ready.get("document_profile") != config_manager.document_profile.model_dump():
-                raise ValueError("Document profile changed; create a new generation")
-            controls = control_coverage(ready["content"], ControlRegister.model_validate(ready["control_register"]),
-                                        ready["sources"], config_manager.document_profile)
-            if controls["errors"]:
-                raise ValueError("Checkpoint control coverage failed")
-            quality["control_coverage"] = controls
-            quality["warnings"].extend(controls["warnings"])
+        if "control_register" in ready and ready.get("document_profile") != config_manager.document_profile.model_dump():
+            raise ValueError("Document profile changed; create a new generation")
+        if review is None:
+            quality = self.check_draft(ready["content"], ready["standards"], ready["sources"],
+                                       ControlRegister.model_validate(ready["control_register"]))
+        else:
+            gate = ReviewResult.from_legacy(review)
+            threshold = config_manager.get_agent_config("review_agent")["quality_threshold"]
+            if (gate.quality_score < threshold or gate.needs_revision
+                    or gate.approval_status not in {None, "APPROVED"}
+                    or any(issue.severity == "critical" or issue.blocking for issue in gate.issues)):
+                raise ValueError("Checkpoint review does not meet the current quality gate")
+            quality = validate_quality(ready["content"], ready["standards"], ready["sources"])
+            validate_located_review(review, ready["content"], config_manager.document_profile)
+            if "control_register" in ready:
+                controls = control_coverage(ready["content"], ControlRegister.model_validate(ready["control_register"]),
+                                            ready["sources"], config_manager.document_profile)
+                if controls["errors"]:
+                    raise ValueError("Checkpoint control coverage failed")
+                quality["control_coverage"] = controls
+                quality["warnings"].extend(controls["warnings"])
         run_dir = config_manager.system_config.output_dir / "runs" / uuid4().hex
         store = RunStore(run_dir, state["process_name"], formats)
-        store.state["resumed_from"] = str(Path(directory).resolve())
+        store.state.update(job="export", exported_from=str(Path(directory).resolve()),
+                           **({"authoring": state["authoring"]} if "authoring" in state else {}))
         store.save("ready", ready)
         original_dir, formatter.output_dir = formatter.output_dir, run_dir
-        self.context = {"run_dir": str(run_dir), "last_review": review}
+        self.context = {"run_dir": str(run_dir), "last_review": review, "quality": quality}
         self._begin_workflow(state["process_name"], ["formatting", "human_review_record"])
         self._task_store = store
         try:
@@ -365,7 +354,7 @@ class LeaderAgent:
             async with self._phase("human_review_record"):
                 self.context["delivery"] = await self._coordinate_delivery(state["process_name"], outputs)
             self._finish_workflow("awaiting_human_approval")
-            store.finish("awaiting_human_approval", {"calls": [], "accounted_tokens": 0, "estimated_cost_usd": 0})
+            store.finish("awaiting_human_approval", {"calls": [], "accounted_tokens": 0})
             return outputs
         except BaseException as error:
             self._finish_workflow("cancelled" if isinstance(error, asyncio.CancelledError) else "failed")

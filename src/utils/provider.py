@@ -58,10 +58,7 @@ class RunRuntime:
         self.reserved = 0
         self.sources = {}
         self.on_event = None
-        self.inherited_tokens = 0
-        self.lineage = []
         self.in_flight = {}
-        self.execution_journal = None
 
     @staticmethod
     def retryable(error):
@@ -134,9 +131,6 @@ class RunRuntime:
         known_costs = [e.get("estimated_cost_usd") for e in self.events]
         return {"accounted_tokens": self.tokens + self.reserved, "calls": self.events,
                 "in_flight": list(self.in_flight.values()),
-                "inherited_accounted_tokens": self.inherited_tokens,
-                "new_accounted_tokens": self.tokens + self.reserved - self.inherited_tokens,
-                "lineage": self.lineage,
                 "estimated_cost_scope": "current_run_requests_only",
                 "estimated_cost_usd": sum(known_costs) if known_costs and all(v is not None for v in known_costs) else None,
                 "cost_note": "Estimates use configured USD-per-million rates, not an invoice; null means unknown."}

@@ -42,8 +42,6 @@ class RunStore:
     def flush(self):
         self.state["updated_at"] = timestamp()
         atomic_json(self.directory / "run.json", self.state)
-        if getattr(self, "journal", None) is not None:
-            self.journal.snapshot()
 
     def save(self, phase, payload):
         if phase not in {"planned", "researched", "generated", "drafted", "reviewed", "ready", "exported",
@@ -74,6 +72,8 @@ def load_ready(directory, *, lease=None):
     if state.get("schema_version") != 1 or hashlib.sha256(path.read_bytes()).hexdigest() != state.get("checkpoints", {}).get("ready"):
         raise ValueError("Missing, unsupported, or changed ready checkpoint")
     payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload.get("content"), str) or not isinstance(payload.get("review"), dict):
+    # A Claude Code generate run has no model review; every other ready checkpoint carries one.
+    unreviewed = payload.get("review") is None and state.get("authoring") == "claude_code_session"
+    if not isinstance(payload.get("content"), str) or not (isinstance(payload.get("review"), dict) or unreviewed):
         raise ValueError("Invalid ready checkpoint")
     return state, payload

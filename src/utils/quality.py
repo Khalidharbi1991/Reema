@@ -81,23 +81,12 @@ def is_structured_response(text):
     return text.strip().startswith("```json") or value.startswith(("{", "["))
 
 
-async def checkpointed_call(agent, prompt, schema, validator=None):
-    """One structured model call, reused from the signed run journal when identical inputs completed before."""
-    from .provider import current_runtime
-    from .execution import digest
-    runtime = current_runtime.get()
-    journal = getattr(runtime, "execution_journal", None)
-    system = agent._build_system_prompt()
-    key = digest({"agent": getattr(agent, "CONFIG_KEY", agent.name), "model": agent.model,
-                  "system": system, "schema": schema.model_json_schema(), "prompt": prompt,
-                  "identity": journal.data["identity"] if journal else {}})
-    cached = journal.data["completed_assessments"].get(key) if journal else None
-    result = schema.model_validate(cached) if cached is not None else parse_json_response(
-        await agent._call_claude([{"role": "user", "content": prompt}], system=system), schema)
+async def structured_call(agent, prompt, schema, validator=None):
+    """One structured reply from the agent, parsed against schema and then checked by validator."""
+    result = parse_json_response(
+        await agent._call_claude([{"role": "user", "content": prompt}], system=agent._build_system_prompt()), schema)
     if validator:
         validator(result)
-    if journal and cached is None:
-        journal.assessment(key, result.model_dump(), runtime.sources)
     return result
 
 
@@ -110,7 +99,7 @@ async def assess_all(agent, content, schema, instructions, result_validator=None
     results = []
     async def assessment(prompt, offset=None, part=None):
         validator = (lambda result: result_validator(result, offset, part)) if result_validator else None
-        return await checkpointed_call(agent, prompt, schema, validator)
+        return await structured_call(agent, prompt, schema, validator)
     for number, (offset, part) in enumerate(parts, 1):
         prompt = (f"{instructions}\nThis is excerpt {number}/{len(parts)}, characters {offset + 1}-{offset + len(part)}. "
                   "Assess all its content; do not penalize sections located in other excerpts. "
