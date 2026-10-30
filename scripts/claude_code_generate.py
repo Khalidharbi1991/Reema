@@ -1,13 +1,16 @@
 """New SOP written by a Claude Code session, with no Anthropic API call.
 
-Claude Code writes the section text (the reema-writer subagent); REEMA's code does everything else:
-the request and plan, the template skeleton, the per-section and whole-document checks, export and
-the pending human approval record. No model reviews the draft; run the reema-review skill on it
-afterwards if a review is wanted.
+Claude Code writes the section text (the reema-writer subagent) and, when the euc specialist is
+selected, Agent 10's patch appendix (the reema-agent10-euc subagent); REEMA's code does everything
+else: the request and plan, the template skeleton, local checks on supplied specialist data, the
+per-section and whole-document checks, export and the pending human approval record. No model reviews
+the draft; run the reema-review skill on it afterwards if a review is wanted. The access, problem and
+data specialists add no appendix.
 
     prepare PROCESS [--format F] [--objective TEXT] [--constraint TEXT] [--acceptance TEXT] [--custom]
+            [--specialist S] [--specialist-input FILE]
                                  write output/claude_code/<id>/generate_request.json
-    prepare ... --confirm-read TOKEN   needed only when manifest-allowed reference excerpts are included
+    prepare ... --confirm-read TOKEN   needed when reference excerpts or a specialist input file are included
     check   ID                   check the section files; write draft_preview.md
     finish  ID                   run the generate job into a NEW output/runs/ folder
 
@@ -17,6 +20,7 @@ This script never approves anything; the reviewer runs `reema approve` themselve
 
 import argparse
 import asyncio
+import hashlib
 import importlib.util
 import json
 import sys
@@ -27,6 +31,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.agents.content_agent import ContentAgent  # noqa: E402
+from src.agents.euc_agent import EUCAgent  # noqa: E402
 from src.agents.file_workers import FileSectionWriter, section_files  # noqa: E402
 from src.agents.format_agent import FormatAgent  # noqa: E402
 from src.agents.leader_agent import LeaderAgent  # noqa: E402
@@ -34,7 +39,8 @@ from src.knowledge.retrieval import EVIDENCE_POLICY, ReferenceIndex  # noqa: E40
 from src.utils.config import config_manager  # noqa: E402
 from src.utils.diagrams import GraphFlow, SequenceFlow  # noqa: E402
 from src.utils.documents import ControlRegister, legacy_register  # noqa: E402
-from src.utils.read_gate import references_sha256, require_references_permission  # noqa: E402
+from src.utils.read_gate import check_manifest, references_sha256, require_references_permission  # noqa: E402
+from src.utils.specialists import SpecialistInputs, specialist_checks  # noqa: E402
 
 # Shared work-folder helpers from the revise experiment.
 _spec = importlib.util.spec_from_file_location("claude_code_revise", Path(__file__).with_name("claude_code_revise.py"))
@@ -51,7 +57,12 @@ CHECKS = [
     "Diagrams are optional and only in sections whose diagrams_allowed is true: a ```reema-flow fenced JSON "
     "block matching one of flow_schemas, closed properly.",
     "Mark organization-specific facts you do not have (names, systems, numbers, dates) as [to confirm].",
+    "specialist_checks are local checks on data Khalid supplied, not verified facts; describe them as such.",
 ]
+APPENDIX_FILE = "appendices/endpoint.md"
+ENDPOINT_RULES = ("No fleet data, tenant configuration or calendar has been supplied unless specialist_inputs "
+                  "holds it. Do not invent device counts, group names, dates or product settings; write "
+                  "[to confirm] where the organization must supply a value. ")
 
 
 def work_dir(work_id):
@@ -63,12 +74,24 @@ def work_dir(work_id):
     return path
 
 
+def _specialist_input(path):
+    """A local specialist input file, checked as `reema generate --specialist-input` checks it."""
+    path = Path(path).expanduser()
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > 2000000:
+        raise ValueError("Specialist input must be a regular local JSON file no larger than 2 MB")
+    data = path.read_bytes()
+    sha256 = hashlib.sha256(data).hexdigest()
+    check_manifest(path, sha256)
+    try:
+        inputs = SpecialistInputs.model_validate_json(data.decode("utf-8")).validate_limits(config_manager.specialist_policy)
+    except ValueError:
+        raise ValueError("Invalid specialist input; check the documented schema and field types") from None
+    return {"path": str(path.resolve()), "name": path.name, "sha256": sha256}, inputs.model_dump(mode="json")
+
+
 def _plan(arguments):
     """The validated request, plan and evidence, re-derived from the prepare arguments; local only."""
     process_id, request = LeaderAgent.documentation_request(**arguments)
-    if request.specialists:
-        raise ValueError(f"{request.process_name} selects specialists ({', '.join(request.specialists)}), which "
-                         "the Claude Code generate path does not handle yet")
     FormatAgent(api_key="").validate_requested_formats(request.formats)
     leader = LeaderAgent(api_key="")
     leader.context = {"request": request.model_dump()}
@@ -85,6 +108,8 @@ def _load(work_id):
     """The prepared request, refused if the process configuration or the reference excerpts changed."""
     path = work_dir(work_id)
     prepared = json.loads((path / "generate_request.json").read_text(encoding="utf-8"))
+    if prepared["specialist_input"] and _specialist_input(prepared["specialist_input"]["path"])[0] != prepared["specialist_input"]:
+        raise ValueError("The specialist input file changed since prepare; prepare it again")
     _, request, workflow, evidence = _plan(prepared["arguments"])
     if request.model_dump(mode="json") != prepared["request"] or workflow["applicable_standards"] != prepared["standards"]:
         raise ValueError("The process configuration changed since prepare; prepare it again")
@@ -94,13 +119,18 @@ def _load(work_id):
     return path, prepared, request, workflow, evidence
 
 
-def prepare(process, formats=None, *, custom=False, objective=None, constraints=(), acceptance=(), confirm_read=None):
+def prepare(process, formats=None, *, custom=False, objective=None, constraints=(), acceptance=(), specialists=(),
+            specialist_input=None, confirm_read=None):
+    supplied, inputs = _specialist_input(specialist_input) if specialist_input is not None else (None, None)
     arguments = {"process_name": process, "output_formats": list(formats) if formats else None, "custom": bool(custom),
-                 "objective": objective, "constraints": list(constraints) or None,
-                 "acceptance_criteria": list(acceptance) or None}
+                 "specialists": sorted(set(specialists)) or None, "objective": objective,
+                 "constraints": list(constraints) or None, "acceptance_criteria": list(acceptance) or None,
+                 "specialist_inputs": inputs}
     process_id, request, workflow, evidence = _plan(arguments)
-    # Checked after the local request checks, and before any reference text is copied.
-    permission = require_references_permission(evidence, confirm_read)
+    checks = specialist_checks(inputs, _sources(evidence), config_manager.specialist_policy) if inputs else {}
+    # Checked after the local request checks, and before any reference or input text is copied.
+    permission = require_references_permission(evidence, confirm_read,
+                                               [(supplied["name"], supplied["sha256"])] if supplied else ())
     profile = config_manager.document_profile
     standards = workflow["applicable_standards"]
     work_id = uuid4().hex
@@ -119,30 +149,62 @@ def prepare(process, formats=None, *, custom=False, objective=None, constraints=
         "flow_schemas": {"sequence": SequenceFlow.model_json_schema(), "graph": GraphFlow.model_json_schema()},
         "control_register": legacy_register(standards).model_dump(),
         "evidence_policy": EVIDENCE_POLICY, "evidence": evidence,
-        "evidence_sha256": references_sha256(evidence) if evidence else None, "read_permission": permission}
+        "evidence_sha256": references_sha256(evidence) if evidence else None, "read_permission": permission,
+        "specialists": request.specialists, "specialist_input": supplied, "specialist_inputs": inputs,
+        "specialist_checks": checks,
+        "endpoint_appendix": {
+            "file": APPENDIX_FILE, "writer": "reema-agent10-euc",
+            "title": "Appendix: Endpoint Deployment & Rollback Plan",
+            "headings": [title for title, _ in EUCAgent.APPENDIX_SECTIONS],
+            "outline": EUCAgent.appendix_outline("### "),
+            "rules": ENDPOINT_RULES + EUCAgent.APPENDIX_RULES + " Use ### headings exactly as in outline; no # or ##.",
+        } if "euc" in request.specialists else None}
     (path / "sections").mkdir(parents=True)
+    if prepared["endpoint_appendix"]:
+        (path / "appendices").mkdir()
     _write(path / "generate_request.json", prepared)
     print(f"Prepared {work_id}: {request.process_name}, {len(prepared['sections'])} sections, "
           f"{len(evidence)} reference excerpt(s), formats {', '.join(request.formats)}")
     print(f"Request: {path / 'generate_request.json'}")
     print(f"Write one file per section into: {path / 'sections'}")
+    if prepared["endpoint_appendix"]:
+        print(f"Agent 10 writes the patch appendix to: {path / APPENDIX_FILE}")
+    dropped = sorted(set(request.specialists) - {"euc"})
+    if dropped:
+        print(f"No appendix for: {', '.join(dropped)}" + ("; local checks on the supplied data are in the request." if checks else "."))
     return work_id
 
 
+def _appendix(path, prepared):
+    """Agent 10's checked patch appendix text; None when the euc specialist is not selected."""
+    if not prepared["endpoint_appendix"]:
+        return None
+    file = path / APPENDIX_FILE
+    if file.is_symlink() or not file.is_file():
+        raise ValueError(f"No {APPENDIX_FILE} yet: ask Claude Code to run reema-agent10-euc on this work id ({path.name}).")
+    text = file.read_text(encoding="utf-8")
+    EUCAgent.check_appendix(text)
+    return text
+
+
 def _draft(path, prepared):
-    """The assembled draft from the section files, through the unchanged per-section loop."""
+    """The assembled draft from the section files, through the unchanged per-section loop, and the appendix."""
     missing = [p.name for p in section_files(path / "sections").values() if not p.is_file()]
     if missing:
         raise ValueError(f"Missing section file(s): {', '.join(missing)}. Ask Claude Code to run reema-writer "
                          f"on this work id ({path.name}).")
+    process_name = prepared["request"]["process_name"]
     writer = FileSectionWriter(path / "sections")
-    return asyncio.run(writer.generate_sop(prepared["request"]["process_name"],
-                                           {"standards": {"control_register": prepared["control_register"]}}))
+    content = asyncio.run(writer.generate_sop(process_name, {"standards": {"control_register": prepared["control_register"]}}))
+    appendix = _appendix(path, prepared)
+    if appendix is not None:
+        content += "\n\n" + LeaderAgent(api_key="")._format_euc_section(appendix, process_name)
+    return content, appendix
 
 
 def check(work_id):
     path, prepared, request, workflow, evidence = _load(work_id)
-    content = _draft(path, prepared)
+    content, _ = _draft(path, prepared)
     quality = LeaderAgent.check_draft(content, prepared["standards"], _sources(evidence),
                                       ControlRegister.model_validate(prepared["control_register"]))
     (path / "draft_preview.md").write_text(content, encoding="utf-8")
@@ -156,7 +218,7 @@ def check(work_id):
 
 def finish(work_id):
     path, prepared, request, _, evidence = _load(work_id)
-    _draft(path, prepared)
+    _, appendix = _draft(path, prepared)
     leader = LeaderAgent(api_key="")
     leader.register_worker("ContentAgent", FileSectionWriter(path / "sections"))
     leader.register_worker("FormatAgent", FormatAgent(api_key=""))
@@ -166,8 +228,9 @@ def finish(work_id):
         try:
             return await leader.generate_local(
                 arguments["process_name"], arguments["output_formats"], custom=arguments["custom"],
-                objective=arguments["objective"], constraints=arguments["constraints"],
-                acceptance_criteria=arguments["acceptance_criteria"], evidence=evidence,
+                specialists=arguments["specialists"], objective=arguments["objective"],
+                constraints=arguments["constraints"], acceptance_criteria=arguments["acceptance_criteria"],
+                specialist_inputs=arguments["specialist_inputs"], evidence=evidence, endpoint_appendix=appendix,
                 origin={"claude_code_work": str(path)})
         finally:
             await leader.close()
@@ -204,7 +267,10 @@ def main(argv=None):
     one.add_argument("--objective")
     one.add_argument("--constraint", action="append")
     one.add_argument("--acceptance", action="append")
-    one.add_argument("--confirm-read", help="Token printed for the reference files; give it only after Khalid's yes")
+    one.add_argument("--specialist", action="append", choices=["access", "problem", "data", "euc"],
+                     help="Add a specialist; euc adds Agent 10's patch appendix; repeatable")
+    one.add_argument("--specialist-input", type=Path, help="Local JSON input: IAM snapshot, incident observations or metric data")
+    one.add_argument("--confirm-read", help="Token printed for the reference or input files; give it only after Khalid's yes")
     for name in ("check", "finish"):
         commands.add_parser(name).add_argument("work_id")
     args = parser.parse_args(argv)
@@ -213,7 +279,8 @@ def main(argv=None):
     try:
         if args.command == "prepare":
             prepare(args.process, args.format, custom=args.custom, objective=args.objective,
-                    constraints=args.constraint or (), acceptance=args.acceptance or (), confirm_read=args.confirm_read)
+                    constraints=args.constraint or (), acceptance=args.acceptance or (), specialists=args.specialist or (),
+                    specialist_input=args.specialist_input, confirm_read=args.confirm_read)
         elif args.command == "check":
             check(args.work_id)
         else:

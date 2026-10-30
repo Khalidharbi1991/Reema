@@ -18,6 +18,38 @@ class EUCAgent(BaseAgent):
     AGENT_ROLE = "End-User Computing & Endpoint Management Specialist"
     CONFIG_KEY = "euc_agent"
 
+    # The patch appendix, shared with the Claude Code generate request (scripts/claude_code_generate.py).
+    APPENDIX_SECTIONS = (
+        ("Deployment Ring Plan", "Table of rings with purpose, entry criteria, sizing rule, soak period and promotion gate"),
+        ("Maintenance Windows and Change Freezes", "Window rules in Asia/Riyadh time and freeze periods to confirm"),
+        ("Deployment Runbook", "Numbered steps with expected results and validation checks"),
+        ("Rollback and Kill Switch", "Rollback or uninstall path with duration, kill-switch steps, and an explicit "
+                                     "warning before any irreversible action"),
+        ("Change Record Requirements", "Title, business justification, scope, implementation plan, test evidence, "
+                                       "rollback plan, risk and impact rating, schedule, communication plan, approvers"),
+        ("Compliance Reporting and KPIs", "Metric definitions, data sources and reporting cadence"),
+        ("Escalation and Communications", "Escalation path, owners and bilingual communication points"),
+    )
+    APPENDIX_RULES = ('Keep "[to confirm]" markers for organization-specific values. Do not include credentials, '
+                      "tenant identifiers or real user data. Format with tables and numbered lists suitable for SOP "
+                      "inclusion.")
+
+    @classmethod
+    def appendix_outline(cls, marker):
+        return "\n\n".join(f"{marker}{title.upper() if marker == '## ' else title}\n- {detail}"
+                             for title, detail in cls.APPENDIX_SECTIONS)
+
+    @classmethod
+    def check_appendix(cls, text):
+        """A patch appendix written in Claude Code: a valid section body with every required ### heading."""
+        import re
+        from ..utils.documents import validate_body
+        validate_body(text)
+        headings = {h.strip().casefold() for h in re.findall(r"(?m)^###\s+(.+?)\s*$", text)}
+        missing = [title for title, _ in cls.APPENDIX_SECTIONS if title.casefold() not in headings]
+        if missing:
+            raise ValueError("The patch appendix is missing these ### headings: " + ", ".join(missing))
+
     async def analyze_endpoint_requirements(self, process_name: str, standards: List[str]) -> Dict:
         """Phase 2: endpoint deployment, rollback and change requirements for a process."""
         logger.agent_start(self.name, f"Analyzing endpoint requirements for {process_name}")
@@ -97,28 +129,9 @@ Based on this endpoint analysis:
 
 Create professional SOP appendix sections:
 
-## DEPLOYMENT RING PLAN
-- Table of rings with purpose, entry criteria, sizing rule, soak period and promotion gate
+{self.appendix_outline("## ")}
 
-## MAINTENANCE WINDOWS AND CHANGE FREEZES
-- Window rules in Asia/Riyadh time and freeze periods to confirm
-
-## DEPLOYMENT RUNBOOK
-- Numbered steps with expected results and validation checks
-
-## ROLLBACK AND KILL SWITCH
-- Rollback or uninstall path with duration, kill-switch steps, and an explicit warning before any irreversible action
-
-## CHANGE RECORD REQUIREMENTS
-- Title, business justification, scope, implementation plan, test evidence, rollback plan, risk and impact rating, schedule, communication plan, approvers
-
-## COMPLIANCE REPORTING AND KPIs
-- Metric definitions, data sources and reporting cadence
-
-## ESCALATION AND COMMUNICATIONS
-- Escalation path, owners and bilingual communication points
-
-Keep "[to confirm]" markers for organization-specific values. Do not include credentials, tenant identifiers or real user data. Format with tables and numbered lists suitable for SOP inclusion."""
+{self.APPENDIX_RULES}"""
 
     def _build_system_prompt(self) -> str:
         """Build the endpoint-engineering protocol shared with the reema-agent10-euc subagent."""

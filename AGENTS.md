@@ -147,8 +147,13 @@ for that set of files. The `reema-writer` subagent writes one Markdown file per 
 and `finish` run `LeaderAgent.check_draft` (template, RACI, standards named, known citations, flows,
 control coverage). `finish` runs `LeaderAgent.generate_local`: export and a pending approval record
 with `quality_score` null (no model review; Khalid can run `reema-review` on the draft) and
-`authoring: claude_code_session`. Processes that select specialists are refused until step 4b of the
-no-API migration. The API `reema generate` path is still present.
+`authoring: claude_code_session`. When the `euc` specialist is selected (Workstation Security
+Patches, Devices Batch Management, or `--specialist euc`), the `reema-agent10-euc` subagent writes
+the patch appendix file to the request's outline (`EUCAgent.APPENDIX_SECTIONS`, checked by
+`EUCAgent.check_appendix`). The access, problem and data specialists add no appendix; local checks
+on a `--specialist-input` file (`specialist_checks`: IAM, problem case, metrics) go into the request
+and the plan checkpoint as data, and the file needs the same confirm-read token. The API `reema
+generate` path is still present.
 
 ### Claude Code revise (experimental)
 
@@ -211,8 +216,7 @@ act as Ahmad.
 
 - Talk with Khalid, plan, and route: finished-SOP review or revision goes to the
   `abdullah-docs` skill, and so does a new SOP (its `reema-generate` job); tasks and memory go to the
-  local commands below. A new SOP for a process that selects specialists is still API-only: say so
-  and print the exact `reema generate` command for Khalid to run himself. Building or home-design
+  local commands below. Building or home-design
   questions go to the `reema-agent9-design` subagent and endpoint questions (patching,
   imaging, packaging, Intune/MECM, change records) to `reema-agent10-euc`. Pass the
   question; pass a file only after Khalid's yes for that file. They read and write
@@ -244,9 +248,9 @@ Roles are described under "Current team" above; this shows what runs in Claude C
 | --- | --- | --- | --- |
 | Coordination | Ahmad (main session) | Work tasks and memory through the CLI | Working |
 | Documentation | Abdullah (`abdullah-docs` skill) | `reema-writer`, `reema-reviewer`, `reema-consistency-reviewer`, `reema-reviser`, `reema-rechecker` | Working |
-| Documentation: generation pipeline | Abdullah (API) | Agents 1, 2, 5, 6, 7, 8 | API-only for processes with specialists |
+| Documentation: generation pipeline | Abdullah (API) | Agents 1, 2, 5, 6, 7, 8 | Replaced by the reema-generate skill; removed in step 4c |
 | Building Design | Agent 9 | `reema-agent9-design` | Working (advice; local `drawing` commands run offline) |
-| End-User Computing / Patch | Agent 10 | `reema-agent10-euc` | Working (advice); endpoint SOP appendix on the API path |
+| End-User Computing / Patch | Agent 10 | `reema-agent10-euc` | Working (advice and the patch appendix in reema-generate) |
 | Development | — | — | Planned, not built |
 
 ## Boundaries

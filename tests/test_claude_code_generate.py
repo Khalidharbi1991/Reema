@@ -41,8 +41,8 @@ def no_provider(monkeypatch):
     monkeypatch.setattr(RunRuntime, "call", refuse)
 
 
-def prepared(**kwargs):
-    work_id = ccg.prepare(PROCESS, ["markdown"], **kwargs)
+def prepared(process=PROCESS, **kwargs):
+    work_id = ccg.prepare(process, ["markdown"], **kwargs)
     work = ccg.work_root() / work_id
     return work_id, work, json.loads((work / "generate_request.json").read_text())
 
@@ -69,7 +69,6 @@ def test_prepare_writes_the_skeleton_and_rules_without_reading_any_sop(output_ro
 
 
 @pytest.mark.parametrize("process, formats, message", [
-    ("Incident Management", ["markdown"], "selects specialists"),
     ("Not A Process", ["markdown"], "Unknown process"),
     (PROCESS, ["rtf"], "format"),
 ])
@@ -201,3 +200,81 @@ def test_old_records_with_a_score_and_new_ones_without_still_load():
     assert ApprovalRecord.model_validate(base).quality_score is None
     with pytest.raises(ValueError):
         ApprovalRecord.model_validate({**base, "quality_score": 101})
+
+
+PATCHES = "Workstation Security Patches"
+
+
+def appendix(missing=None, extra=""):
+    from src.agents.euc_agent import EUCAgent
+    return "\n\n".join(f"### {title}\n- Synthetic {title.lower()} [to confirm]."
+                        for title, _ in EUCAgent.APPENDIX_SECTIONS if title != missing) + extra
+
+
+def test_patch_processes_take_agent_10s_appendix(output_root, no_provider, capsys):
+    work_id, work, request = prepared(PATCHES)
+    spec = request["endpoint_appendix"]
+    assert request["specialists"] == ["euc"] and spec["file"] == "appendices/endpoint.md"
+    assert spec["writer"] == "reema-agent10-euc" and "Rollback and Kill Switch" in spec["headings"]
+    assert "### Rollback and Kill Switch" in spec["outline"] and "[to confirm]" in spec["rules"]
+    assert (work / "appendices").is_dir()
+    write_sections(work, request)
+    with pytest.raises(ValueError, match="reema-agent10-euc"):
+        ccg.check(work_id)
+    (work / spec["file"]).write_text(appendix(missing="Deployment Runbook"))
+    with pytest.raises(ValueError, match="Deployment Runbook"):
+        ccg.check(work_id)
+    (work / spec["file"]).write_text(appendix(extra="\n\n## Extra top-level section"))
+    with pytest.raises(ValueError, match="top-level sections"):
+        ccg.check(work_id)
+    (work / spec["file"]).write_text(appendix())
+    ccg.check(work_id)
+    draft = Path(ccg.finish(work_id)["markdown"]).read_text()
+    assert "## Appendix: Endpoint Deployment & Rollback Plan" in draft and "### Rollback and Kill Switch" in draft
+    assert draft.index("Appendix: Endpoint Deployment") > draft.index("Document Control")
+
+
+def test_euc_can_be_added_to_another_process(output_root):
+    _, _, request = prepared(specialists=["euc"])
+    assert request["specialists"] == ["euc"] and request["endpoint_appendix"]
+
+
+def test_access_problem_and_data_add_no_appendix(output_root, no_provider, capsys):
+    work_id, work, request = prepared("Incident Management", specialists=["data"])
+    assert request["specialists"] == ["data", "problem"] and request["endpoint_appendix"] is None
+    assert "No appendix for: data, problem." in capsys.readouterr().out
+    write_sections(work, request)
+    run = Path(ccg.finish(work_id)["markdown"]).parent.parent
+    assert "Appendix" not in json.loads((run / "generated.json").read_text())["content"].split("Document Control")[-1]
+    assert json.loads((run / "run.json").read_text())["status"] == "awaiting_human_approval"
+
+
+def test_specialist_input_needs_the_token_and_its_checks_are_data(output_root, no_provider, tmp_path, capsys):
+    data = tmp_path / "case.json"
+    data.write_text(json.dumps({"problem_case": {"case_id": "synthetic-case", "observations": [
+        {"id": "OBS-start", "observed_at": "2026-10-15T07:00:00Z", "description": "Incident recorded", "evidence": []}]}}))
+    assert ccg.main(["prepare", "Problem Management", "-f", "markdown", "--specialist-input", str(data)]) == 1
+    err = capsys.readouterr().err
+    assert "case.json" in err and not (output_root / "claude_code").exists()
+    token = err.rsplit("--confirm-read ", 1)[1].strip()
+    work_id, work, request = prepared("Problem Management", specialist_input=data, confirm_read=token)
+    assert request["read_permission"]["input_files"] == ["case.json"]
+    checks = request["specialist_checks"]["problem"]
+    assert checks["case_id"] == "synthetic-case" and checks["root_cause_status"] == "unconfirmed"
+    write_sections(work, request)
+    run = Path(ccg.finish(work_id)["markdown"]).parent.parent
+    assert json.loads((run / "planned.json").read_text())["specialist_checks"]["problem"]["case_id"] == "synthetic-case"
+    data.write_text(data.read_text().replace("Incident recorded", "Edited"))
+    with pytest.raises(ValueError, match="specialist input file changed"):
+        ccg.check(work_id)
+
+
+@pytest.mark.asyncio
+async def test_leader_ties_the_appendix_to_the_euc_specialist(output_root):
+    for process, text in ((PATCHES, None), (PROCESS, appendix())):
+        leader = LeaderAgent(api_key="")
+        leader.register_worker("ContentAgent", FileSectionWriter(output_root))
+        leader.register_worker("FormatAgent", FormatAgent(api_key=""))
+        with pytest.raises(ValueError, match="patch appendix"):
+            await leader.generate_local(process, ["markdown"], endpoint_appendix=text)
+    assert not (output_root / "runs").exists()
