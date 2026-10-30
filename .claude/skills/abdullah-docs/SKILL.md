@@ -15,8 +15,9 @@ Ahmad follows this playbook; Abdullah is not a separate session. One job at a ti
    - Review: follow the reema-review skill.
    - Revise one section in Khalid's words: confirm the section title and the exact instruction,
      then follow the reema-revise skill.
-   - Fix review findings: the Claude Code revise takes an instruction only. Show the chosen finding's
-     action as the proposed instruction; Khalid edits it or says yes; then follow reema-revise.
+   - Fix review findings: Khalid's yes for the SOP also covers its review run's findings.md. List
+     that review's finding IDs, sections and actions; Khalid picks 1-5 IDs; then follow reema-revise
+     in review mode. More than 5: split into separate runs, one at a time.
    - New SOP, generate or resume: API-only. Print the `reema generate` command for Khalid; do not run it.
 4. Staff: reema-reviewer and a fresh reema-consistency-reviewer (review); reema-reviser and a fresh
    reema-rechecker, never the reviser (revise). Pass a refusal back at most 3 rounds, then stop and report.

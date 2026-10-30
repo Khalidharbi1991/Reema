@@ -37,6 +37,13 @@ def test_abdullah_routes_to_the_working_skills():
     assert {"abdullah-docs", "reema-review", "reema-revise"} <= {p.parent.name for p in SKILLS}
 
 
+def test_revise_skill_offers_review_findings_mode():
+    revise = (CLAUDE / "skills" / "reema-revise" / "SKILL.md").read_text(encoding="utf-8")
+    docs = (CLAUDE / "skills" / "abdullah-docs" / "SKILL.md").read_text(encoding="utf-8")
+    assert "--from-review" in revise and "--finding" in revise and "1-5" in revise
+    assert "instruction path only" not in revise and "takes an instruction only" not in docs
+
+
 def test_org_chart_members_exist():
     text = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
     chart = text[text.index("### Org chart"):text.index("## Boundaries")]
