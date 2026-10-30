@@ -49,6 +49,14 @@ def run(arguments, **kwargs):
     return subprocess.run([str(python_path()), *arguments], cwd=ROOT, env=native_environment(), check=True, **kwargs)
 
 
+def forward(arguments):
+    """Run a project command; a non-zero exit is that command's result, not a setup failure."""
+    try:
+        run(arguments)
+    except subprocess.CalledProcessError as error:
+        raise SystemExit(error.returncode) from None
+
+
 def bootstrap(wheelhouse=None):
     if not (3, 11) <= sys.version_info[:2] <= (3, 14):
         raise ValueError("Use Python 3.11 through 3.14")
@@ -117,13 +125,13 @@ def main():
         if args.command == "doctor":
             run([str(Path(__file__).resolve()), "_doctor"])
         elif args.command == "test":
-            run(["-m", "pytest", *(forwarded or ["-q", "-rs"])])
+            forward(["-m", "pytest", *(forwarded or ["-q", "-rs"])])
         elif args.command == "run":
-            run(["-m", "src.main", *forwarded])
+            forward(["-m", "src.main", *forwarded])
         elif args.command == "python":
-            run(forwarded)
+            forward(forwarded)
         else:
-            run(["-m", "scripts.verify_exports", *forwarded])
+            forward(["-m", "scripts.verify_exports", *forwarded])
 
 
 if __name__ == "__main__":
