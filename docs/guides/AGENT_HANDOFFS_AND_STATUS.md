@@ -12,8 +12,7 @@ Access requirements, Problem research, optional Access/Data research context and
 appended specialist content are no longer cut to fixed character prefixes. Data
 dashboard prompts retain every supplied metric field, including extra definitions
 or exclusions. Content generation retains every research/standards field rather
-than selecting only the main narrative. Existing private ITOM prompt helpers also
-retain complete supplied context; they remain inactive in the normal pipeline.
+than selecting only the main narrative.
 Reference permissions and bounded lexical retrieval still determine which source
 excerpts may enter a request.
 
@@ -81,25 +80,15 @@ Reusing a leader after a run resets its counters. Concurrent execution on the
 same mutable leader instance is rejected; use separate instances for separate
 runs. Existing CLI commands retain their defaults; package 2 adds explicit optional model-recovery flags.
 
-## Ahmad communication and summaries
+## Ahmad communication
 
 `coordinate_team_communication()` records a message in the instance's in-memory
 log. Its intentional status correction is `recorded` instead of `routed`, with
 `dispatch_status=not_dispatched`. It has no dispatcher or acknowledgement and
 does not persist the record across instances.
 
-The legacy `coordinate_delivery()` advisory API produces a summary from supplied
-filenames and a model score. It does not open files, validate exports, create the
-leader's approval record, certify quality or distribute documents. It returns
-`distribution_status=not_dispatched` and `verification_status=not_performed`.
-The legacy `formats_delivered` key means reported formats; `delivery_timestamp`
-means summary creation time. The normal pipeline continues to use the leader's
-hash-bound pending approval record instead.
-
-Briefing prompts now receive complete supplied pipeline records and distinguish
-reported findings from unavailable information. Missing scores remain unavailable
-rather than becoming zero. Research/standards claims and commitments cannot be
-inferred from a filename or score. Proposed next actions remain proposals.
+The legacy delivery-summary and owner-briefing helpers were removed on
+2026-10-30; the pipeline uses the leader's hash-bound pending approval record.
 
 See [evaluation baselines](../development/AGENT_EVALUATION_BASELINES.md) and the
 [implementation checkpoint](../reports/AGENT_IMPROVEMENTS_PACKAGE_1.md).

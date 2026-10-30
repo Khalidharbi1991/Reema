@@ -71,7 +71,7 @@ COPY src/ ./src/
 
 # Create output directory
 RUN useradd --create-home --uid 10001 reema \
-    && mkdir -p /app/output /app/logs /app/references/itom \
+    && mkdir -p /app/output /app/logs /app/references \
     && chown -R reema:reema /app/output /app/logs
 
 # Default output directory

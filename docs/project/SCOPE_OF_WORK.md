@@ -134,7 +134,7 @@ Abdullah (Team Leader)
 - Conducts comprehensive research on IT processes
 - References ITIL v4 framework documentation
 - Identifies industry best practices and standards
-- Extracts and utilizes knowledge from ITOM.pdf knowledge base
+- Uses reference excerpts authorized in the permission manifest
 - Researches process-specific requirements and workflows
 - Gathers information on roles, responsibilities, and tools
 - Identifies key activities and process triggers
@@ -157,7 +157,7 @@ Abdullah (Team Leader)
 - ITOM (IT Operations Management) knowledge
 - ITAM (IT Asset Management) principles
 - Industry standards research
-- Knowledge base analysis (ITOM.pdf parsing)
+- Analysis of manifest-authorized reference excerpts
 
 **Knowledge Base:** taif_research_knowledge.md
 
@@ -508,7 +508,7 @@ Abdullah (Team Leader)
 
 ### 6.4 Knowledge Processing
 - **PyPDF2:** PDF parsing
-- **pdfplumber:** ITOM.pdf extraction
+- **pdfplumber:** PDF reference extraction
 
 ---
 

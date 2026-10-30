@@ -18,7 +18,6 @@ class ResearchAgent(BaseAgent):
     - Gathers information about IT processes
     - References ITIL framework documentation
     - Identifies industry best practices
-    - Utilizes ITOM.pdf as knowledge base
     - Researches process-specific requirements
     """
 
@@ -32,22 +31,7 @@ class ResearchAgent(BaseAgent):
 
         # Alias for backward compatibility
         self.research_knowledge = self.knowledge_base
-
-        # Load ITOM.pdf knowledge separately
-        self.itom_knowledge = None
-        # Customer sources are now selected by the leader's permission manifest.
-        # Keep legacy parser helpers available, but never ingest files implicitly.
-
-    def _load_itom_knowledge(self):
-        """Load knowledge from ITOM.pdf."""
-        try:
-            from ..knowledge.itom_parser import ITOMParser
-            parser = ITOMParser()
-            self.itom_knowledge = parser.extract_knowledge()
-            logger.info("ITOM knowledge base loaded", agent=self.name)
-        except Exception as e:
-            logger.warning(f"Could not load ITOM knowledge: {e}", agent=self.name)
-            self.itom_knowledge = {}
+        # Customer sources are selected by the leader's permission manifest.
 
     async def research_process(
         self, process_name: str, standards: List[str], research_context: Dict = None
@@ -110,14 +94,10 @@ Provide thorough, accurate, and well-structured research findings."""
         self, process_name: str, standards: List[str]
     ) -> str:
         """Build the research prompt."""
-        itom_context = ""
-        if self.itom_knowledge:
-            itom_context = f"\n\nITOM Context:\n{self._get_relevant_itom_context(process_name)}"
-
         prompt = f"""Research the following IT process: {process_name}
 
 Standards to reference: {', '.join(standards)}
-{itom_context}
+
 
 Please provide comprehensive research including:
 
@@ -164,21 +144,6 @@ Please provide comprehensive research including:
 Provide detailed, professional research suitable for creating a 15-30 page SOP document."""
 
         return prompt
-
-    def _get_relevant_itom_context(self, process_name: str) -> str:
-        """Extract relevant context from ITOM knowledge base."""
-        if not self.itom_knowledge:
-            return "No ITOM context available."
-
-        # Simple keyword matching - can be enhanced with better search
-        relevant_sections = []
-        process_keywords = process_name.lower().split()
-
-        for section, content in self.itom_knowledge.items():
-            if any(keyword in section.lower() for keyword in process_keywords):
-                relevant_sections.append(f"{section}:\n{content}")
-
-        return "\n\n".join(relevant_sections) if relevant_sections else "No directly relevant ITOM context found."
 
     def _parse_research_response(
         self, response: str, process_name: str, as_of: str = None

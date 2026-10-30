@@ -193,18 +193,6 @@ async def test_communication_record_does_not_claim_dispatch():
     secretary._call_claude.assert_not_awaited()
 
 
-def test_briefing_and_handover_prompts_are_limited_to_supplied_evidence():
-    secretary = SecretaryAgent(api_key="")
-    prompt = secretary._build_delivery_prompt("Incident", {"markdown": "unopened.md"}, 95, "awaiting_human_approval")
-    assert "only the filenames" in prompt and "Human review" in prompt
-    assert "Quality certification statement" not in prompt and "Formal delivery statement" not in prompt
-    data = {"research": {"raw_research": "x" * 12000 + "FINDING-TAIL"},
-            "review": {"quality_score": 95, "approval_status": "APPROVED"}}
-    prompt = secretary._build_briefing_prompt("Incident", data, ["Agent 1"])
-    assert "FINDING-TAIL" in prompt and "not human approval" in prompt
-    assert "Do not invent missing facts" in prompt
-
-
 @pytest.mark.asyncio
 async def test_real_phase_status_is_visible_and_persisted(pipeline):
     leader, _, workers = pipeline

@@ -9,9 +9,8 @@ class TestPipelineStructure:
     """Test the full pipeline structure."""
 
     @patch('src.agents.leader_agent.config_manager')
-    @patch('src.agents.leader_agent.Anthropic')
     @pytest.mark.asyncio
-    async def test_full_pipeline_calls_all_phases(self, mock_anthropic, mock_cm, tmp_path, sample_sop_content):
+    async def test_full_pipeline_calls_all_phases(self, mock_cm, tmp_path, sample_sop_content):
         """Verify generate_documentation calls all 6+ phases."""
         mock_cm.system_config.anthropic_api_key = "test-key"
         mock_cm.system_config.leader_model = "claude-sonnet-4-6"
@@ -68,9 +67,8 @@ class TestPipelineStructure:
         leader._coordinate_delivery.assert_called_once()           # Phase 6
 
     @patch('src.agents.leader_agent.config_manager')
-    @patch('src.agents.leader_agent.Anthropic')
     @pytest.mark.asyncio
-    async def test_enrichment_phase_calls_layla_and_rakan(self, mock_anthropic, mock_cm):
+    async def test_enrichment_phase_calls_layla_and_rakan(self, mock_cm):
         """Verify Phase 3b calls Layla's dashboard design and Rakan's access content."""
         mock_cm.system_config.anthropic_api_key = "test-key"
         mock_cm.system_config.leader_model = "claude-sonnet-4-6"
@@ -108,9 +106,8 @@ class TestPipelineStructure:
         assert "Access Management" in result
 
     @patch('src.agents.leader_agent.config_manager')
-    @patch('src.agents.leader_agent.Anthropic')
     @pytest.mark.asyncio
-    async def test_delivery_phase_requires_human(self, mock_anthropic, mock_cm, tmp_path):
+    async def test_delivery_phase_requires_human(self, mock_cm, tmp_path):
         """Phase 6 never grants AI approval, even when legacy roles are registered."""
         mock_cm.system_config.anthropic_api_key = "test-key"
         mock_cm.system_config.leader_model = "claude-sonnet-4-6"
@@ -206,9 +203,8 @@ class TestPipelinePhaseOrder:
     """Test that phases execute in correct order."""
 
     @patch('src.agents.leader_agent.config_manager')
-    @patch('src.agents.leader_agent.Anthropic')
     @pytest.mark.asyncio
-    async def test_content_receives_research_data(self, mock_anthropic, mock_cm, tmp_path, sample_sop_content):
+    async def test_content_receives_research_data(self, mock_cm, tmp_path, sample_sop_content):
         """Verify Phase 3a receives Phase 2 research data."""
         mock_cm.system_config.anthropic_api_key = "test-key"
         mock_cm.system_config.leader_model = "claude-sonnet-4-6"

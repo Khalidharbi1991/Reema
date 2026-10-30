@@ -18,12 +18,11 @@ from copy import deepcopy
 from pathlib import Path
 from uuid import uuid4
 from typing import Dict, List, Optional
-from anthropic import AsyncAnthropic as Anthropic
 from ..utils.logger import logger
 from ..utils.config import config_manager, normalize_process_name, selected_model
 from ..utils.approvals import create_pending_record
 from ..utils.validation import validate_formats, validate_sop, validate_output_files
-from ..utils.provider import RunRuntime, current_runtime, AnthropicProvider
+from ..utils.provider import RunRuntime, current_runtime
 from ..utils.runs import RunStore, load_ready
 from ..utils.quality import validate_quality
 from ..knowledge.retrieval import ReferenceIndex
@@ -66,7 +65,7 @@ class LeaderAgent:
     Responsibilities:
     - Receives user requests for process documentation
     - Breaks down tasks and assigns to specialized worker agents
-    - Coordinates workflow between agents (6 phases)
+    - Coordinates workflow between agents (8 phases)
     - Performs final quality control and validation
     - Assembles final output in requested format(s)
     - Manages state and context across the agent team
@@ -74,8 +73,7 @@ class LeaderAgent:
     """
 
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key if api_key is not None else config_manager.system_config.anthropic_api_key
-        self.client = Anthropic(api_key=self.api_key, max_retries=0) if self.api_key else None
+        # api_key is accepted for compatibility; model calls are made by the workers.
         self.name = "Abdullah"
         self.model = selected_model(config_manager.system_config, config_manager.get_agent_config('leader_agent'), leader=True)
         guidance = config_manager.get_agent_config("leader_agent").get("specialization", [])
@@ -500,8 +498,6 @@ class LeaderAgent:
             self._task_store = None
 
     async def close(self):
-        if self.client:
-            await self.client.close()
         for worker in self.worker_agents.values():
             if hasattr(worker, "close"):
                 await worker.close()
@@ -1002,23 +998,6 @@ class LeaderAgent:
             "quality_score": record.quality_score,
             "approval_record": str(record_path),
         }
-
-    async def _call_claude(self, messages: List[Dict], system: str = "") -> str:
-        """Make a call to Claude API."""
-        active_runtime = current_runtime.get()
-        if not (active_runtime and active_runtime.settings.allow_external_ai) and not config_manager.system_config.allow_external_ai:
-            raise PermissionError("External AI has not been authorized")
-        try:
-            if self.client is None:
-                raise RuntimeError("No Anthropic client configured")
-            runtime = current_runtime.get() or RunRuntime(config_manager.system_config)
-            return await runtime.call(AnthropicProvider(self.client), agent=self.name,
-                                      model=self.model, max_tokens=4096,
-                                      system=system + "\n\nStrategic leadership remit: " + "; ".join(self.strategic_guidance),
-                                      messages=messages)
-        except Exception as e:
-            logger.error(f"Claude API error: {e}", agent=self.name)
-            raise
 
     def get_status(self) -> Dict:
         """Actual phase counters for the latest started workflow on this instance."""

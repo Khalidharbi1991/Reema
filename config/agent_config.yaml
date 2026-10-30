@@ -33,7 +33,6 @@ secretary_agent:
 leader_agent:
   name: "Abdullah"
   role: "SOP Pipeline Leader & Specialist Orchestrator"
-  max_tokens: 4096
   specialization:
     - "IT strategy and roadmap development"
     - "Portfolio and programme governance"
@@ -143,14 +142,7 @@ review_agent:
 format_agent:
   name: "Agent 5"
   role: "Converts content to multiple formats"
-  supported_formats:
-    - "pdf"
-    - "docx"
-    - "markdown"
-    - "html"
-  default_formats:
-    - "pdf"
-    - "docx"
+
 building_design_agent:
   name: "Agent 9"
   role: "Building 3D Modeling & Interior/Exterior Design Specialist"

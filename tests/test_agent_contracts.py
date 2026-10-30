@@ -20,8 +20,6 @@ CASES = [
     ("ProblemAgent", "generate_problem_management_sop", []),
     ("DataAgent", "design_analytics_framework", ["Incident Management", ["MTTR"], {"evidence": "data"}]),
     ("DataAgent", "create_dashboard_design", ["Incident Management", [{"name": "MTTR", "description": "Time to resolution"}]]),
-    ("SecretaryAgent", "coordinate_delivery", ["Incident Management", {"markdown": "draft.md"}, 95]),
-    ("SecretaryAgent", "prepare_owner_briefing", ["Incident Management", {"research": {"summary": "Research"}, "review": {"quality_score": 95}, "output_files": {"markdown": "draft.md"}}]),
 ]
 
 
@@ -44,8 +42,6 @@ async def test_agent_calls_preserve_contracts_and_propagate_failure(cls, method,
     else:
         result = await getattr(agent, method)(*args)
         assert result
-        if cls == "SecretaryAgent" and method == "coordinate_delivery":
-            assert result["delivery_status"] == "awaiting_human_approval"
         if method == "generate_drawio_flowchart":
             assert result.startswith("<mxfile>") and "```" not in result
     assert agent._call_claude.await_count == (len(config_manager.document_profile.sections) if sectioned else 1)

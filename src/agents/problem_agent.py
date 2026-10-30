@@ -7,7 +7,7 @@ She operates in dual mode:
 
 Knowledge sources:
   - abeer_problem_knowledge_ENHANCED.md (primary knowledge base)
-  - ITOM.docx (supplementary ITOM operations knowledge)
+  - Reference excerpts authorized in the leader's permission manifest
 """
 
 from typing import Dict, List, Optional
@@ -31,7 +31,6 @@ class ProblemAgent(BaseAgent):
     - Manages Known Error Database (KEDB) documentation
     - Designs proactive and reactive Problem Management workflows
     - Validates Problem Management compliance against ITIL v4, ISO 20000, COBIT
-    - Integrates ITOM.docx knowledge for operations context
     - Creates Problem-Incident integration procedures
     - Develops Problem Management KPIs and metrics frameworks
     - Designs Major Problem Review processes
@@ -48,52 +47,7 @@ class ProblemAgent(BaseAgent):
 
         # Alias for backward compatibility
         self.problem_knowledge = self.knowledge_base
-
-        # Load ITOM.docx knowledge separately (like Taif loads ITOM.pdf)
-        self.itom_knowledge = None
-        self._itom_parser = None  # References enter through the authorized manifest.
-
-    def _load_itom_docx_knowledge(self):
-        """Load knowledge from ITOM.docx."""
-        try:
-            from ..knowledge.itom_docx_parser import ITOMDocxParser
-            parser = ITOMDocxParser()
-            self.itom_knowledge = parser.extract_knowledge()
-            self._itom_parser = parser
-            logger.info("ITOM.docx knowledge base loaded", agent=self.name)
-        except Exception as e:
-            logger.warning(f"Could not load ITOM.docx knowledge: {e}", agent=self.name)
-            self.itom_knowledge = {}
-            self._itom_parser = None
-
-    def _get_relevant_itom_context(self, process_name: str) -> str:
-        """Extract relevant context from ITOM.docx for problem management.
-
-        Args:
-            process_name: Name of the IT process
-
-        Returns:
-            Relevant ITOM context as a string
-        """
-        if self._itom_parser:
-            return self._itom_parser.get_relevant_context(process_name)
-
-        if not self.itom_knowledge:
-            return "No ITOM DOCX context available."
-
-        relevant_sections = []
-        process_keywords = process_name.lower().split()
-        problem_keywords = [
-            "problem", "root cause", "rca", "known error", "kedb",
-            "workaround", "incident", "trend", "proactive", "reactive"
-        ]
-        all_keywords = list(set(process_keywords + problem_keywords))
-
-        for section, content in self.itom_knowledge.items():
-            if any(keyword in section.lower() for keyword in all_keywords):
-                relevant_sections.append(f"{section}:\n{content}")
-
-        return "\n\n".join(relevant_sections) if relevant_sections else "No directly relevant ITOM DOCX context found."
+        # Customer sources are selected by the leader's permission manifest.
 
     # ------------------------------------------------------------------ #
     #  Pipeline Method — Phase 2: Research
@@ -393,14 +347,10 @@ Be specific, actionable, and reference standards with specific control numbers a
     ) -> str:
         """Build the Problem Management research prompt."""
 
-        itom_context = ""
-        if self.itom_knowledge:
-            itom_context = f"\n\n**ITOM.docx Reference Context:**\n{self._get_relevant_itom_context(process_name)}"
-
         prompt = f"""Research Problem Management requirements and best practices for the IT process: {process_name}
 
 Applicable Standards/Regulations: {', '.join(standards)}
-{itom_context}
+
 
 Provide comprehensive Problem Management research including:
 
@@ -548,16 +498,12 @@ Format professionally with tables, numbered lists, and clear formatting suitable
     def _build_problem_sop_prompt(self, scope: str) -> str:
         """Build prompt for generating complete Problem Management SOP."""
 
-        itom_context = ""
-        if self.itom_knowledge:
-            itom_context = f"\n\n**ITOM.docx Reference Context:**\n{self._get_relevant_itom_context('Problem Management')}"
-
         prompt = f"""Generate a complete, comprehensive Problem Management Standard Operating Procedure (SOP).
 
 **Scope:** {scope}
 **Target Length:** 20-30 pages
 **Format:** Professional SOP following ITIL v4 and industry standards
-{itom_context}
+
 
 Create a complete SOP with ALL of these sections:
 

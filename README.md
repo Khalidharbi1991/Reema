@@ -277,8 +277,7 @@ IT-Consultant/
 ├── tests/                         # Automated tests
 ├── docs/                          # Architecture, guides, reports, migration
 ├── scripts/                       # Generation, conversion, and transformation tools
-├── references/                    # Local source documents and templates
-│   └── itom/                      # ITOM.pdf and ITOM.docx
+├── references/                    # Local source documents (Git ignored; manifest-authorized)
 ├── diagrams/                      # Draw.io source diagrams
 ├── output/                        # Generated documents (Git ignored)
 └── logs/                          # Runtime logs (Git ignored)
@@ -478,7 +477,6 @@ To add new IT processes:
 For issues or questions:
 - Check the logs in `logs/` directory
 - Review configuration files in `config/`
-- Ensure `references/itom/ITOM.pdf` is present for enhanced results
 
 ## License
 

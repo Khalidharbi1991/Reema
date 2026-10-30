@@ -555,10 +555,6 @@ def status():
     # Check API key
     api_key_status = "✓ Configured" if config_manager.system_config.anthropic_api_key else "❌ Not set"
 
-    # Check the optional ITOM reference knowledge base
-    itom_path = config_manager.system_config.references_dir / "itom" / "ITOM.pdf"
-    itom_status = "✓ Found" if itom_path.exists() else "❌ Not found"
-
     table = Table(show_header=False)
     table.add_column("Setting", style="cyan")
     table.add_column("Value", style="green")
@@ -566,7 +562,6 @@ def status():
     table.add_row("API Key", api_key_status)
     table.add_row("External AI permission", "Enabled" if config_manager.system_config.allow_external_ai else "Disabled (explicit authorization required)")
     table.add_row("Final approval", "Human decision required for each run")
-    table.add_row("ITOM file (not auto-authorized)", itom_status)
     table.add_row("Reference permission manifest", str(config_manager.system_config.reference_manifest))
     table.add_row("API timeout / retries", f"{config_manager.system_config.api_timeout_seconds}s / {config_manager.system_config.api_max_retries}")
     table.add_row("Project Root", str(config_manager.system_config.project_root))

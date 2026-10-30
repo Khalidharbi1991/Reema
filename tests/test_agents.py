@@ -9,8 +9,7 @@ class TestLeaderAgent:
     """Test LeaderAgent (Abdullah)."""
 
     @patch('src.agents.leader_agent.config_manager')
-    @patch('src.agents.leader_agent.Anthropic')
-    def test_leader_init(self, mock_anthropic, mock_cm):
+    def test_leader_init(self, mock_cm):
         """Verify LeaderAgent initializes."""
         mock_cm.system_config.anthropic_api_key = "test-key"
         mock_cm.system_config.leader_model = "claude-sonnet-4-6"
@@ -21,8 +20,7 @@ class TestLeaderAgent:
         assert leader.worker_agents == {}
 
     @patch('src.agents.leader_agent.config_manager')
-    @patch('src.agents.leader_agent.Anthropic')
-    def test_leader_register_worker(self, mock_anthropic, mock_cm):
+    def test_leader_register_worker(self, mock_cm):
         """Verify worker registration."""
         mock_cm.system_config.anthropic_api_key = "test-key"
         mock_cm.system_config.leader_model = "claude-sonnet-4-6"
@@ -35,8 +33,7 @@ class TestLeaderAgent:
         assert "TestAgent" in leader.worker_agents
 
     @patch('src.agents.leader_agent.config_manager')
-    @patch('src.agents.leader_agent.Anthropic')
-    def test_leader_get_status(self, mock_anthropic, mock_cm):
+    def test_leader_get_status(self, mock_cm):
         """Verify status dict structure."""
         mock_cm.system_config.anthropic_api_key = "test-key"
         mock_cm.system_config.leader_model = "claude-sonnet-4-6"
@@ -49,8 +46,7 @@ class TestLeaderAgent:
         assert status["leader"] == "Abdullah"
 
     @patch('src.agents.leader_agent.config_manager')
-    @patch('src.agents.leader_agent.Anthropic')
-    def test_leader_get_process_kpis_incident(self, mock_anthropic, mock_cm):
+    def test_leader_get_process_kpis_incident(self, mock_cm):
         """Verify incident-specific KPIs are returned."""
         mock_cm.system_config.anthropic_api_key = "test-key"
         mock_cm.system_config.leader_model = "claude-sonnet-4-6"
@@ -63,8 +59,7 @@ class TestLeaderAgent:
         assert "First Contact Resolution Rate" in kpis
 
     @patch('src.agents.leader_agent.config_manager')
-    @patch('src.agents.leader_agent.Anthropic')
-    def test_leader_get_process_kpis_access(self, mock_anthropic, mock_cm):
+    def test_leader_get_process_kpis_access(self, mock_cm):
         """Verify access-specific KPIs are returned."""
         mock_cm.system_config.anthropic_api_key = "test-key"
         mock_cm.system_config.leader_model = "claude-sonnet-4-6"
@@ -85,8 +80,7 @@ class TestLeaderAgent:
         ("service_request_management", "Request Fulfillment Time"),
     ])
     @patch('src.agents.leader_agent.config_manager')
-    @patch('src.agents.leader_agent.Anthropic')
-    def test_leader_matches_every_kpi_category_by_display_name(self, mock_anthropic, mock_cm, process, expected):
+    def test_leader_matches_every_kpi_category_by_display_name(self, mock_cm, process, expected):
         """Multi-word categories such as Service Request match the configured display name."""
         mock_cm.system_config.anthropic_api_key = "test-key"
         mock_cm.system_config.leader_model = "claude-sonnet-4-6"
@@ -99,8 +93,7 @@ class TestLeaderAgent:
         assert "Process Cycle Time" not in kpis
 
     @patch('src.agents.leader_agent.config_manager')
-    @patch('src.agents.leader_agent.Anthropic')
-    def test_leader_get_process_kpis_generic(self, mock_anthropic, mock_cm):
+    def test_leader_get_process_kpis_generic(self, mock_cm):
         """Verify generic KPIs for unknown process."""
         mock_cm.system_config.anthropic_api_key = "test-key"
         mock_cm.system_config.leader_model = "claude-sonnet-4-6"
@@ -113,8 +106,7 @@ class TestLeaderAgent:
         assert len(kpis) >= 3
 
     @patch('src.agents.leader_agent.config_manager')
-    @patch('src.agents.leader_agent.Anthropic')
-    def test_leader_get_process_kpis_from_config(self, mock_anthropic, mock_cm):
+    def test_leader_get_process_kpis_from_config(self, mock_cm):
         """Verify KPIs from config override defaults."""
         mock_cm.system_config.anthropic_api_key = "test-key"
         mock_cm.system_config.leader_model = "claude-sonnet-4-6"
@@ -131,9 +123,8 @@ class TestReviewLoopFixes:
     """Test the review loop bug fixes (Gap 2)."""
 
     @patch('src.agents.leader_agent.config_manager')
-    @patch('src.agents.leader_agent.Anthropic')
     @pytest.mark.asyncio
-    async def test_review_none_handling(self, mock_anthropic, mock_cm):
+    async def test_review_none_handling(self, mock_cm):
         """Verify content is NOT None when refined_content is None (Gap 2 fix)."""
         mock_cm.system_config.anthropic_api_key = "test-key"
         mock_cm.system_config.leader_model = "claude-sonnet-4-6"
@@ -158,9 +149,8 @@ class TestReviewLoopFixes:
         assert result == "Original SOP content here"
 
     @patch('src.agents.leader_agent.config_manager')
-    @patch('src.agents.leader_agent.Anthropic')
     @pytest.mark.asyncio
-    async def test_review_max_two_cycles(self, mock_anthropic, mock_cm):
+    async def test_review_max_two_cycles(self, mock_cm):
         """Verify max 2 review cycles."""
         mock_cm.system_config.anthropic_api_key = "test-key"
         mock_cm.system_config.leader_model = "claude-sonnet-4-6"
@@ -192,9 +182,8 @@ class TestReviewLoopFixes:
         assert mock_review.review_content.call_count == 2
 
     @patch('src.agents.leader_agent.config_manager')
-    @patch('src.agents.leader_agent.Anthropic')
     @pytest.mark.asyncio
-    async def test_review_passes_first_cycle(self, mock_anthropic, mock_cm):
+    async def test_review_passes_first_cycle(self, mock_cm):
         """Verify early return when quality passes on first cycle."""
         mock_cm.system_config.anthropic_api_key = "test-key"
         mock_cm.system_config.leader_model = "claude-sonnet-4-6"
