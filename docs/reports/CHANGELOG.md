@@ -5,6 +5,10 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md); open external requirements live in the
 [finite ledger](PENDING_LEDGER.md).
 
+## 2026-10-30 — Publish on approve
+
+`reema approve` on a revise run copies the approved drafts to the top of `output/` and moves every lower version of the same SOP, in a published format, to `output/archive/<run-id>/` (`src/utils/publish.py`). The plan is previewed before the confirm prompt; targets are never overwritten (`os.link`), every copy and move is SHA-256 checked, and the outcome goes to the run's `publish.json`. A refused or partial publish keeps the approval, exits 1 with "approved, not published", and `reema publish <record>` resumes it; `approve --no-publish` skips it. Generate runs, old `_revised` drafts and runs approved earlier are not published. `.claude/settings.json` denies `publish`; `find_sops` hides published run drafts and version numbering counts `output/archive/`. Suite: 816 before, 835 after.
+
 ## 2026-10-30 — Version numbers on revised SOPs
 
 Revised drafts from `reema revise`, chat and the Claude Code revise are named with the next file version (`_V2` → `_V2.1`, no version → `_V1.1`) instead of `_revised`; `--major` (CLI and `claude_code_revise.py prepare`) takes the next major version (`V2.3` → `V3.0`). Every draft in `output/` and its runs counts, rejected ones included; old `_revised` files are not renamed and count as their plain version. Document Control inside the document is not changed; `changes.md` and `run.json` (`file_version`) record that. Suite: 786 before, 816 after.

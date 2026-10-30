@@ -356,13 +356,13 @@ def is_revision_output(path):
 def next_revision_stem(source_path, output_root, major=False):
     """The versioned stem for a new revision of source_path, e.g. X_V2 -> X_V2.1, or X_V3.0 with major.
 
-    Every finished SOP at the top of output_root and in every run folder counts, whatever its
-    approval status, so a number is never handed out twice.
+    Every finished SOP at the top of output_root, in every run folder and in the archive counts,
+    whatever its approval status, so a number is never handed out twice.
     """
     base, current_major, current_minor = file_version(Path(source_path).stem)
     root = Path(output_root)
     taken = set()
-    for path in [*root.glob("*"), *root.glob("runs/*/*")]:
+    for path in [*root.glob("*"), *root.glob("runs/*/*"), *root.glob("archive/*"), *root.glob("archive/*/*")]:
         if path.suffix.lower() not in KINDS or path.name.startswith(("~$", ".")):
             continue
         other = file_version(path.stem)
@@ -378,11 +378,13 @@ def next_revision_stem(source_path, output_root, major=False):
 def find_sops(root, words):
     """Finished SOPs under the output folder whose file names share the most words with a request.
 
-    Looks at top-level .md/.docx files and revised drafts in run folders; never the assistant data.
+    Looks at top-level .md/.docx files and revised drafts in run folders; never the assistant data
+    or the archive. A published draft is found only as its copy at the top of the output folder.
     """
+    from .publish import is_published
     root = Path(root)
     candidates = [p for p in root.glob("*") if p.suffix.lower() in KINDS]
-    candidates += [p for p in root.glob("runs/*/*") if is_revision_output(p)]
+    candidates += [p for p in root.glob("runs/*/*") if is_revision_output(p) and not is_published(p.parent)]
     scored = []
     for path in candidates:
         if path.name.startswith((".", "~$")) or path.is_symlink() or not path.is_file():
