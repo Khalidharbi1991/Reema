@@ -576,6 +576,8 @@ def revise(
             source, findings, allow_external_ai=allow_external_ai, origin=origin)))
     except (ValueError, OSError, PermissionError, RuntimeError) as error:
         console.print(str(error), markup=False)
+        if leader.context.get("unparsed_reply"):
+            console.print(f"The model's reply was saved locally for diagnosis: {leader.context['unparsed_reply']}", markup=False)
         raise typer.Exit(code=1)
     finally:
         settings.output_dir = previous_output

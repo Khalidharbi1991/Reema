@@ -263,3 +263,56 @@ def test_cli_revise_validates_options_before_consent(tmp_path, monkeypatch):
     assert vague.exit_code == 2 and "--section" in vague.output
     denied = runner.invoke(main.app, ["revise", str(path), "--instruction", "fix escalation", "-o", str(out)])
     assert denied.exit_code == 2 and "--allow-external-ai" in denied.output and not out.exists()
+
+
+@pytest.mark.asyncio
+async def test_unparsable_revision_reply_is_saved_locally_for_diagnosis(tmp_path, output_root, caplog):
+    path = tmp_path / "incident.md"
+    path.write_text(template_sop())
+    source = load_sop(path)
+    findings = instruction_findings(source.content, PROFILE, "Fix escalation", ["sec-procedures"])
+    wrapped = "Here is the patch you asked for:\n" + patch_reply(source.content, {"sec-procedures": NEW_ESCALATION})
+    leader, content, review = leader_with(wrapped, "{}")
+    with pytest.raises(ValueError, match="Invalid structured SectionPatch"):
+        await leader.revise_existing(source, findings, allow_external_ai=True)
+    run = Path(leader.context["run_dir"])
+    saved = run / "unparsed_reply.txt"
+    assert saved.read_text() == wrapped and (saved.stat().st_mode & 0o777) == 0o600
+    state = json.loads((run / "run.json").read_text())
+    assert state["status"] == "failed" and state["unparsed_reply"] == "unparsed_reply.txt"
+    assert "Here is the patch" not in caplog.text and "Here is the patch" not in (run / "run.json").read_text()
+    review._call_claude.assert_not_awaited()
+    assert not (run / "approval.json").exists()
+
+
+@pytest.mark.asyncio
+async def test_unparsable_recheck_reply_is_saved_too(tmp_path, output_root):
+    path = tmp_path / "incident.md"
+    path.write_text(template_sop())
+    source = load_sop(path)
+    findings = instruction_findings(source.content, PROFILE, "Fix escalation", ["sec-procedures"])
+    leader, _, _ = leader_with(patch_reply(source.content, {"sec-procedures": NEW_ESCALATION}), "All findings resolved.")
+    with pytest.raises(ValueError, match="Invalid structured CorrectionAssessment"):
+        await leader.revise_existing(source, findings, allow_external_ai=True)
+    assert (Path(leader.context["run_dir"]) / "unparsed_reply.txt").read_text() == "All findings resolved."
+
+
+@pytest.mark.asyncio
+async def test_revise_and_recheck_prompts_ask_for_json_only(tmp_path, output_root):
+    path = tmp_path / "incident.md"
+    path.write_text(template_sop())
+    source = load_sop(path)
+    findings = instruction_findings(source.content, PROFILE, "Add a 15 minute rule", ["sec-procedures"])
+    leader, content, review = leader_with(patch_reply(source.content, {"sec-procedures": NEW_ESCALATION}),
+                                          lambda *a, **k: recheck_reply(findings, "within 15 minutes"))
+    await leader.revise_existing(source, findings, allow_external_ai=True)
+    for agent in (content, review):
+        assert "Return only the JSON object, with no text before or after it" in agent._call_claude.await_args.args[0][0]["content"]
+    assert not (Path(leader.context["run_dir"]) / "unparsed_reply.txt").exists()
+
+
+def test_raw_reply_file_is_git_ignored():
+    import subprocess
+    root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(["git", "check-ignore", "-q", "output/runs/any-run/unparsed_reply.txt"], cwd=root)
+    assert result.returncode == 0

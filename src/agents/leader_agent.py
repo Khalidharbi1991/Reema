@@ -13,6 +13,7 @@ Pipeline Phases:
 
 import asyncio
 import hashlib
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from copy import deepcopy
@@ -25,7 +26,7 @@ from ..utils.approvals import create_pending_record
 from ..utils.validation import validate_formats, validate_sop, validate_output_files
 from ..utils.provider import RunRuntime, current_runtime
 from ..utils.runs import RunStore, load_ready
-from ..utils.quality import validate_quality
+from ..utils.quality import validate_quality, UnparsedReplyError
 from ..knowledge.retrieval import ReferenceIndex
 from ..utils.handoffs import adapt_handoff, ReviewResult, ComplianceResult
 from ..utils.documents import (ControlRegister, legacy_register, control_coverage, section_map,
@@ -1130,6 +1131,13 @@ class LeaderAgent:
             return outputs
         except BaseException as e:
             self._finish_workflow("cancelled" if isinstance(e, asyncio.CancelledError) else "failed")
+            if store and isinstance(e, UnparsedReplyError):
+                # Local diagnostic beside source.json in the git-ignored run folder; never logged or sent.
+                path = run_dir / "unparsed_reply.txt"
+                with open(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w", encoding="utf-8") as stream:
+                    stream.write(e.reply)
+                store.state["unparsed_reply"] = path.name
+                self.context["unparsed_reply"] = str(path)
             if store:
                 store.finish("cancelled" if isinstance(e, asyncio.CancelledError) else "failed", runtime.summary(), type(e).__name__)
             raise

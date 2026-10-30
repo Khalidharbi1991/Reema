@@ -46,6 +46,14 @@ class ComplianceAssessment(BaseModel):
     summary: str = Field(min_length=1, max_length=2000)
 
 
+class UnparsedReplyError(ValueError):
+    """A structured reply that failed validation; carries the raw text for a local diagnostic file only."""
+
+    def __init__(self, message, reply):
+        super().__init__(message)
+        self.reply = reply
+
+
 def parse_json_response(text, schema):
     value = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
     try:

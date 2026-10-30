@@ -6,7 +6,7 @@ from ..utils.logger import logger
 from ..utils.config import config_manager
 from ..utils.handoffs import payload_json
 from ..utils.documents import SectionBody, SectionDraft, SectionPatch, section_map, sha, validate_body
-from ..utils.quality import parse_json_response, checkpointed_call
+from ..utils.quality import parse_json_response, checkpointed_call, UnparsedReplyError
 from ..utils.diagrams import SequenceFlow, GraphFlow
 import json
 
@@ -247,10 +247,15 @@ Please provide the complete refined document addressing all feedback points."""
                 "sections": {key: {**locations[key], "body": content[locations[key]["body_start"]:locations[key]["end"]]}
                              for key in sorted(targets)}}
         prompt = ("Correct only these sections and address each finding. Preserve citations, control IDs, constraints and full specialist material. "
-                  "Do not add top-level headings or claim approvals. Return JSON matching:\n"
+                  "Do not add top-level headings or claim approvals. Return only the JSON object, with no text "
+                  "before or after it, matching:\n"
                   + json.dumps(SectionPatch.model_json_schema()) + "\nREVISION DATA:\n" + payload_json(data))
         response = await self._call_claude([{"role": "user", "content": prompt}], system=self._build_system_prompt())
-        return parse_json_response(response, SectionPatch).apply(content, targets, profile, require_complete)
+        try:
+            patch = parse_json_response(response, SectionPatch)
+        except ValueError as error:
+            raise UnparsedReplyError(str(error), response) from None
+        return patch.apply(content, targets, profile, require_complete)
 
     def _build_system_prompt(self) -> str:
         """Build system prompt for content generation."""

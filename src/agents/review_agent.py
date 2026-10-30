@@ -5,7 +5,7 @@ from .base_agent import BaseAgent
 from ..utils.logger import logger
 from ..utils.config import config_manager
 from ..utils.quality import Assessment, assess_all
-from ..utils.quality import parse_json_response
+from ..utils.quality import parse_json_response, UnparsedReplyError
 from ..utils.documents import (LocatedAssessment, CorrectionAssessment, ExistingSopAssessment, LocatedFinding,
                                section_map, locate_findings, sha)
 import json
@@ -136,10 +136,15 @@ class ReviewAgent(BaseAgent):
             key: content[locations[key]["body_start"]:locations[key]["end"]] for key in sorted(targets)}}
         prompt = ("Recheck EVERY original finding against the revised sections. Do not assume a requested edit fixed it. "
                   "For each, give resolved/open, rationale and an exact supporting quote in the same revised section. "
-                  "Return JSON matching:\n" + json.dumps(CorrectionAssessment.model_json_schema())
+                  "Return only the JSON object, with no text before or after it, matching:\n"
+                  + json.dumps(CorrectionAssessment.model_json_schema())
                   + "\nCORRECTION DATA:\n" + json.dumps(data))
         response = await self._call_claude([{"role": "user", "content": prompt}], system=self._build_system_prompt())
-        result = parse_json_response(response, CorrectionAssessment).validate_against(content, findings, profile, require_complete)
+        try:
+            parsed = parse_json_response(response, CorrectionAssessment)
+        except ValueError as error:
+            raise UnparsedReplyError(str(error), response) from None
+        result = parsed.validate_against(content, findings, profile, require_complete)
         return {**result.model_dump(), "document_sha256": sha(content), "verification": "model_assessed"}
 
     def _build_system_prompt(self) -> str:
