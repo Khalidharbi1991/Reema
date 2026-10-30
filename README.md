@@ -235,6 +235,13 @@ targeted recheck, writes `changes.md`, and ends at `awaiting_human_approval`; us
 your Word file, so other sections keep their formatting; a section holding
 images, tracked changes, fields or content controls must be edited in Word.
 
+The revised file is named with the next version: `..._V2` becomes `..._V2.1`, then
+`..._V2.2`; a name with no version becomes `_V1.1`. Add `--major` when you decide the
+change is big (`V2.3` becomes `V3.0`). Every existing draft in `output/` and its run
+folders counts, rejected ones too, so a number is never used twice; old `_revised`
+files keep their names and count as their plain version. Only the file name changes:
+update the version in Document Control yourself before approving (`changes.md` says so).
+
 In chat, ask Ahmad in plain words, for example "fix the escalation part in my
 incident SOP". He lists matching files in `output/` for you to choose, names the
 section, and asks for your yes before anything is sent to Anthropic (the chat must

@@ -1066,15 +1066,18 @@ class LeaderAgent:
             self._task_store = None
 
     async def revise_existing(self, source, findings, *, allow_external_ai=False, origin=None,
-                              local_author=False) -> Dict[str, str]:
+                              local_author=False, major=False) -> Dict[str, str]:
         """Targeted revision of a finished SOP into a NEW run, ending at awaiting_human_approval.
 
         Only the sections named by the findings may change; the source file is never written.
         local_author=True takes the patch and recheck from files written in a Claude Code session
         (src/agents/file_workers.py); it makes no provider call and needs no --allow-external-ai.
+        The draft is named with the next version (X_V2 -> X_V2.1; major=True -> X_V3.0). Only the
+        file name carries it: Document Control inside the document is left for the reviewer.
         """
-        from ..utils.existing_sops import require_unique_sections, splice_docx, load_sop, changes_markdown
-        from ..utils.validation import missing_sections, safe_filename
+        from ..utils.existing_sops import (require_unique_sections, splice_docx, load_sop, changes_markdown,
+                                           file_version, next_revision_stem)
+        from ..utils.validation import missing_sections
         if self.workflow_status == "running":
             raise RuntimeError("This leader already has a running workflow; use a separate instance")
         if local_author:
@@ -1127,7 +1130,12 @@ class LeaderAgent:
                 store.save("revised", {"content": revised, "before_sha256": sha(content), "after_sha256": sha(revised),
                                        "target_sections": sorted(targets), "findings": findings, "recheck": recheck})
             async with self._phase("formatting"):
-                stem = safe_filename(source.path.stem) + "_revised"
+                stem = next_revision_stem(source.path, config_manager.system_config.output_dir, major=major)
+                _, old_major, old_minor = file_version(source.path.stem)
+                version = {"from": f"V{old_major}" + (f".{old_minor}" if old_minor else ""),
+                           "to": stem.rsplit("_", 1)[-1], "major": bool(major), "document_control": "not updated"}
+                store.state["file_version"] = version
+                # The run folder is new (RunStore refuses an existing one), so no file is ever overwritten.
                 outputs = {"markdown": str(run_dir / f"{stem}.md")}
                 Path(outputs["markdown"]).write_text(revised, encoding="utf-8")
                 if source.kind == "docx":
@@ -1138,7 +1146,10 @@ class LeaderAgent:
                     assert_only_targets_changed(content, load_sop(outputs["docx"]).content, targets, profile,
                                                 require_complete=complete)
                 validate_output_files(outputs, formats)
-                (run_dir / "changes.md").write_text(changes_markdown(content, revised, source.path.name), encoding="utf-8")
+                (run_dir / "changes.md").write_text(
+                    f"File version: {version['to']} (from {version['from']}). The version in Document Control "
+                    "inside the document was not changed; update it before approval if needed.\n\n"
+                    + changes_markdown(content, revised, source.path.name), encoding="utf-8")
             async with self._phase("human_review_record"):
                 record_path = run_dir / "approval.json"
                 # The record's score field holds the share of findings the model recheck marked resolved.

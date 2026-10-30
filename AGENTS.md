@@ -117,7 +117,10 @@ call or consent. `reema revise` (`--instruction`/`--section` or `--from-review`/
 `--finding`) changes only the named sections through `ContentAgent.revise_sections`,
 the shared preservation gate and the targeted recheck, then ends at
 `awaiting_human_approval`; its record's score is the share of findings the recheck
-marked resolved. Non-template SOPs use relaxed section checks; generate keeps the
+marked resolved. Revised drafts are named with the next file version (`_V2` → `_V2.1`;
+no version → `_V1.1`; `--major` → `_V3.0`, never automatic), counting every draft in
+`output/` and its runs, rejected ones included; old `_revised` files are not renamed and
+count as their plain version. Document Control inside the document is not changed. Non-template SOPs use relaxed section checks; generate keeps the
 full profile. DOCX revisions splice only the target sections into a copy of the
 original; sections with images, tracked changes, fields or content controls are
 refused. In chat, Ahmad matches the request to files in `output/` by file-name

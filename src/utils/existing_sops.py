@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .documents import mask_fences, section_map, sha
-from .validation import _heading_key, missing_sections
+from .validation import _heading_key, missing_sections, safe_filename
 
 KINDS = {".md": "markdown", ".markdown": "markdown", ".docx": "docx"}
 MAX_BYTES = {"markdown": 2_000_000, "docx": 25_000_000}
@@ -332,6 +332,49 @@ def changes_markdown(before, after, name):
     return "```diff\n" + "".join(diff) + "\n```\n"
 
 
+# A version at the very end of a file name: V2, v2, V2.1 or V2_1. Old "_revised" endings are dropped first.
+VERSION = re.compile(r"(?:^|[_\- ])[vV](\d+)(?:[._](\d+))?$")
+REVISED_ENDINGS = re.compile(r"(?:_revised)+$", re.IGNORECASE)
+REVISION_NAME = re.compile(r"(?:_revised|_V\d+\.\d+)$")
+
+
+def file_version(stem):
+    """(base, major, minor) read from a file stem; a name with no version at its end counts as V1."""
+    stem = REVISED_ENDINGS.sub("", stem)
+    match = VERSION.search(stem)
+    if not match:
+        return safe_filename(stem), 1, 0
+    base = stem[:match.start()].strip("_- ")
+    return (safe_filename(base) if base else ""), int(match[1]), int(match[2] or 0)
+
+
+def is_revision_output(path):
+    """A revised draft in a run folder: the old "_revised" names and the versioned "_V2.1" ones."""
+    return Path(path).suffix.lower() in KINDS and bool(REVISION_NAME.search(Path(path).stem))
+
+
+def next_revision_stem(source_path, output_root, major=False):
+    """The versioned stem for a new revision of source_path, e.g. X_V2 -> X_V2.1, or X_V3.0 with major.
+
+    Every finished SOP at the top of output_root and in every run folder counts, whatever its
+    approval status, so a number is never handed out twice.
+    """
+    base, current_major, current_minor = file_version(Path(source_path).stem)
+    root = Path(output_root)
+    taken = set()
+    for path in [*root.glob("*"), *root.glob("runs/*/*")]:
+        if path.suffix.lower() not in KINDS or path.name.startswith(("~$", ".")):
+            continue
+        other = file_version(path.stem)
+        if other[0].casefold() == base.casefold():
+            taken.add(other[1:])
+    if major:
+        version = f"V{max([current_major, *(m for m, _ in taken)]) + 1}.0"
+    else:
+        version = f"V{current_major}.{max([current_minor, *(n for m, n in taken if m == current_major)]) + 1}"
+    return f"{base}_{version}" if base else version
+
+
 def find_sops(root, words):
     """Finished SOPs under the output folder whose file names share the most words with a request.
 
@@ -339,7 +382,7 @@ def find_sops(root, words):
     """
     root = Path(root)
     candidates = [p for p in root.glob("*") if p.suffix.lower() in KINDS]
-    candidates += [p for p in root.glob("runs/*/*_revised.*") if p.suffix.lower() in KINDS]
+    candidates += [p for p in root.glob("runs/*/*") if is_revision_output(p)]
     scored = []
     for path in candidates:
         if path.name.startswith((".", "~$")) or path.is_symlink() or not path.is_file():
