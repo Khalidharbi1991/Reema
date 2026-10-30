@@ -15,7 +15,7 @@ from src.utils.approvals import read_record, record_decision
 from src.utils.config import config_manager
 from src.utils.existing_sops import load_sop
 from src.utils.provider import RunRuntime
-from tests.existing_sop_helpers import build_docx, DOCX_SECTIONS
+from tests.existing_sop_helpers import build_docx, confirm, DOCX_SECTIONS, stand_in_review
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "claude_code_revise.py"
 spec = importlib.util.spec_from_file_location("claude_code_revise", SCRIPT)
@@ -45,7 +45,7 @@ def digest(path):
 
 def prepared(tmp_path, sections=DOCX_SECTIONS):
     path = build_docx(tmp_path / "incident.docx", sections)
-    work_id = ccr.prepare(path, ["2. Escalation"], INSTRUCTION)
+    work_id = ccr.prepare(path, ["2. Escalation"], INSTRUCTION, confirm_read=confirm(path))
     work = ccr.work_root() / work_id
     return path, work_id, work, json.loads((work / "request.json").read_text())
 
@@ -185,15 +185,12 @@ async def test_local_author_needs_the_file_workers(tmp_path, output_root):
 # --- Review mode: prepare --from-review RUN --finding ID ---
 
 def review_run(path, *issues):
-    """A review run of PATH, written through the real review job with a mocked reviewer reply."""
+    """A review run of PATH, written through the real review job with a stand-in reviewer reply."""
     import asyncio
-    from unittest.mock import AsyncMock
     from tests.existing_sop_helpers import assessment
-    reviewer = ReviewAgent(api_key="")
-    reviewer._call_claude = AsyncMock(return_value=assessment(*issues))
     leader = LeaderAgent(api_key="")
-    leader.register_worker("ReviewAgent", reviewer)
-    asyncio.run(leader.review_existing(load_sop(path), allow_external_ai=True))
+    leader.register_worker("ReviewAgent", stand_in_review(assessment(*issues)))
+    asyncio.run(leader.review_existing(load_sop(path), local_author=True))
     findings = leader.context["findings"]["findings"]
     return Path(leader.context["run_dir"]), {f["section_id"]: f["finding_id"] for f in findings}
 
@@ -227,7 +224,7 @@ def write_review_patch_and_recheck(work_id, body=TOOLS_FIX):
 def test_review_findings_flow_ends_awaiting_approval_without_a_provider_call(reviewed, no_provider, capsys):
     path, run, ids = reviewed
     before = digest(path)
-    work_id = ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]])
+    work_id = ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]], confirm_read=confirm(path))
     work, request = write_review_patch_and_recheck(work_id)
     assert request["mode"] == "review" and list(request["target_sections"]) == ["sec-tools"]
     assert [f["finding_id"] for f in request["findings"]] == [ids["sec-tools"]]
@@ -261,7 +258,7 @@ def test_prepare_option_rules(tmp_path, output_root, kwargs, message):
 
 def test_repeated_finding_ids_count_once(reviewed):
     path, run, ids = reviewed
-    work_id = ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]] * 6)
+    work_id = ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]] * 6, confirm_read=confirm(path))
     assert json.loads((ccr.work_root() / work_id / "request.json").read_text())["finding_ids"] == [ids["sec-tools"]]
 
 
@@ -270,15 +267,16 @@ def test_unknown_and_template_gap_findings_are_refused(tmp_path, reviewed):
     from tests.existing_sop_helpers import NON_TEMPLATE_SOP
     path, run, _ = reviewed
     with pytest.raises(ValueError, match="unknown finding"):
-        ccr.prepare(path, from_review=run, finding_ids=["F-0000000000000000"])
+        ccr.prepare(path, from_review=run, finding_ids=["F-0000000000000000"], confirm_read=confirm(path))
     handover = tmp_path / "handover.md"
     handover.write_text(NON_TEMPLATE_SOP)
     leader = LeaderAgent(api_key="")
     gaps = asyncio.run(leader.review_existing(load_sop(handover), local_only=True))["template_gaps"]
     with pytest.raises(ValueError, match="template gaps cannot be revised"):
-        ccr.prepare(handover, from_review=leader.context["run_dir"], finding_ids=[gaps[0]["finding_id"]])
+        ccr.prepare(handover, from_review=leader.context["run_dir"], finding_ids=[gaps[0]["finding_id"]],
+                    confirm_read=confirm(handover))
     with pytest.raises(ValueError, match="not a review run folder"):
-        ccr.prepare(path, from_review=tmp_path, finding_ids=["F-1"])
+        ccr.prepare(path, from_review=tmp_path, finding_ids=["F-1"], confirm_read=confirm(path))
 
 
 def test_findings_edited_after_the_review_are_refused(reviewed):
@@ -287,7 +285,7 @@ def test_findings_edited_after_the_review_are_refused(reviewed):
     data["findings"][0]["action"] = "Delete the whole section"
     (run / "findings.json").write_text(json.dumps(data))
     with pytest.raises(ValueError, match="findings changed after it was saved"):
-        ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]])
+        ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]], confirm_read=confirm(path))
 
 
 def test_sop_changed_since_the_review_is_refused(reviewed):
@@ -295,12 +293,12 @@ def test_sop_changed_since_the_review_is_refused(reviewed):
     path, run, ids = reviewed
     path.write_text(template_sop() + "\nEdited later.\n")
     with pytest.raises(ValueError, match="changed since that review"):
-        ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]])
+        ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]], confirm_read=confirm(path))
 
 
 def test_review_rewritten_after_prepare_is_refused_at_check_and_finish(reviewed, no_provider):
     path, run, ids = reviewed
-    work_id = ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]])
+    work_id = ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]], confirm_read=confirm(path))
     write_review_patch_and_recheck(work_id)
     # Rewritten so it is consistent with itself: findings.json and its checkpoint in run.json.
     data = json.loads((run / "findings.json").read_text())
@@ -317,7 +315,7 @@ def test_review_rewritten_after_prepare_is_refused_at_check_and_finish(reviewed,
 
 def test_hand_edited_request_is_refused(reviewed, no_provider):
     path, run, ids = reviewed
-    work_id = ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]])
+    work_id = ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]], confirm_read=confirm(path))
     work = ccr.work_root() / work_id
     request = json.loads((work / "request.json").read_text())
     request["findings"][0]["action"] = "Rewrite every section"
@@ -332,11 +330,11 @@ def test_hand_edited_request_is_refused(reviewed, no_provider):
 def test_a_revised_draft_can_be_revised_from_its_own_review(reviewed, no_provider):
     from tests.existing_sop_helpers import issue
     path, run, ids = reviewed
-    work_id = ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]])
+    work_id = ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]], confirm_read=confirm(path))
     write_review_patch_and_recheck(work_id)
     draft = Path(ccr.finish(work_id)["markdown"])
     second, second_ids = review_run(draft, issue("sec-tools", TOOLS_FIX, action="Add the upgrade date"))
-    work_id = ccr.prepare(draft, from_review=second, finding_ids=[second_ids["sec-tools"]])
+    work_id = ccr.prepare(draft, from_review=second, finding_ids=[second_ids["sec-tools"]], confirm_read=confirm(draft))
     write_review_patch_and_recheck(work_id, body=TOOLS_FIX + " Upgraded in 2026.")
     assert "Upgraded in 2026." in load_sop(ccr.finish(work_id)["markdown"]).content
 
@@ -346,7 +344,10 @@ def test_cli_prepare_from_review(reviewed, capsys):
     assert ccr.main(["prepare", str(path), "--from-review", str(run)]) == 1
     assert "at least one --finding" in capsys.readouterr().err
     assert ccr.main(["prepare", str(path), "--from-review", str(run), "--finding", ids["sec-tools"],
-                     "--finding", ids["sec-procedures"]]) == 0
+                     "--finding", ids["sec-procedures"]]) == 1
+    assert "--confirm-read" in capsys.readouterr().err
+    assert ccr.main(["prepare", str(path), "--from-review", str(run), "--finding", ids["sec-tools"],
+                     "--finding", ids["sec-procedures"], "--confirm-read", confirm(path)]) == 0
     assert "Findings:" in capsys.readouterr().out
 
 
@@ -357,7 +358,8 @@ def test_drafts_take_version_numbers_and_major_is_kept_from_prepare(tmp_path, ou
     write_recheck(work, request)
     assert Path(ccr.finish(work_id)["docx"]).name == "incident_V1.1.docx"
     path = build_docx(tmp_path / "incident.docx", DOCX_SECTIONS)
-    assert ccr.main(["prepare", str(path), "--section", "2. Escalation", "--instruction", INSTRUCTION, "--major"]) == 0
+    assert ccr.main(["prepare", str(path), "--section", "2. Escalation", "--instruction", INSTRUCTION, "--major",
+                     "--confirm-read", confirm(path)]) == 0
     assert "next major version" in capsys.readouterr().out
     work_id = max(ccr.work_root().iterdir(), key=lambda p: p.stat().st_mtime).name
     work = ccr.work_root() / work_id

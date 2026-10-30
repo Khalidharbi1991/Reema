@@ -212,20 +212,12 @@ The original draft files are not rewritten after approval.
 
 Existing `.md` or `.docx` SOPs can be checked and fixed without regenerating
 them. The original file is only read; every job writes a new
-`output/runs/<run-id>/` folder.
+`output/runs/<run-id>/` folder. The full review and revisions run in Claude Code
+(see "Claude Code revise" below); REEMA itself calls no model for them. From the
+command line you can run the template-gap check, which needs no model:
 
 ```bash
-# Template-gap check only: no model call, no consent needed
-python3 scripts/dev.py run review output/SOP_User_Incident_Management_V2.docx --local-only
-# Located findings (outdated content, missing steps, vague sections, template gaps)
-python3 scripts/dev.py run review output/SOP_User_Incident_Management_V2.docx --allow-external-ai
-# Change only the named section, from your own words...
-python3 scripts/dev.py run revise output/SOP_User_Incident_Management_V2.docx \
-  --instruction "Escalate P1 incidents to the Incident Manager within 15 minutes" \
-  --section "Escalation Paths" --allow-external-ai
-# ...or from a review run's findings
-python3 scripts/dev.py run revise output/SOP_User_Incident_Management_V2.docx \
-  --from-review output/runs/<review-run-id> --finding F-<id> --allow-external-ai
+python3 scripts/dev.py run review output/SOP_User_Incident_Management_V2.docx
 ```
 
 Review saves `findings.md`/`findings.json` and has no approval record. Revise
@@ -242,14 +234,14 @@ folders counts, rejected ones too, so a number is never used twice; old `_revise
 files keep their names and count as their plain version. Only the file name changes:
 update the version in Document Control yourself before approving (`changes.md` says so).
 
-In chat, ask Ahmad in plain words, for example "fix the escalation part in my
+In Claude Code, ask Ahmad in plain words, for example "fix the escalation part in my
 incident SOP". He lists matching files in `output/` for you to choose, names the
-section, and asks for your yes before anything is sent to Anthropic (the chat must
-also be started with `--allow-external-ai`). He cannot approve the result.
+section, and asks for your yes before the session reads the file. He cannot approve
+the result.
 
 #### Publishing an approved revision
 
-`reema approve` on a revise run (API or Claude Code) also publishes it: the approved
+`reema approve` on a revise run also publishes it: the approved
 `.md`/`.docx` drafts are copied to the top of `output/`, and every older version of the
 same SOP there (same name, lower version, same format) moves to
 `output/archive/<run-id>/`. Before you confirm, the command shows what it will copy and
@@ -272,18 +264,18 @@ Inside a Claude Code session in this repository you can revise one section of a
 finished SOP with no Anthropic API call from REEMA: ask Claude Code to use the
 `reema-revise` skill. The session writes the section text (`reema-reviser`
 subagent) and the recheck (`reema-rechecker` subagent); `scripts/claude_code_revise.py`
-runs the same gates, Word splice, export and pending approval record as
-`reema revise`. The SOP is still sent to Anthropic through the Claude Code session,
-so you are asked for your yes first. It takes either `--instruction` or 1–5
+runs the gates, Word splice, export and pending approval record. The SOP is still
+sent to Anthropic through the Claude Code session, so you are asked for your yes
+first: the prepare step prints a `--confirm-read` token for that exact file and
+copies nothing until it is given back. A file under `references/` must also be
+allowed in the reference manifest. It takes either `--instruction` or 1–5
 findings from a review run of the same SOP (`--from-review RUN --finding ID`), and it
-never approves: run the printed `reema approve` command yourself. The `reema revise`
-API path above is unchanged.
+never approves: run the printed `reema approve` command yourself.
 
 The `reema-review` skill reviews a finished SOP the same way, read-only: Claude Code
 writes the findings, and `scripts/claude_code_review.py` locates every quote, binds
 the file's SHA-256 (checked before and after) and writes a normal review run that
-`reema revise --from-review` accepts. A review has no approval record. The
-`reema review` API path is unchanged.
+the `reema-revise` skill's `--from-review` accepts. A review has no approval record.
 
 #### REEMA in Claude Code
 

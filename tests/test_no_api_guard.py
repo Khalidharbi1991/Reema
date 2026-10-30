@@ -47,7 +47,6 @@ KNOWN = {
     "tests/test_agent_improvement_package.py": ["consent"],
     "tests/test_agents.py": ["setting"],
     "tests/test_ahmad_direct_consultation.py": ["consent"],
-    "tests/test_ahmad_sop_access.py": ["consent"],
     "tests/test_assistant_memory.py": ["consent"],
     "tests/test_base_agent.py": ["setting"],
     "tests/test_claude_code_review.py": ["consent", "setting"],
@@ -63,10 +62,7 @@ KNOWN = {
     "tests/test_pipeline.py": ["consent", "setting"],
     "tests/test_recovery.py": ["consent", "setting"],
     "tests/test_reliability.py": ["consent", "import"],
-    "tests/test_revision_versions.py": ["consent"],
     "tests/test_section_generation.py": ["consent"],
-    "tests/test_sop_review.py": ["consent"],
-    "tests/test_sop_revise.py": ["consent"],
     "tests/test_specialist_package.py": ["consent"],
     "tests/test_standards_catalog.py": ["setting"],
 }

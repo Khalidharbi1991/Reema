@@ -997,11 +997,12 @@ class LeaderAgent:
             "approval_record": str(record_path),
         }
 
-    async def review_existing(self, source, *, local_only=False, allow_external_ai=False, local_author=False) -> Dict:
+    async def review_existing(self, source, *, local_only=False, local_author=False) -> Dict:
         """Read-only review of a finished SOP into a NEW run folder; the source file is never written.
 
-        local_author=True takes the assessments from files written in a Claude Code session
-        (src/agents/file_workers.py); it makes no provider call and needs no --allow-external-ai.
+        local_only=True runs the template-gap check alone. Otherwise local_author=True is required:
+        the assessments come from files written in a Claude Code session (src/agents/file_workers.py),
+        and no provider call is made.
         """
         from ..utils.existing_sops import template_gaps, findings_markdown, require_unique_sections, duplicate_sections
         if self.workflow_status == "running":
@@ -1013,16 +1014,14 @@ class LeaderAgent:
             if local_only or not isinstance(worker, FileReviewWorker) or worker.excerpts_only:
                 raise ValueError("local_author needs the file-backed ReviewAgent worker with every assessment written")
         if not local_only:
-            if not (local_author or allow_external_ai or config_manager.system_config.allow_external_ai):
-                raise PermissionError("Authorize sending this SOP to Anthropic with --allow-external-ai, or use --local-only")
-            if "ReviewAgent" not in self.worker_agents:
-                raise ValueError("Required agents missing: ReviewAgent")
+            if not local_author:
+                raise ValueError("A model review runs in Claude Code (reema-review skill); here use the local template check")
             require_unique_sections(source.content, profile)
         run_dir = config_manager.system_config.output_dir / "runs" / uuid4().hex
         self.context = {"run_dir": str(run_dir), "job": "review", "source_path": str(source.path)}
         self._begin_workflow(source.path.name, ["template_check", *([] if local_only else ["review"]), "findings_record"])
-        # A local-author run keeps external AI off, so any provider call would be refused.
-        runtime = None if local_only else RunRuntime(config_manager.system_config.model_copy(update={"allow_external_ai": not local_author}))
+        # External AI stays off, so any provider call would be refused.
+        runtime = None if local_only else RunRuntime(config_manager.system_config.model_copy(update={"allow_external_ai": False}))
         token = current_runtime.set(runtime)
         store = None
         summary = lambda: runtime.summary() if runtime else {"calls": [], "accounted_tokens": 0}
@@ -1065,13 +1064,12 @@ class LeaderAgent:
             current_runtime.reset(token)
             self._task_store = None
 
-    async def revise_existing(self, source, findings, *, allow_external_ai=False, origin=None,
-                              local_author=False, major=False) -> Dict[str, str]:
+    async def revise_existing(self, source, findings, *, origin=None, local_author=False, major=False) -> Dict[str, str]:
         """Targeted revision of a finished SOP into a NEW run, ending at awaiting_human_approval.
 
         Only the sections named by the findings may change; the source file is never written.
-        local_author=True takes the patch and recheck from files written in a Claude Code session
-        (src/agents/file_workers.py); it makes no provider call and needs no --allow-external-ai.
+        local_author=True is required: the patch and recheck come from files written in a Claude Code
+        session (src/agents/file_workers.py), and no provider call is made.
         The draft is named with the next version (X_V2 -> X_V2.1; major=True -> X_V3.0). Only the
         file name carries it: Document Control inside the document is left for the reviewer.
         """
@@ -1080,16 +1078,12 @@ class LeaderAgent:
         from ..utils.validation import missing_sections
         if self.workflow_status == "running":
             raise RuntimeError("This leader already has a running workflow; use a separate instance")
-        if local_author:
-            from .file_workers import FilePatchWorker, FileRecheckWorker
-            if not (isinstance(self.worker_agents.get("ContentAgent"), FilePatchWorker)
-                    and isinstance(self.worker_agents.get("ReviewAgent"), FileRecheckWorker)):
-                raise ValueError("local_author needs the file-backed ContentAgent and ReviewAgent workers")
-        elif not (allow_external_ai or config_manager.system_config.allow_external_ai):
-            raise PermissionError("Authorize sending this SOP to Anthropic with --allow-external-ai")
-        missing = {"ContentAgent", "ReviewAgent"} - self.worker_agents.keys()
-        if missing:
-            raise ValueError(f"Required agents missing: {', '.join(sorted(missing))}")
+        if not local_author:
+            raise ValueError("Revisions run in Claude Code (reema-revise skill)")
+        from .file_workers import FilePatchWorker, FileRecheckWorker
+        if not (isinstance(self.worker_agents.get("ContentAgent"), FilePatchWorker)
+                and isinstance(self.worker_agents.get("ReviewAgent"), FileRecheckWorker)):
+            raise ValueError("local_author needs the file-backed ContentAgent and ReviewAgent workers")
         profile = config_manager.document_profile
         content = source.content
         require_unique_sections(content, profile)
@@ -1099,17 +1093,16 @@ class LeaderAgent:
         run_dir = config_manager.system_config.output_dir / "runs" / uuid4().hex
         self.context = {"run_dir": str(run_dir), "job": "revise", "source_path": str(source.path)}
         self._begin_workflow(source.path.name, ["revision", "recheck", "formatting", "human_review_record"])
-        # A local-author run keeps external AI off, so any provider call would be refused.
-        runtime = RunRuntime(config_manager.system_config.model_copy(update={"allow_external_ai": not local_author}))
+        # External AI stays off, so any provider call would be refused.
+        runtime = RunRuntime(config_manager.system_config.model_copy(update={"allow_external_ai": False}))
         token = current_runtime.set(runtime)
         store = None
         try:
             formats = ["markdown", "docx"] if source.kind == "docx" else ["markdown"]
             store = RunStore(run_dir, source.path.name, formats)
             self._task_store = store
-            store.state.update(job="revise", origin=origin or {}, full_profile_checks=complete)
-            if local_author:
-                store.state["authoring"] = "claude_code_session"
+            store.state.update(job="revise", origin=origin or {}, full_profile_checks=complete,
+                               authoring="claude_code_session")
             store.save("source", source.record())
             async with self._phase("revision"):
                 revised = await self._invoke("revise_finished", {"content": content, "findings": findings,

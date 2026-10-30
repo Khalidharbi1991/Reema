@@ -1,11 +1,9 @@
-"""Version numbers on revised SOP file names (V2 -> V2.1, --major -> V3.0). Mocked provider only."""
+"""Version numbers on revised SOP file names (V2 -> V2.1, --major -> V3.0). No provider calls."""
 
 import json
 from pathlib import Path
 
 import pytest
-from rich.console import Console
-from typer.testing import CliRunner
 
 from src.utils.config import config_manager
 from src.utils.documents import section_map
@@ -89,13 +87,13 @@ async def revise(path, major=False):
     findings = instruction_findings(source.content, PROFILE, "Add a 15 minute P1 escalation rule", ["sec-procedures"])
     leader, _, _ = leader_with(patch_reply(source.content, {"sec-procedures": NEW_ESCALATION}),
                                lambda *a, **k: recheck_reply(findings, "within 15 minutes"))
-    outputs = await leader.revise_existing(source, findings, allow_external_ai=True, origin={"instruction": "x"},
+    outputs = await leader.revise_existing(source, findings, local_author=True, origin={"instruction": "x"},
                                            major=major)
     return Path(outputs["markdown"])
 
 
 @pytest.mark.asyncio
-async def test_api_revise_names_drafts_by_version_and_leaves_document_control(tmp_path, output_root):
+async def test_revise_names_drafts_by_version_and_leaves_document_control(tmp_path, output_root):
     path = tmp_path / "SOP_User_Incident_Management_V2.md"
     path.write_text(template_sop())
     first = await revise(path)
@@ -123,14 +121,3 @@ async def test_existing_legacy_drafts_are_not_renamed(tmp_path, output_root):
     assert draft.name == "SOP_X_V2.1.md"
     assert [p.name for p in legacy.iterdir()] == ["SOP_X_V2_revised.md"]
 
-
-def test_cli_revise_accepts_major(tmp_path, monkeypatch):
-    from src import main
-    monkeypatch.setattr(main, "console", Console(width=1000))
-    monkeypatch.setattr(config_manager.system_config, "allow_external_ai", False)
-    path = tmp_path / "incident.md"
-    path.write_text(template_sop())
-    out = tmp_path / "output"
-    result = CliRunner().invoke(main.app, ["revise", str(path), "--instruction", "fix escalation", "--section",
-                                           "Detailed Procedures", "--major", "-o", str(out)])
-    assert result.exit_code == 2 and "--allow-external-ai" in result.output and not out.exists()

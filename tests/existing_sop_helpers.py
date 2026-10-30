@@ -89,3 +89,43 @@ def assessment(*issues, summary="Synthetic assessment"):
 def issue(section_id, quote, *, category="vague", severity="major", description="Too vague", action="Add a threshold"):
     return {"severity": severity, "description": description, "section_id": section_id, "quote": quote,
             "action": action, "category": category}
+
+
+def _mocked(worker, reply):
+    from unittest.mock import AsyncMock
+    worker._call_claude = AsyncMock(side_effect=reply if callable(reply) or isinstance(reply, list) else [reply])
+    return worker
+
+
+def stand_in_review(reply):
+    """The Claude Code review worker type, with its assessments from a mock instead of excerpts.json."""
+    from src.agents.file_workers import FileReviewWorker
+    from src.agents.review_agent import ReviewAgent
+
+    class StandIn(FileReviewWorker):
+        review_existing = ReviewAgent.review_existing
+    return _mocked(StandIn("unused"), reply)
+
+
+def stand_in_patch(reply):
+    """The Claude Code patch worker type, with its patch from a mock instead of patch.json."""
+    from src.agents.file_workers import FilePatchWorker
+    return _mocked(FilePatchWorker("unused"), reply)
+
+
+def stand_in_recheck(reply):
+    """The Claude Code recheck worker type, with its recheck from a mock instead of recheck.json."""
+    from src.agents.file_workers import FileRecheckWorker
+    from src.agents.review_agent import ReviewAgent
+
+    class StandIn(FileRecheckWorker):
+        recheck_corrections = ReviewAgent.recheck_corrections
+    return _mocked(StandIn("unused"), reply)
+
+
+def confirm(path):
+    """The confirm-read token a prepare step prints for PATH; tests pass it as Khalid's yes."""
+    import hashlib
+    from pathlib import Path
+    from src.utils.read_gate import read_token
+    return read_token(hashlib.sha256(Path(path).read_bytes()).hexdigest())

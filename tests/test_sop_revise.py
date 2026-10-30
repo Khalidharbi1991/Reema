@@ -1,4 +1,4 @@
-"""Targeted revision of finished SOPs (`reema revise`). Mocked provider only."""
+"""Targeted revision of finished SOPs through the Claude Code worker types. No provider calls."""
 
 import hashlib
 import json
@@ -17,7 +17,8 @@ from src.utils.approvals import read_record
 from src.utils.config import config_manager
 from src.utils.documents import section_map, sha, assert_only_targets_changed
 from src.utils.existing_sops import (load_sop, resolve_sections, instruction_findings, review_findings, W)
-from tests.existing_sop_helpers import (template_sop, NON_TEMPLATE_SOP, build_docx, DOCX_SECTIONS, assessment, issue)
+from tests.existing_sop_helpers import (template_sop, NON_TEMPLATE_SOP, build_docx, DOCX_SECTIONS, assessment, issue,
+                                        stand_in_patch, stand_in_recheck, stand_in_review)
 
 PROFILE = config_manager.document_profile
 
@@ -44,9 +45,7 @@ def recheck_reply(findings, quote, status="resolved"):
 
 
 def leader_with(content_reply, recheck):
-    content, review = ContentAgent(api_key=""), ReviewAgent(api_key="")
-    content._call_claude = AsyncMock(side_effect=content_reply if callable(content_reply) else [content_reply])
-    review._call_claude = AsyncMock(side_effect=recheck if callable(recheck) else [recheck])
+    content, review = stand_in_patch(content_reply), stand_in_recheck(recheck)
     leader = LeaderAgent(api_key="")
     leader.register_worker("ContentAgent", content)
     leader.register_worker("ReviewAgent", review)
@@ -76,7 +75,7 @@ async def test_markdown_revision_changes_only_the_target_section(tmp_path, outpu
     findings = instruction_findings(source.content, PROFILE, "Add a 15 minute P1 escalation rule", ["sec-procedures"])
     leader, content, review = leader_with(patch_reply(source.content, {"sec-procedures": NEW_ESCALATION}),
                                           lambda *a, **k: recheck_reply(findings, "within 15 minutes"))
-    outputs = await leader.revise_existing(source, findings, allow_external_ai=True, origin={"instruction": "x"})
+    outputs = await leader.revise_existing(source, findings, local_author=True, origin={"instruction": "x"})
     revised = Path(outputs["markdown"]).read_text()
     assert revised == template_sop({"Detailed Procedures": NEW_ESCALATION})
     old, new = section_map(source.content, PROFILE), section_map(revised, PROFILE)
@@ -100,7 +99,7 @@ async def test_patch_touching_another_section_is_refused(tmp_path, output_root):
     sneaky = patch_reply(source.content, {"sec-procedures": NEW_ESCALATION, "sec-tools": "ServiceNow Xanadu."})
     leader, _, review = leader_with(sneaky, "{}")
     with pytest.raises(ValueError, match="exactly the requested sections"):
-        await leader.revise_existing(source, findings, allow_external_ai=True)
+        await leader.revise_existing(source, findings, local_author=True)
     review._call_claude.assert_not_awaited()
     run = Path(leader.context["run_dir"])
     assert json.loads((run / "run.json").read_text())["status"] == "failed" and not (run / "approval.json").exists()
@@ -123,21 +122,26 @@ async def test_open_blocking_finding_fails_the_run(tmp_path, output_root):
     leader, _, _ = leader_with(patch_reply(source.content, {"sec-procedures": NEW_ESCALATION}),
                                lambda *a, **k: recheck_reply(findings, "within 15 minutes", "open"))
     with pytest.raises(ValueError, match="remain open"):
-        await leader.revise_existing(source, findings, allow_external_ai=True)
+        await leader.revise_existing(source, findings, local_author=True)
     assert not (Path(leader.context["run_dir"]) / "approval.json").exists()
 
 
 @pytest.mark.asyncio
-async def test_revision_requires_consent(tmp_path, output_root, monkeypatch):
-    monkeypatch.setattr(config_manager.system_config, "allow_external_ai", False)
+async def test_revision_runs_only_through_claude_code(tmp_path, output_root):
     path = tmp_path / "incident.md"
     path.write_text(template_sop())
     source = load_sop(path)
     findings = instruction_findings(source.content, PROFILE, "Fix escalation", ["sec-procedures"])
+    plain = LeaderAgent(api_key="")
+    plain.register_worker("ContentAgent", ContentAgent(api_key=""))
+    plain.register_worker("ReviewAgent", ReviewAgent(api_key=""))
+    with pytest.raises(ValueError, match="file-backed"):
+        await plain.revise_existing(source, findings, local_author=True)
     leader, content, _ = leader_with("{}", "{}")
-    with pytest.raises(PermissionError):
+    with pytest.raises(ValueError, match="Claude Code"):
         await leader.revise_existing(source, findings)
     content._call_claude.assert_not_awaited()
+    assert not (output_root / "runs").exists()
 
 
 @pytest.mark.asyncio
@@ -150,7 +154,7 @@ async def test_non_template_sop_revises_with_relaxed_checks(tmp_path, output_roo
     body = "### Collect\nCollect the device from stores (contact: Stores Lead).\n\n### Escalation\nEscalate to the team lead if stock is short."
     leader, _, _ = leader_with(patch_reply(source.content, {target: body}),
                                lambda *a, **k: recheck_reply(findings, "Stores Lead"))
-    outputs = await leader.revise_existing(source, findings, allow_external_ai=True)
+    outputs = await leader.revise_existing(source, findings, local_author=True)
     assert Path(outputs["markdown"]).read_text() == NON_TEMPLATE_SOP.replace(
         "Collect the device from stores.", "Collect the device from stores (contact: Stores Lead).")
     assert json.loads((Path(leader.context["run_dir"]) / "run.json").read_text())["full_profile_checks"] is False
@@ -171,7 +175,7 @@ async def test_docx_splice_keeps_other_sections_and_branding(tmp_path, output_ro
     body = "### 2.1 Triggers\nEscalate P1 incidents within 15 minutes.\n\n| Level | Owner |\n|---|---|\n| L1 | Desk |\n| L2 | Incident Manager |"
     leader, _, _ = leader_with(patch_reply(source.content, {target: body}),
                                lambda *a, **k: recheck_reply(findings, "within 15 minutes"))
-    outputs = await leader.revise_existing(source, findings, allow_external_ai=True)
+    outputs = await leader.revise_existing(source, findings, local_author=True)
     original, spliced = body_xml(path), body_xml(outputs["docx"])
     # Title + section 1 (heading and paragraph) and the section 2 heading are byte-identical XML.
     assert spliced[:4] == original[:4]
@@ -198,7 +202,7 @@ async def test_docx_section_with_image_is_refused(tmp_path, output_root):
     leader, _, _ = leader_with(patch_reply(source.content, {target: "Escalate P1 incidents within 15 minutes."}),
                                lambda *a, **k: recheck_reply(findings, "within 15 minutes"))
     with pytest.raises(ValueError, match="edit it in Word"):
-        await leader.revise_existing(source, findings, allow_external_ai=True)
+        await leader.revise_existing(source, findings, local_author=True)
     assert not (Path(leader.context["run_dir"]) / "approval.json").exists()
 
 
@@ -206,13 +210,12 @@ async def test_docx_section_with_image_is_refused(tmp_path, output_root):
 async def test_findings_from_review_run_are_bound_to_the_file(tmp_path, output_root):
     path = tmp_path / "incident.md"
     path.write_text(template_sop())
-    reviewer = ReviewAgent(api_key="")
-    reviewer._call_claude = AsyncMock(return_value=assessment(
+    reviewer = stand_in_review(assessment(
         issue("sec-tools", "ServiceNow version 2019.", category="outdated"),
         issue("sec-procedures", "Escalate when needed.", category="missing_step")))
     leader = LeaderAgent(api_key="")
     leader.register_worker("ReviewAgent", reviewer)
-    await leader.review_existing(load_sop(path), allow_external_ai=True)
+    await leader.review_existing(load_sop(path), local_author=True)
     run = Path(leader.context["run_dir"])
     tools = next(f for f in leader.context["findings"]["findings"] if f["section_id"] == "sec-tools")
     assert [f["finding_id"] for f in review_findings(run, load_sop(path), [tools["finding_id"]])] == [tools["finding_id"]]
@@ -250,19 +253,16 @@ async def test_generate_revision_still_requires_the_complete_profile():
     assert values["require_complete"] is None
 
 
-def test_cli_revise_validates_options_before_consent(tmp_path, monkeypatch):
+def test_cli_revise_points_to_claude_code_and_reads_nothing(tmp_path, monkeypatch):
     from src import main
     monkeypatch.setattr(main, "console", Console(width=1000))
-    monkeypatch.setattr(config_manager.system_config, "allow_external_ai", False)
     path = tmp_path / "incident.md"
     path.write_text(template_sop())
     runner, out = CliRunner(), tmp_path / "output"
-    both = runner.invoke(main.app, ["revise", str(path), "-o", str(out)])
-    assert both.exit_code == 2 and "exactly one of --instruction or --from-review" in both.output
-    vague = runner.invoke(main.app, ["revise", str(path), "--instruction", "make it better", "-o", str(out)])
-    assert vague.exit_code == 2 and "--section" in vague.output
-    denied = runner.invoke(main.app, ["revise", str(path), "--instruction", "fix escalation", "-o", str(out)])
-    assert denied.exit_code == 2 and "--allow-external-ai" in denied.output and not out.exists()
+    for args in ([], ["--instruction", "fix escalation", "--section", "Detailed Procedures", "--major"]):
+        result = runner.invoke(main.app, ["revise", str(path), *args, "-o", str(out)])
+        assert result.exit_code == 2 and "run in Claude Code" in result.output and not out.exists()
+    assert "revise" not in runner.invoke(main.app, ["--help"]).output
 
 
 @pytest.mark.asyncio
@@ -274,7 +274,7 @@ async def test_unparsable_revision_reply_is_saved_locally_for_diagnosis(tmp_path
     wrapped = "Here is the patch you asked for:\n" + patch_reply(source.content, {"sec-procedures": NEW_ESCALATION})
     leader, content, review = leader_with(wrapped, "{}")
     with pytest.raises(ValueError, match="Invalid structured SectionPatch"):
-        await leader.revise_existing(source, findings, allow_external_ai=True)
+        await leader.revise_existing(source, findings, local_author=True)
     run = Path(leader.context["run_dir"])
     saved = run / "unparsed_reply.txt"
     assert saved.read_text() == wrapped and (saved.stat().st_mode & 0o777) == 0o600
@@ -293,7 +293,7 @@ async def test_unparsable_recheck_reply_is_saved_too(tmp_path, output_root):
     findings = instruction_findings(source.content, PROFILE, "Fix escalation", ["sec-procedures"])
     leader, _, _ = leader_with(patch_reply(source.content, {"sec-procedures": NEW_ESCALATION}), "All findings resolved.")
     with pytest.raises(ValueError, match="Invalid structured CorrectionAssessment"):
-        await leader.revise_existing(source, findings, allow_external_ai=True)
+        await leader.revise_existing(source, findings, local_author=True)
     assert (Path(leader.context["run_dir"]) / "unparsed_reply.txt").read_text() == "All findings resolved."
 
 
@@ -305,7 +305,7 @@ async def test_revise_and_recheck_prompts_ask_for_json_only(tmp_path, output_roo
     findings = instruction_findings(source.content, PROFILE, "Add a 15 minute rule", ["sec-procedures"])
     leader, content, review = leader_with(patch_reply(source.content, {"sec-procedures": NEW_ESCALATION}),
                                           lambda *a, **k: recheck_reply(findings, "within 15 minutes"))
-    await leader.revise_existing(source, findings, allow_external_ai=True)
+    await leader.revise_existing(source, findings, local_author=True)
     for agent in (content, review):
         assert "Return only the JSON object, with no text before or after it" in agent._call_claude.await_args.args[0][0]["content"]
     assert not (Path(leader.context["run_dir"]) / "unparsed_reply.txt").exists()
@@ -327,7 +327,7 @@ async def test_patch_adding_a_source_or_control_id_is_blocked(tmp_path, output_r
     findings = instruction_findings(source.content, PROFILE, "Add a P1 rule", ["sec-procedures"])
     leader, _, review = leader_with(patch_reply(source.content, {"sec-procedures": NEW_ESCALATION + " " + added}), "{}")
     with pytest.raises(ValueError, match="source or control IDs that are not in the original section"):
-        await leader.revise_existing(source, findings, allow_external_ai=True)
+        await leader.revise_existing(source, findings, local_author=True)
     review._call_claude.assert_not_awaited()
     run = Path(leader.context["run_dir"])
     assert json.loads((run / "run.json").read_text())["status"] == "failed" and not (run / "approval.json").exists()
@@ -344,7 +344,7 @@ async def test_existing_ids_in_the_section_may_be_kept_or_dropped(tmp_path, outp
     body = NEW_ESCALATION.replace("Log every incident in the tool.", "Log every incident [SRC-old].")
     leader, _, _ = leader_with(patch_reply(source.content, {"sec-procedures": body}),
                                lambda *a, **k: recheck_reply(findings, "Log every incident"))
-    outputs = await leader.revise_existing(source, findings, allow_external_ai=True)
+    outputs = await leader.revise_existing(source, findings, local_author=True)
     assert "[SRC-old]" in Path(outputs["markdown"]).read_text()
 
 
@@ -356,7 +356,7 @@ async def test_finished_sop_prompt_limits_scope_but_generate_prompt_does_not(tmp
     findings = instruction_findings(source.content, PROFILE, "Add a 15 minute rule", ["sec-procedures"])
     leader, content, _ = leader_with(patch_reply(source.content, {"sec-procedures": NEW_ESCALATION}),
                                      lambda *a, **k: recheck_reply(findings, "within 15 minutes"))
-    await leader.revise_existing(source, findings, allow_external_ai=True)
+    await leader.revise_existing(source, findings, local_author=True)
     prompt = content._call_claude.await_args.args[0][0]["content"]
     for phrase in ("Make only the change each finding asks for", "Do not add requirements, roles, tools",
                    "do not add source or control IDs", "State the change once"):
@@ -380,7 +380,7 @@ async def test_prose_before_one_fenced_block_is_accepted_for_finished_sops(tmp_p
     findings = instruction_findings(source.content, PROFILE, "Add a 15 minute rule", ["sec-procedures"])
     leader, _, _ = leader_with(fenced(patch_reply(source.content, {"sec-procedures": NEW_ESCALATION})),
                                lambda *a, **k: fenced(recheck_reply(findings, "within 15 minutes"), "Checking each finding."))
-    outputs = await leader.revise_existing(source, findings, allow_external_ai=True)
+    outputs = await leader.revise_existing(source, findings, local_author=True)
     assert Path(outputs["markdown"]).read_text() == template_sop({"Detailed Procedures": NEW_ESCALATION})
     assert not (Path(leader.context["run_dir"]) / "unparsed_reply.txt").exists()
 
@@ -396,7 +396,7 @@ async def test_prose_without_exactly_one_block_still_fails_and_is_saved(tmp_path
     reply = "Here it is: " + patch if shape == "no block" else fenced(patch) + fenced(patch, "Or this one.")
     leader, _, review = leader_with(reply, "{}")
     with pytest.raises(ValueError, match="Invalid structured SectionPatch"):
-        await leader.revise_existing(source, findings, allow_external_ai=True)
+        await leader.revise_existing(source, findings, local_author=True)
     assert (Path(leader.context["run_dir"]) / "unparsed_reply.txt").read_text() == reply
     review._call_claude.assert_not_awaited()
 
@@ -410,7 +410,7 @@ async def test_fenced_block_with_stale_hash_still_fails_the_stale_check(tmp_path
     stale = patch_reply(source.content + "older copy", {"sec-procedures": NEW_ESCALATION})
     leader, _, _ = leader_with(fenced(stale), "{}")
     with pytest.raises(ValueError, match="stale document"):
-        await leader.revise_existing(source, findings, allow_external_ai=True)
+        await leader.revise_existing(source, findings, local_author=True)
 
 
 @pytest.mark.asyncio

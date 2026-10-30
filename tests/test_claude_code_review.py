@@ -5,7 +5,6 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
-from unittest.mock import AsyncMock
 
 import pytest
 
@@ -15,7 +14,7 @@ from src.agents.review_agent import ReviewAgent
 from src.utils.config import config_manager
 from src.utils.existing_sops import load_sop, review_findings
 from src.utils.provider import RunRuntime
-from tests.existing_sop_helpers import BODIES, DOCX_SECTIONS, assessment, build_docx, issue, template_sop
+from tests.existing_sop_helpers import BODIES, DOCX_SECTIONS, assessment, build_docx, confirm, issue, template_sop
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "claude_code_review.py"
 spec = importlib.util.spec_from_file_location("claude_code_review", SCRIPT)
@@ -52,7 +51,7 @@ def prepared(tmp_path, content=None, path=None):
     if path is None:
         path = tmp_path / "sop.md"
         path.write_text(content or template_sop(), encoding="utf-8")
-    work_id = ccr.prepare(path)
+    work_id = ccr.prepare(path, confirm(path))
     work = ccr.work_root() / work_id
     return path, work_id, work, json.loads((work / "review_request.json").read_text())
 
@@ -187,20 +186,6 @@ async def test_leader_refuses_local_author_without_complete_file_worker(tmp_path
         with pytest.raises(ValueError, match="file-backed ReviewAgent"):
             await leader.review_existing(load_sop(path), local_author=True)
     assert not (output_root / "runs").exists()
-
-
-@pytest.mark.asyncio
-async def test_api_review_prompt_uses_the_shared_instructions(tmp_path, output_root):
-    path = tmp_path / "sop.md"
-    path.write_text(template_sop())
-    review = ReviewAgent(api_key="")
-    review._call_claude = AsyncMock(return_value=assessment())
-    leader = LeaderAgent(api_key="")
-    leader.register_worker("ReviewAgent", review)
-    await leader.review_existing(load_sop(path), allow_external_ai=True)
-    prompt = review._call_claude.await_args.args[0][0]["content"]
-    assert prompt.startswith(ReviewAgent.EXISTING_SOP_INSTRUCTIONS + " Section locations:\n")
-    assert "authoring" not in json.loads((Path(leader.context["run_dir"]) / "run.json").read_text())
 
 
 def test_revise_accepts_the_findings_and_compare_matches_local_only(tmp_path, output_root, no_provider, capsys):
