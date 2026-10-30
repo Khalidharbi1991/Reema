@@ -1,12 +1,14 @@
-# REEMA - Personal Assistant
+# REEMA - Khalid's IT Company
 
-**REEMA** is Khalid's personal assistant. It knows his life and supports him
-across his professional work, personal life, daily tasks, and designing his home.
-Work comes first: SOPs, reports and presentations. The first new feature, not yet
-built, will turn SCCM and Intune data into a patch report PowerPoint. Ahmad is the
-single conversational entry point, backed by the IT documentation specialists. The
-conversational and document-generation features use Anthropic's Claude API only
-after explicit authorization; local task commands work without an API key.
+**REEMA** is Khalid's IT company. Ahmad, the coordinator, talks with Khalid and
+routes work to sections. The main section is Documentation, led by Abdullah:
+writing, reviewing and revising SOPs, and later reports and presentations. The
+first new feature, not yet built, will turn SCCM and Intune data into a patch
+report PowerPoint. Agent 9 supports home design as a side service. A Development
+section is planned. Review, revise and coordination run inside Claude Code; the
+API path remains as a backup. API chat and document generation use Anthropic's
+Claude API only after explicit authorization; local task commands work without an
+API key.
 
 Start with the [personal assistant guide](docs/guides/PERSONAL_ASSISTANT.md) for
 the current scope, task commands, chat, and connection limits.

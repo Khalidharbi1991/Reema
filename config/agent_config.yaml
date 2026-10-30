@@ -11,7 +11,7 @@
 
 secretary_agent:
   name: "Ahmad"
-  role: "Personal Coordination & Task Management Agent"
+  role: "Coordinator & Work Routing Agent"
   max_tokens: 4096
   specialization:
     - "Project coordination"
