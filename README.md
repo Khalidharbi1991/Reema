@@ -286,7 +286,10 @@ and subagents load at session start). The main session acts as Ahmad; type in pl
 words, for example "Ahmad, what's on my work list today?" or "Ahmad, review my
 incident SOP", or `/abdullah-docs` to go straight to the Documentation section.
 Ahmad works with the work area only, asks your yes once per session before reading
-work tasks or memory and before reading each SOP, and never approves or pushes. The
+work tasks or memory and before reading each SOP, and never approves or pushes.
+Building or home-design questions go to Agent 9 and endpoint questions (patching,
+imaging, packaging, Intune/MECM) to Agent 10, as Claude Code subagents that only
+read files you allow and save drafts under `output/claude_code/advice/`. The
 org chart and rules are in AGENTS.md under "REEMA company in Claude Code".
 
 To find a finished SOP by file name without opening it:

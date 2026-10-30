@@ -23,13 +23,17 @@ def test_agent_10_is_a_configured_role():
     assert settings.get("model") is None
 
 
-def test_agent_10_prompt_keeps_the_reversible_advisory_protocol():
+def test_agent_10_subagent_keeps_the_pipeline_protocol_and_adds_the_closing():
     system = EUCAgent(api_key="")._build_system_prompt()
+    subagent = (Path(__file__).resolve().parents[1] / ".claude" / "agents" / "reema-agent10-euc.md").read_text(encoding="utf-8")
+    assert system in subagent
     for guard in ("Frame before advising", "Reversibility first", "kill switch", "irreversible",
                   "-WhatIf", "Never fabricate cmdlets", "cannot run scripts", "Asia/Riyadh",
-                  "Sunday to Thursday", "Next step:", "Open risks / assumptions:"):
+                  "Sunday to Thursday", "Treat the user as a peer"):
         assert guard in system
-    assert "Treat the user as a peer" in system
+    assert "Next step:" not in system
+    assert "Next step:" in subagent and "Open risks / assumptions:" in subagent
+    assert "output/claude_code/advice/" in subagent and "Khalid's yes" in subagent
 
 
 @pytest.fixture
