@@ -29,6 +29,15 @@ class ReviewAgent(BaseAgent):
     CONFIG_KEY = "review_agent"
     KNOWLEDGE_FILE = "faisal_review_knowledge_ENHANCED.md"
     DEFAULT_MAX_TOKENS = 4096
+    # Shared with scripts/claude_code_review.py, so the API and Claude Code reviews get the same brief.
+    EXISTING_SOP_INSTRUCTIONS = (
+        "This is a finished SOP already in use. Find only real problems, each tied to one section: "
+        "outdated content (superseded tools, versions, standards or practices), missing steps in a procedure, "
+        "vague sections (no owner, timing, threshold or verifiable action), and template gaps inside a section "
+        "(for example a RACI table or KPI target that is absent). Use category outdated, missing_step, vague, "
+        "template_gap or other. Every issue needs a unique exact quote within its section body; omit start/end "
+        "unless the quote repeats. Give an actionable correction. Critical and major issues block use. "
+        "Never invent a location or claim compliance.")
 
     def __init__(self, api_key: Optional[str] = None):
         super().__init__(api_key)
@@ -112,13 +121,7 @@ class ReviewAgent(BaseAgent):
             if offset is not None and any(not offset <= i["start"] < i["end"] <= offset + len(part) for i in located(result)):
                 raise ValueError("Review finding is outside its assessed excerpt")
         results, coverage = await assess_all(self, content, ExistingSopAssessment,
-            "This is a finished SOP already in use. Find only real problems, each tied to one section: "
-            "outdated content (superseded tools, versions, standards or practices), missing steps in a procedure, "
-            "vague sections (no owner, timing, threshold or verifiable action), and template gaps inside a section "
-            "(for example a RACI table or KPI target that is absent). Use category outdated, missing_step, vague, "
-            "template_gap or other. Every issue needs a unique exact quote within its section body; omit start/end "
-            "unless the quote repeats. Give an actionable correction. Critical and major issues block use. "
-            "Never invent a location or claim compliance. Section locations:\n" + json.dumps(locations),
+            self.EXISTING_SOP_INSTRUCTIONS + " Section locations:\n" + json.dumps(locations),
             result_validator=validate_excerpt)
         issues = list({item["finding_id"]: item for result in results for item in located(result)}.values())
         logger.agent_complete(self.name, f"Finished-SOP review - {len(issues)} findings")

@@ -997,14 +997,23 @@ class LeaderAgent:
             "approval_record": str(record_path),
         }
 
-    async def review_existing(self, source, *, local_only=False, allow_external_ai=False) -> Dict:
-        """Read-only review of a finished SOP into a NEW run folder; the source file is never written."""
+    async def review_existing(self, source, *, local_only=False, allow_external_ai=False, local_author=False) -> Dict:
+        """Read-only review of a finished SOP into a NEW run folder; the source file is never written.
+
+        local_author=True takes the assessments from files written in a Claude Code session
+        (src/agents/file_workers.py); it makes no provider call and needs no --allow-external-ai.
+        """
         from ..utils.existing_sops import template_gaps, findings_markdown, require_unique_sections, duplicate_sections
         if self.workflow_status == "running":
             raise RuntimeError("This leader already has a running workflow; use a separate instance")
         profile = config_manager.document_profile
+        if local_author:
+            from .file_workers import FileReviewWorker
+            worker = self.worker_agents.get("ReviewAgent")
+            if local_only or not isinstance(worker, FileReviewWorker) or worker.excerpts_only:
+                raise ValueError("local_author needs the file-backed ReviewAgent worker with every assessment written")
         if not local_only:
-            if not (allow_external_ai or config_manager.system_config.allow_external_ai):
+            if not (local_author or allow_external_ai or config_manager.system_config.allow_external_ai):
                 raise PermissionError("Authorize sending this SOP to Anthropic with --allow-external-ai, or use --local-only")
             if "ReviewAgent" not in self.worker_agents:
                 raise ValueError("Required agents missing: ReviewAgent")
@@ -1012,7 +1021,8 @@ class LeaderAgent:
         run_dir = config_manager.system_config.output_dir / "runs" / uuid4().hex
         self.context = {"run_dir": str(run_dir), "job": "review", "source_path": str(source.path)}
         self._begin_workflow(source.path.name, ["template_check", *([] if local_only else ["review"]), "findings_record"])
-        runtime = None if local_only else RunRuntime(config_manager.system_config.model_copy(update={"allow_external_ai": True}))
+        # A local-author run keeps external AI off, so any provider call would be refused.
+        runtime = None if local_only else RunRuntime(config_manager.system_config.model_copy(update={"allow_external_ai": not local_author}))
         token = current_runtime.set(runtime)
         store = None
         summary = lambda: runtime.summary() if runtime else {"calls": [], "accounted_tokens": 0}
@@ -1020,6 +1030,8 @@ class LeaderAgent:
             store = RunStore(run_dir, source.path.name, [])
             self._task_store = store
             store.state.update(job="review", mode="local_only" if local_only else "model")
+            if local_author:
+                store.state["authoring"] = "claude_code_session"
             store.save("source", source.record())
             async with self._phase("template_check"):
                 gaps = template_gaps(source.content, profile)

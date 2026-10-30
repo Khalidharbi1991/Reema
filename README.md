@@ -250,6 +250,12 @@ so you are asked for your yes first. It covers `--instruction` only, and it neve
 approves: run the printed `reema approve` command yourself. The `reema revise`
 API path above is unchanged.
 
+The `reema-review` skill reviews a finished SOP the same way, read-only: Claude Code
+writes the findings, and `scripts/claude_code_review.py` locates every quote, binds
+the file's SHA-256 (checked before and after) and writes a normal review run that
+`reema revise --from-review` accepts. A review has no approval record. The
+`reema review` API path is unchanged.
+
 #### Recover exports without model calls
 
 Each run saves phase checkpoints and usage metadata in its own directory. If a
