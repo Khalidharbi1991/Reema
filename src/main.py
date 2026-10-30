@@ -1,6 +1,6 @@
 """Main entry point for the IT Process Documentation System (REEMA).
 
-REEMA — personal assistance and IT process documentation
+REEMA — Khalid's IT company: coordination and IT process documentation
 12-role architecture: Ahmad, Abdullah, Agents 1–8, building-design Agent 9, and EUC Agent 10.
 """
 
@@ -35,7 +35,7 @@ from .utils.specialists import SpecialistInputs
 
 app = typer.Typer(
     name="REEMA",
-    help="REEMA - Personal task coordination and IT process documentation"
+    help="REEMA - Khalid's IT company: coordination and IT process documentation"
 )
 console = Console()
 task_app = typer.Typer(help="Ahmad's local work and personal task lists")

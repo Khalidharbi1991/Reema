@@ -2,10 +2,12 @@
 
 ## Purpose
 
-REEMA is Khalid's personal assistant. It knows his life and supports him across
-his professional work, personal life, daily tasks, and designing his home. Work
-comes first: SOPs, reports and presentations, starting with turning SCCM and
-Intune data into a patch report PowerPoint.
+REEMA is Khalid's IT company. Ahmad, the coordinator, talks with Khalid and routes
+work to sections. The main section is Documentation, led by Abdullah: writing,
+reviewing and revising SOPs, and later reports and presentations, starting with a
+patch report PowerPoint from SCCM and Intune data. Agent 9 supports home design as
+a side service. A Development section is planned. Review, revise and coordination
+run inside Claude Code; the API path remains as a backup.
 
 Not yet built: patch report PowerPoint (PPTX export) and SCCM/Intune export intake.
 

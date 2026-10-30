@@ -1,5 +1,5 @@
 # =============================================================================
-# REEMA - Khalid's personal assistant
+# REEMA - Khalid's IT company
 # =============================================================================
 # The allowlist in .dockerignore excludes all private reference material.
 # =============================================================================
@@ -36,7 +36,7 @@ RUN pip install --no-cache-dir --require-hashes -r requirements.lock
 FROM python:3.11-slim-bookworm AS runtime
 
 LABEL maintainer="Khalid Alharbi"
-LABEL description="REEMA - Khalid's personal assistant (IT documentation, tasks, home design)"
+LABEL description="REEMA - Khalid's IT company (SOP documentation, coordination, home design side service)"
 LABEL version="2.0.0"
 
 WORKDIR /app
