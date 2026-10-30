@@ -24,7 +24,6 @@ from .agents.problem_agent import ProblemAgent
 from .agents.secretary_agent import SecretaryAgent
 from .agents.building_design_agent import BuildingDesignAgent
 from .agents.euc_agent import EUCAgent
-from .assistant import AssistantSession
 from .utils.logger import logger
 from .utils.config import config_manager
 from .utils.validation import validate_formats
@@ -260,47 +259,32 @@ def agents():
     console.print(table)
 
 
-@app.command("chat")
-def chat(
-    message: Optional[str] = typer.Argument(None, help="One message, or omit for an interactive session"),
-    area: str = typer.Option(..., "--area", help="work or personal"),
-    allow_external_ai: bool = typer.Option(False, "--allow-external-ai", help="Authorize sending conversation, selected memory and relevant task context to Anthropic"),
-    project: str = typer.Option("", "--project", help="Use saved context and planning tasks for this exact project"),
-    resolve_intent: bool = typer.Option(False, "--resolve-intent", help="Use a consent-gated structured model pass to resolve advisory intent"),
+@app.command(hidden=True, context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
+def chat(ctx: typer.Context):
+    """Ahmad now works in Claude Code; this only says so."""
+    console.print("Ahmad now works in Claude Code: open a Claude Code session in this folder and talk to him there. "
+                  "Here, use task, memory and find-sop. Nothing was sent.", markup=False)
+    raise typer.Exit(code=2)
+
+
+@app.command("find-sop")
+def find_sop(
+    words: List[str] = typer.Argument(..., help="Words from the SOP's file name, e.g. incident management"),
+    output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Output root (default: ./output)"),
 ):
-    """Talk with Ahmad; he consults specialists for relevant work questions."""
-    async def converse():
-        session = AssistantSession(area, project=project, resolve_intent=resolve_intent)
-        try:
-            if message is not None:
-                result = await session.reply(message, allow_external_ai=allow_external_ai)
-                # A file choice or a yes can't be answered here, so print the commands instead of the question.
-                commands = session.sop_commands()
-                # soft_wrap keeps each command on one line so it can be copied.
-                console.print(commands or result["reply"], markup=False, soft_wrap=commands is not None)
-                return
-            console.print("Ahmad is ready. Use /task help, /remember [--kind KIND] KEY VALUE, /memory, /project NAME, or /exit.", markup=False)
-            while True:
-                try:
-                    entry = input("You> ").strip()
-                except (EOFError, KeyboardInterrupt):
-                    break
-                if entry == "/exit":
-                    break
-                if not entry:
-                    continue
-                try:
-                    result = await session.reply(entry, allow_external_ai=allow_external_ai)
-                    console.print("Ahmad: " + result["reply"], markup=False)
-                except (ValueError, PermissionError, OSError, RuntimeError) as error:
-                    console.print(str(error), markup=False)
-        finally:
-            await session.close()
-    try:
-        asyncio.run(converse())
-    except (ValueError, PermissionError, OSError, RuntimeError) as error:
-        console.print(str(error), markup=False)
-        raise typer.Exit(code=2)
+    """List finished SOPs in output/ whose file names best match the words, newest first. Reads no file."""
+    import re
+    from datetime import datetime
+    from .utils.existing_sops import find_sops
+    root = (output_dir or config_manager.system_config.output_dir).expanduser()
+    wanted = {w for word in words for w in re.split(r"[^\w]+|_", word.casefold()) if w and w != "sop"}
+    matches = find_sops(root, wanted)
+    if not matches:
+        console.print(f"No SOP file name in {root} matches: {' '.join(words)}", markup=False)
+        raise typer.Exit(code=1)
+    for number, path in enumerate(matches, 1):
+        console.print(f"{number}. {path} (modified {datetime.fromtimestamp(path.stat().st_mtime):%Y-%m-%d})",
+                      markup=False, soft_wrap=True)
 
 
 def initialize_system(specialists: Optional[List[str]] = None) -> dict:
@@ -683,7 +667,7 @@ def status():
     table.add_row("Worker Model", config_manager.system_config.worker_model)
     table.add_row("Generation agents", "Leader + 5 core workers + process-selected specialists")
     table.add_row("Personal coordination", "Ahmad; local work and personal task lists")
-    table.add_row("Conversational entry", "chat --area work|personal (model advice requires authorization)")
+    table.add_row("Conversation", "Ahmad in Claude Code; task, memory and find-sop run locally here")
 
     console.print(table)
     console.print()

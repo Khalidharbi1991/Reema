@@ -6,12 +6,14 @@ writing, reviewing and revising SOPs, and later reports and presentations. The
 first new feature, not yet built, will turn SCCM and Intune data into a patch
 report PowerPoint. Agent 9 supports home design as a side service. A Development
 section is planned. Review, revise and coordination run inside Claude Code; the
-API path remains as a backup. API chat and document generation use Anthropic's
-Claude API only after explicit authorization; local task commands work without an
+API path remains as a backup for document generation, which uses Anthropic's
+Claude API only after explicit authorization. `reema chat` is retired: talk to Ahmad
+in a Claude Code session. Local task, memory and `find-sop` commands work without an
 API key.
 
 Start with the [personal assistant guide](docs/guides/PERSONAL_ASSISTANT.md) for
-the current scope, task commands, chat, and connection limits.
+the current scope, task commands and connection limits (its chat sections predate
+the move to Claude Code).
 The [implementation checkpoint](docs/reports/PERSONAL_ASSISTANT_CHECKPOINT.md)
 records what was verified and what still needs an account connection.
 The [building-design checkpoint](docs/reports/BUILDING_DESIGN_CHECKPOINT.md)
@@ -76,9 +78,9 @@ Every successful run requires separate human approval.
 
 ## Agent Team
 
-Ahmad is the user's main coordinator and consults chat specialists directly.
-Abdullah leads only the SOP generation pipeline and is not consulted in chat.
-The former Khalid owner agent was removed; Ahmad frames chat advice in its
+Ahmad is the user's main coordinator, as the main Claude Code session.
+Abdullah leads the SOP generation pipeline and the Claude Code review and revise jobs.
+The former Khalid owner agent was removed; Ahmad frames advice in its
 strategy, governance, quality, and business-value terms, and the same guidance
 still feeds Abdullah's pipeline planning. The user retains approval
 and decision authority. Run `python3 scripts/dev.py run agents` for the active roster.
@@ -103,7 +105,7 @@ and decision authority. Run `python3 scripts/dev.py run agents` for the active r
 ### Prerequisites
 
 - Python 3.11–3.14
-- Anthropic API key and explicit input authorization for chat or generation
+- Anthropic API key and explicit input authorization for generation
 - Optional references explicitly permitted in `references/manifest.yaml`
 - Native Pango libraries for PDF output; the Docker image includes them
 
@@ -286,6 +288,12 @@ incident SOP", or `/abdullah-docs` to go straight to the Documentation section.
 Ahmad works with the work area only, asks your yes once per session before reading
 work tasks or memory and before reading each SOP, and never approves or pushes. The
 org chart and rules are in AGENTS.md under "REEMA company in Claude Code".
+
+To find a finished SOP by file name without opening it:
+
+```bash
+python3 scripts/dev.py run find-sop incident management
+```
 
 #### Recover exports without model calls
 

@@ -11,11 +11,8 @@ from unittest.mock import AsyncMock
 
 import ezdxf
 import pytest
-from pydantic import ValidationError
 
-from src.assistant import AssistantSession
 from src.utils.config import config_manager
-from src.utils.coordination import IntentResolution
 from src.utils.diagrams import parse_flow, png_flow, svg_flow
 from src.utils.execution import ExecutionJournal, load_execution
 from src.utils.ownership import RunLease
@@ -25,95 +22,9 @@ from src.utils.runs import RunStore
 from src.utils.specialists import (SpecialistPolicy, IAMSnapshot, check_iam, ProblemCase,
     Hypothesis, assess_problem, MetricSpec, calculate_metric, SpecialistInputs)
 from src.utils.domain_depth import iam_drift
-from tests.test_coordination_package import chat, interrupted
+from tests.test_coordination_package import interrupted
 from tests.test_phase01 import catalog, pipeline
 from tests.test_specialist_package import source, evidence, snapshot, hypotheses, case
-
-
-@pytest.mark.parametrize('message,agents', [
-    ('اكتب إجراء مع الصلاحيات ومؤشرات الأداء', {'content_agent','access_agent','data_agent'}),
-    ('اكتب SOP بدون MFA، مع KPI', {'content_agent','data_agent'}),
-    ('لَيْسَ فَقَط الأمن لكن مؤشرات الأداء', {'access_agent','data_agent'}),
-    ('لا تتجاهل الصلاحيات', {'access_agent'}),
-    ('قارن خيارات التصميم الداخلي', {'research_agent','building_design_agent'}),
-    ('الصلاحيات غير مطلوب، اكتب مسودة', {'content_agent'}),
-    ('Prepare an agenda بدون security', {'content_agent'}),
-])
-def test_bilingual_intent_preserves_positive_and_negative_clauses(chat, message, agents):
-    plan = chat.plan(message)
-    assert plan.status == 'ready'
-    assert {s.agent for s in plan.selections} == agents
-
-
-@pytest.mark.parametrize('message', ['هل نبدأ بدون الصلاحيات؟', 'كملها', 'MFA but no MFA'])
-def test_ambiguous_or_unresolved_requests_clarify(chat, message):
-    assert chat.plan(message).status == 'needs_clarification'
-
-
-def test_arabic_followup_inherits_active_roles_except_explicit_exclusions(chat):
-    chat.task_context.objective = 'Shared rollout plan'
-    chat.task_context.selected_specialists = ['data_agent','access_agent']
-    plan = chat.plan('كملها بدون الصلاحيات')
-    assert [s.agent for s in plan.selections] == ['data_agent']
-
-
-@pytest.mark.asyncio
-async def test_arabic_local_mutations_and_explicit_context_need_no_model(chat):
-    await chat.reply('أضف مهمة: مراجعة الإجراء')
-    await chat.reply('قرار: نستخدم الأدوات الحالية')
-    await chat.reply('هدف: تحسين المتابعة')
-    tasks = chat.agents['secretary_agent'].task_store('work').list(project='Alpha')
-    assert tasks[0]['title'] == 'مراجعة الإجراء'
-    assert chat.task_context.objective == 'تحسين المتابعة'
-    assert any(f.text == 'نستخدم الأدوات الحالية' for f in chat.task_context.decisions.values())
-    for agent in chat.agents.values(): agent._call_claude.assert_not_awaited()
-
-
-def resolution(**updates):
-    return {'intent':'advisory','agents':['access_agent'],'excluded_agents':[],
-            'status':'ready','questions':[],'rationale':'Explicit supplied scope', **updates}
-
-
-@pytest.mark.parametrize('updates', [
-    {'agents':['send_email']}, {'agents':['access_agent','access_agent']},
-    {'excluded_agents':['access_agent']}, {'intent':'local_action'},
-    {'status':'needs_clarification','questions':[]},
-])
-def test_semantic_resolution_contract_rejects_unknown_or_actionable_dispatch(updates):
-    with pytest.raises(ValidationError): IntentResolution.model_validate(resolution(**updates))
-
-
-@pytest.mark.asyncio
-async def test_opt_in_resolution_still_requires_input_consent(chat):
-    chat.resolve_intent = True
-    with pytest.raises(PermissionError): await chat.reply('Explain MFA')
-    chat.agents['secretary_agent']._call_claude.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize('message,answer', [
-    ('Explain KPI without MFA', resolution(agents=['data_agent','access_agent'])),
-    ('Explain MFA and KPI', resolution(agents=['access_agent'])),
-])
-async def test_semantic_resolution_cannot_override_explicit_scope(chat, message, answer):
-    chat.resolve_intent = True
-    chat.agents['secretary_agent']._call_claude.return_value = json.dumps(answer)
-    with pytest.raises(ValueError): await chat.reply(message, allow_external_ai=True)
-    chat.agents['access_agent']._call_claude.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_opt_in_resolution_routes_bounded_advice_and_never_executes_actions(chat):
-    chat.resolve_intent = True
-    chat.agents['secretary_agent']._call_claude.side_effect = [
-        json.dumps(resolution()), json.dumps({'advice':'Synthetic summary'})]
-    result = await chat.reply('Explain MFA', allow_external_ai=True)
-    assert result['consulted_agents'] == ['Agent 6']
-    assert chat.agents['secretary_agent']._call_claude.await_count == 2
-    before = chat.agents['secretary_agent']._call_claude.await_count
-    result = await chat.reply('ارسل البريد', allow_external_ai=True)
-    assert result['plan']['status'] == 'unsupported'
-    assert chat.agents['secretary_agent']._call_claude.await_count == before
 
 
 CHILD_OWNER = '''

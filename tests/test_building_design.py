@@ -7,7 +7,6 @@ import ezdxf
 from typer.testing import CliRunner
 
 from src.agents import BuildingDesignAgent
-from src.assistant import AssistantSession
 from src.main import app
 from src.utils.config import config_manager
 
@@ -23,7 +22,6 @@ def test_numbered_specialists_keep_configured_roles():
     ]
     assert config_manager.get_agent_config("secretary_agent")["name"] == "Ahmad"
     assert config_manager.get_agent_config("leader_agent")["name"] == "Abdullah"
-    assert AssistantSession("work").route("Review this AutoCAD building model") == "building_design_agent"
 
 
 def test_agent_9_inspects_dwg_without_claiming_a_model(tmp_path):

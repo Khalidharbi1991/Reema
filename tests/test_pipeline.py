@@ -24,7 +24,7 @@ class TestPipelineStructure:
         mock_cm.system_config = SystemConfig(_env_file=None, project_root=tmp_path, output_dir=tmp_path, allow_external_ai=True)
         # Recovery identity needs real serializable catalog snapshots.
         from src.utils.config import config_manager
-        for field in ("agents_config", "process_definitions", "standards_mapping", "assistant_routing", "document_profile", "specialist_policy"):
+        for field in ("agents_config", "process_definitions", "standards_mapping", "document_profile", "specialist_policy"):
             setattr(mock_cm, field, getattr(config_manager, field))
 
         from src.agents.leader_agent import LeaderAgent
@@ -215,7 +215,7 @@ class TestPipelinePhaseOrder:
         mock_cm.system_config = SystemConfig(_env_file=None, project_root=tmp_path, output_dir=tmp_path, allow_external_ai=True)
         # Recovery identity needs real serializable catalog snapshots.
         from src.utils.config import config_manager
-        for field in ("agents_config", "process_definitions", "standards_mapping", "assistant_routing", "document_profile", "specialist_policy"):
+        for field in ("agents_config", "process_definitions", "standards_mapping", "document_profile", "specialist_policy"):
             setattr(mock_cm, field, getattr(config_manager, field))
 
         from src.agents.leader_agent import LeaderAgent
@@ -258,3 +258,10 @@ class TestPipelinePhaseOrder:
         # Content generation should have received research data
         assert "content_received" in phase_data
         assert "research" in phase_data["content_received"]
+
+
+def test_abdullah_keeps_pipeline_strategy_guidance():
+    from src.agents.leader_agent import LeaderAgent
+    leader = LeaderAgent(api_key="")
+    assert leader.name == "Abdullah"
+    assert "IT strategy and roadmap development" in leader.strategic_guidance

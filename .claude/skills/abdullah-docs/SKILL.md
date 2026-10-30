@@ -6,8 +6,8 @@ description: Abdullah's Documentation section playbook. Use when Khalid asks Ahm
 
 Ahmad follows this playbook; Abdullah is not a separate session. One job at a time.
 
-1. Find the file: match Khalid's words against .md/.docx file names in output/ (`ls output`),
-   without opening any file. List the matches; Khalid picks one.
+1. Find the file without opening any: `python3 scripts/dev.py run find-sop <words from Khalid>`.
+   List the matches; Khalid picks one.
 2. Ask for Khalid's explicit yes to read that SOP in this session (it goes to Anthropic through
    Claude Code). No yes: stop. Offer the template check instead, which reads nothing into the session:
    `python3 scripts/dev.py run review "<file>"`. With the yes, the prepare step prints a

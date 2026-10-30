@@ -1,9 +1,6 @@
-"""Explicit capability adapters shared by chat and SOP coordination; no arbitrary tools."""
+"""Explicit capability adapters for SOP coordination; no arbitrary tools."""
 
-import json
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError
-from .coordination import AdvisoryInput, Advice
-from .handoffs import payload_json
 
 
 class Inputs(BaseModel):
@@ -126,12 +123,3 @@ async def invoke_pipeline(workers, capability, arguments):
         values.pop()
     return await getattr(workers[worker], method)(*values)
 
-
-async def invoke_advice(agent, arguments, fallback_system=""):
-    inputs = AdvisoryInput.model_validate(arguments)
-    builder = getattr(agent, "_build_system_prompt", None)
-    system = fallback_system + ("\n\n" + builder() if callable(builder) else "")
-    system += ("\nProvide advisory analysis only. Do not execute actions or claim approvals. "
-               "Preserve explicit user decisions and constraints; label uncertainty and missing evidence. "
-               "Return JSON matching this schema:\n" + json.dumps(Advice.model_json_schema()))
-    return await agent._call_claude(inputs.history + [{"role": "user", "content": inputs.shared_context}], system=system)
