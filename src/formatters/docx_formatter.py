@@ -12,6 +12,10 @@ import re
 from ..utils.logger import logger
 
 
+# A list marker needs a following space, so "**Bold** text" and "3.5 hours" stay paragraphs.
+LIST_ITEM = re.compile(r'^\s*(?:[-*•]|\d+[.)])\s+\S')
+
+
 class DOCXFormatter:
     """Formats and converts content to Microsoft Word (.docx)."""
 
@@ -229,11 +233,11 @@ class DOCXFormatter:
                 continue
 
             # Lists
-            elif line.strip().startswith(('-', '*', '•')) or (line.strip() and line.strip()[0].isdigit() and '.' in line[:3]):
+            elif LIST_ITEM.match(line):
                 # Bullet or numbered list
                 list_items = [line]
                 i += 1
-                while i < len(lines) and (lines[i].strip().startswith(('-', '*', '•')) or (lines[i].strip() and lines[i].strip()[0].isdigit())):
+                while i < len(lines) and LIST_ITEM.match(lines[i]):
                     list_items.append(lines[i])
                     i += 1
                 self._add_list(doc, list_items)
@@ -242,8 +246,9 @@ class DOCXFormatter:
             # Regular paragraphs
             elif line.strip():
                 paragraph_lines = [line.strip()]
+                # A line that opens with bold (a "**Label:** value" line) starts its own paragraph.
                 while i + 1 < len(lines) and lines[i + 1].strip() and not re.match(
-                        r'^\s*(?:#|\||```|~~~|[-*•]\s|\d+[.)]\s|---\s*$)', lines[i + 1]):
+                        r'^\s*(?:#|\||```|~~~|[-*•]\s|\d+[.)]\s|\*\*|__|---\s*$)', lines[i + 1]):
                     i += 1
                     paragraph_lines.append(lines[i].strip())
                 self._add_inline(doc.add_paragraph(), ' '.join(paragraph_lines))
@@ -314,10 +319,10 @@ class DOCXFormatter:
     def _add_list(self, doc: Document, list_items: list):
         """Add a list to the document."""
         for item in list_items:
-            # Remove list markers
-            text = re.sub(r'^[\s\-\*\•0-9\.]+', '', item).strip()
+            # Remove only the list marker; leading bold, digits and dots belong to the text.
+            text = re.sub(r'^\s*(?:[-*•]|\d+[.)])\s+', '', item).strip()
             if text:
-                numbered = bool(re.match(r'^\s*\d+[.)]', item))
+                numbered = bool(re.match(r'^\s*\d+[.)]\s', item))
                 self._add_inline(doc.add_paragraph(style='List Number' if numbered else 'List Bullet'), text)
 
     def _add_inline(self, paragraph, text):

@@ -38,3 +38,28 @@ def test_unsupported_and_empty_sources_fail(tmp_path):
         make_chunks(path, "empty", "public")
     with pytest.raises(ValueError, match="format"):
         units(tmp_path / "source.exe")
+
+
+@pytest.mark.parametrize("markdown, expected", [
+    ("**P1 Escalation Requirement**: escalate now.", [("Normal", "P1 Escalation Requirement: escalate now.", "P1 Escalation Requirement")]),
+    ("- **SLA**: Service Level Agreement", [("List Bullet", "SLA: Service Level Agreement", "SLA")]),
+    ("* **MTTR**: Mean Time to Resolve", [("List Bullet", "MTTR: Mean Time to Resolve", "MTTR")]),
+    ("1. **Log** the call\n2) **Triage** it", [("List Number", "Log the call", "Log"), ("List Number", "Triage it", "Triage")]),
+    ("3.5 hours is the target.", [("Normal", "3.5 hours is the target.", None)]),
+    ("- 2026 budget review", [("List Bullet", "2026 budget review", None)]),
+])
+def test_docx_leading_bold_and_numbers_survive(markdown, expected):
+    from docx import Document
+    from src.formatters.docx_formatter import DOCXFormatter
+    doc = Document()
+    DOCXFormatter()._parse_markdown_to_docx(doc, markdown)
+    actual = [(p.style.name, p.text, next((r.text for r in p.runs if r.bold), None)) for p in doc.paragraphs]
+    assert actual == expected
+
+
+def test_docx_bold_label_lines_stay_separate_paragraphs():
+    from docx import Document
+    from src.formatters.docx_formatter import DOCXFormatter
+    doc = Document()
+    DOCXFormatter()._parse_markdown_to_docx(doc, "**Quality Score:** 98/100\n**Review Status:** Pending\nwrapped text")
+    assert [p.text for p in doc.paragraphs] == ["Quality Score: 98/100", "Review Status: Pending wrapped text"]
