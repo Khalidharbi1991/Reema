@@ -196,3 +196,6 @@ together. See `docs/migration/CODEX_ADOPTION.md` before starting that work.
 For code changes, finish the requested implementation, run relevant tests, and
 report any remaining external requirement (such as an API key or platform-specific
 PDF dependency).
+
+When you complete a feature listed under 'Not yet built', remove it from that list
+and from any matching 'not yet built' note in README.md in the same change.
