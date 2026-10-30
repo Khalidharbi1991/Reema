@@ -184,3 +184,12 @@ routes:
   - راجع الوثيقة
   - تدقيق لغوي
 semantic_resolution: false
+# Ahmad recognises review/revise requests for an existing SOP locally (no model call),
+# confirms the file and asks before any external AI use. Abdullah runs the job.
+sop_maintenance:
+  max_choices: 8
+  review_terms: [review, check, audit, assess, look over, راجع, مراجعة, افحص, تدقيق]
+  revise_terms: [fix, revise, update, change, correct, edit, improve, rewrite, عدل, تعديل, صحح, حدث, تحديث]
+  document_terms: [sop, sops, procedure, standard operating procedure, اجراء, الاجراء, اجراءات]
+  confirm_terms: ['yes', 'y', confirm, go ahead, نعم, ايوه, اي, موافق]
+  cancel_terms: ['no', 'n', cancel, stop, لا, الغاء]

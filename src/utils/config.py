@@ -55,8 +55,20 @@ class AssistantRoute(BaseModel):
     exclude_phrases: List[str] = Field(default_factory=list)
 
 
+class SopMaintenanceTerms(BaseModel):
+    """Words that let Ahmad recognise a review/revise request for an existing SOP, locally."""
+    model_config = ConfigDict(extra="forbid", strict=True)
+    review_terms: List[str] = Field(min_length=1)
+    revise_terms: List[str] = Field(min_length=1)
+    document_terms: List[str] = Field(min_length=1)
+    confirm_terms: List[str] = Field(min_length=1)
+    cancel_terms: List[str] = Field(min_length=1)
+    max_choices: int = Field(default=8, ge=2, le=20)
+
+
 class AssistantRouting(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
+    sop_maintenance: Optional[SopMaintenanceTerms] = None
     default_agent: str = Field(min_length=1)
     routes: List[AssistantRoute]
     memory_example_limit: int = Field(default=3, ge=0, le=10)

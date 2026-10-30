@@ -330,3 +330,23 @@ def changes_markdown(before, after, name):
     diff = difflib.unified_diff(before.splitlines(keepends=True), after.splitlines(keepends=True),
                                 fromfile=name + " (original)", tofile=name + " (revised)")
     return "```diff\n" + "".join(diff) + "\n```\n"
+
+
+def find_sops(root, words):
+    """Finished SOPs under the output folder whose file names share the most words with a request.
+
+    Looks at top-level .md/.docx files and revised drafts in run folders; never the assistant data.
+    """
+    root = Path(root)
+    candidates = [p for p in root.glob("*") if p.suffix.lower() in KINDS]
+    candidates += [p for p in root.glob("runs/*/*_revised.*") if p.suffix.lower() in KINDS]
+    scored = []
+    for path in candidates:
+        if path.name.startswith((".", "~$")) or path.is_symlink() or not path.is_file():
+            continue
+        name = set(re.split(r"[^\w]+|_", path.stem.casefold()))
+        score = len(name & words)
+        if score:
+            scored.append((score, path.stat().st_mtime, path))
+    best = max((score for score, _, _ in scored), default=0)
+    return [path for score, _, path in sorted(scored, key=lambda item: (-item[0], -item[1])) if score == best]

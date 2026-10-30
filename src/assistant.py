@@ -5,6 +5,8 @@ import hashlib
 import json
 import re
 import shlex
+from datetime import datetime
+from pathlib import Path
 
 from .agents import (SecretaryAgent, ResearchAgent, StandardsAgent, ContentAgent,
                      ReviewAgent, AccessAgent, ProblemAgent, DataAgent, BuildingDesignAgent, EUCAgent)
@@ -75,6 +77,8 @@ class AssistantSession:
         self.consultation_status = {"status": "idle", "selected": [], "completed": [], "failed": []}
         self._reply_in_progress = False
         self.resolve_intent = resolve_intent
+        # A review/revise request waiting for Khalid's choice or confirmation; session-only.
+        self.pending_sop = None
 
     def _agent(self, key):
         if key not in self.agents:
@@ -195,6 +199,7 @@ class AssistantSession:
         self.history.clear()
         self.task_context = SessionContext(area=self.area, project=self.project)
         self.last_plan = self.last_briefing = None
+        self.pending_sop = None
 
     def _sync_memory(self):
         records = self._agent("secretary_agent").task_store(self.area).memories()
@@ -346,6 +351,167 @@ class AssistantSession:
         return {"reply": text, "consulted": None, "consulted_agents": [],
                 "usage": {"calls": [], "accounted_tokens": 0}}
 
+    # Existing SOPs: Ahmad finds and confirms the file and asks before external AI;
+    # Abdullah runs the job. Nobody but Khalid can approve the result.
+    SOP_STOP_WORDS = frozenset("a an and are can could for in it me my of on our please the this to with you your "
+                               "part section بتاع حقي حقنا في من على".split())
+
+    @staticmethod
+    def _has_term(text, terms):
+        return any(re.search(r"(?<!\w)" + re.escape(normalized_text(term)) + r"(?!\w)", text) for term in terms)
+
+    @staticmethod
+    def _sop_reply(text, usage=None):
+        return {"reply": text, "consulted": None, "consulted_agents": [],
+                "usage": usage or {"calls": [], "accounted_tokens": 0}}
+
+    async def _sop_request(self, message, allow_external_ai):
+        terms = config_manager.assistant_routing.sop_maintenance
+        if terms is None:
+            return None
+        text = normalized_text(message).strip()
+        pending, self.pending_sop = self.pending_sop, None
+        if pending:
+            answer = text.strip(" .!?؟")
+            if self._has_term(answer, terms.cancel_terms) and len(answer.split()) <= 2:
+                return self._sop_reply("Cancelled. The SOP was not sent anywhere or changed.")
+            if pending["stage"] == "choose" and re.fullmatch(r"\d{1,2}", answer):
+                if not 1 <= int(answer) <= len(pending["choices"]):
+                    self.pending_sop = pending
+                    return self._sop_reply(f"Choose a number from 1 to {len(pending['choices'])}, or say cancel.")
+                return self._sop_confirm(pending["action"], pending["choices"][int(answer) - 1],
+                                         pending["instruction"], pending["file_words"])
+            if pending["stage"] == "section":
+                return self._sop_confirm(pending["action"], pending["path"], pending["instruction"],
+                                         pending["file_words"], section=message.strip())
+            if pending["stage"] == "confirm":
+                if answer in {"local", "محلي"} and pending["action"] == "review":
+                    return await self._sop_run(pending, local_only=True)
+                if self._has_term(answer, terms.confirm_terms) and len(answer.split()) <= 3:
+                    return await self._sop_run(pending, allow_external_ai=allow_external_ai)
+            # Anything else drops the waiting request and is handled as a new message.
+        if re.match(r"(?:how|what|why|when|should|كيف|ما|ماذا|لماذا|متي)(?!\w)", text):
+            return None
+        if not self._has_term(text, terms.document_terms):
+            return None
+        # A review word wins: it is read-only, and "change" may just be part of the SOP's name.
+        action = "review" if self._has_term(text, terms.review_terms) else "revise" if self._has_term(text, terms.revise_terms) else None
+        if action is None:
+            return None
+        # Action words stay: "change" can be a verb and part of a file name. Document words ("SOP") match every file.
+        document_words = {normalized_text(t) for t in terms.document_terms}
+        file_words = {w for w in re.split(r"[^\w]+", text) if len(w) > 2 and w not in document_words and w not in self.SOP_STOP_WORDS}
+        from .utils.existing_sops import find_sops
+        matches = find_sops(config_manager.system_config.output_dir, file_words)
+        if not matches:
+            if re.search(r"(?<!\w)(?:my|our|حقي|حقنا)(?!\w)", text):
+                return self._sop_reply(f"I could not find that SOP in {config_manager.system_config.output_dir}. "
+                                       "Tell me a word from its file name, or give the path to `reema review`.")
+            return None
+        if len(matches) == 1:
+            return self._sop_confirm(action, matches[0], message, file_words)
+        shown = matches[:terms.max_choices]
+        self.pending_sop = {"stage": "choose", "action": action, "choices": shown, "instruction": message,
+                            "file_words": file_words}
+        lines = [f"{n}. {p.name} (modified {datetime.fromtimestamp(p.stat().st_mtime):%Y-%m-%d})" for n, p in enumerate(shown, 1)]
+        more = f"\nShowing {len(shown)} of {len(matches)}; use a more specific word to narrow it." if len(matches) > len(shown) else ""
+        return self._sop_reply(f"I found several SOPs that could match. Which one should I {action}? Reply with its number, or cancel.\n"
+                               + "\n".join(lines) + more)
+
+    def _sop_confirm(self, action, path, instruction, file_words, section=None):
+        from .utils.existing_sops import load_sop, require_unique_sections, resolve_sections
+        from .utils.documents import section_map
+        profile = config_manager.document_profile
+        try:
+            source = load_sop(path)
+            require_unique_sections(source.content, profile)
+        except ValueError as error:
+            return self._sop_reply(f"I can't use {Path(path).name}: {error}")
+        targets = []
+        if action == "revise":
+            locations = section_map(source.content, profile)
+            # Words that picked the file (for example "incident") must not pick the section too.
+            used = file_words & set(re.split(r"[^\w]+|_", Path(path).stem.casefold()))
+            words = " ".join(w for w in re.split(r"[^\w]+", normalized_text(instruction)) if w not in used)
+            try:
+                targets = resolve_sections(source.content, profile, words, [section] if section else ())
+            except ValueError:
+                self.pending_sop = {"stage": "section", "action": action, "path": path, "instruction": instruction,
+                                    "file_words": file_words}
+                return self._sop_reply(f"Which section of {Path(path).name} should I change? Sections: "
+                                       + "; ".join(v["title"] for v in locations.values()) + ". Or say cancel.")
+            titles = ", ".join(f"'{locations[t]['title']}'" for t in targets)
+        self.pending_sop = {"stage": "confirm", "action": action, "path": source.path, "sha256": source.sha256,
+                            "instruction": instruction, "targets": targets}
+        modified = datetime.fromtimestamp(source.path.stat().st_mtime)
+        if action == "review":
+            return self._sop_reply(
+                f"I found {source.path.name} (modified {modified:%Y-%m-%d}). Shall Abdullah review it? Its full text will be "
+                "sent to Anthropic (Claude); the file itself will not change. Reply yes to go ahead, local for the "
+                "template check only (nothing leaves this computer), or no to cancel.")
+        return self._sop_reply(
+            f"I found {source.path.name} (modified {modified:%Y-%m-%d}). Abdullah will change only {titles}, using your "
+            f"words: \"{instruction}\". Its full text will be sent to Anthropic (Claude) and the result saved as a new "
+            "draft for your approval; the original file stays as it is. Reply yes to go ahead, or no to cancel.")
+
+    def _sop_leader(self, action, local_only):
+        from .agents.leader_agent import LeaderAgent
+        leader = LeaderAgent(api_key="")
+        if not local_only:
+            leader.register_worker("ReviewAgent", ReviewAgent(api_key=self.api_key))
+        if action == "revise":
+            leader.register_worker("ContentAgent", ContentAgent(api_key=self.api_key))
+        return leader
+
+    async def _sop_run(self, pending, *, allow_external_ai=False, local_only=False):
+        from .utils.existing_sops import load_sop, instruction_findings
+        action, path = pending["action"], pending["path"]
+        command = f'reema {action} "{path}"' + (f' --instruction "{pending["instruction"]}"' if action == "revise" else "")
+        if not local_only and not (allow_external_ai or config_manager.system_config.allow_external_ai):
+            return self._sop_reply("This chat was started without permission to send text to Anthropic, so I did not "
+                                   "send the SOP. Restart the chat with --allow-external-ai, or run:\n"
+                                   f"{command} --allow-external-ai")
+        if not local_only and not (self.api_key if self.api_key is not None else config_manager.system_config.anthropic_api_key):
+            return self._sop_reply("ANTHROPIC_API_KEY is needed for this job; nothing was sent.")
+        try:
+            source = load_sop(path)
+        except ValueError as error:
+            return self._sop_reply(f"I can't read {Path(path).name} any more: {error}")
+        if source.sha256 != pending["sha256"]:
+            return self._sop_reply(f"{source.path.name} changed after you confirmed it, so I stopped. Ask me again.")
+        leader = self._sop_leader(action, local_only)
+        try:
+            if action == "review":
+                findings = await leader.review_existing(source, local_only=local_only, allow_external_ai=True)
+            else:
+                located = instruction_findings(source.content, config_manager.document_profile,
+                                               pending["instruction"], pending["targets"])
+                outputs = await leader.revise_existing(source, located, allow_external_ai=True,
+                                                       origin={"instruction": pending["instruction"], "via": "chat"})
+        except (ValueError, PermissionError, OSError, RuntimeError) as error:
+            return self._sop_reply(f"Abdullah stopped the {action}: {error}. The original file was not changed "
+                                   "and nothing was approved.")
+        finally:
+            await leader.close()
+        run_dir = Path(leader.context["run_dir"])
+        usage = json.loads((run_dir / "run.json").read_text(encoding="utf-8")).get("usage")
+        if action == "review":
+            items = findings["template_gaps"] + findings["findings"]
+            lines = [f"- [{i['severity']}, {i['category']}] {i.get('section') or findings['section_locations'].get(i['section_id'], {}).get('title', i['section_id'])}: {i['description']}"
+                     for i in items[:6]]
+            more = f"\n…and {len(items) - 6} more." if len(items) > 6 else ""
+            return self._sop_reply(
+                f"Review of {source.path.name} finished ({'template check only' if local_only else 'model review'}): "
+                f"{len(findings['template_gaps'])} template gap(s), {len(findings['findings'])} other finding(s). "
+                "The file was not changed. These are unverified suggestions.\n" + "\n".join(lines) + more
+                + f"\nFull list: {run_dir / 'findings.md'}", usage)
+        record = leader.context["delivery"]["approval_record"]
+        return self._sop_reply(
+            f"Abdullah revised {source.path.name}; only the confirmed section(s) changed and the original file is untouched.\n"
+            + "\n".join(f"{fmt}: {p}" for fmt, p in outputs.items())
+            + f"\nChanges: {run_dir / 'changes.md'}\nThe draft is awaiting your approval. I can't approve it. After you "
+            f'read it, run: reema approve "{record}" --reviewer "<your name>"', usage)
+
     @staticmethod
     def _system(key):
         settings = config_manager.get_agent_config(key)
@@ -405,6 +571,9 @@ class AssistantSession:
             else:
                 local = self._local_memory(message)
             return self._local_reply(local, message)
+        sop_reply = await self._sop_request(message, allow_external_ai)
+        if sop_reply is not None:
+            return sop_reply
         natural_task = self._natural_task(message)
         if natural_task is not None:
             return self._local_reply(natural_task, message)
