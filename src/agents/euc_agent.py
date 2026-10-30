@@ -1,9 +1,9 @@
-"""Agent 10: end-user computing (EUC) and endpoint-management advice.
+"""Agent 10: end-user computing (EUC) and endpoint management in the SOP pipeline.
 
-Advises in chat and, when a process selects the "euc" specialist, adds an
-endpoint deployment analysis and SOP appendix. Scripts, change requests and
-runbooks are drafts for human review; nothing is executed against tenants,
-devices or directories.
+When a process selects the "euc" specialist, adds an endpoint deployment analysis
+and SOP appendix. Advice to Khalid runs in Claude Code as the reema-agent10-euc
+subagent, whose protocol is this one plus a closing. Nothing is executed against
+tenants, devices or directories.
 """
 
 from typing import Dict, List
@@ -18,17 +18,13 @@ class EUCAgent(BaseAgent):
     AGENT_ROLE = "End-User Computing & Endpoint Management Specialist"
     CONFIG_KEY = "euc_agent"
 
-    ADVISORY_CLOSING = """
-
-**Closing:** End the advice with "Next step:" (the single most useful action) and, only if any remain, "Open risks / assumptions:". Record those assumptions in the metadata assumptions list as well."""
-
     async def analyze_endpoint_requirements(self, process_name: str, standards: List[str]) -> Dict:
         """Phase 2: endpoint deployment, rollback and change requirements for a process."""
         logger.agent_start(self.name, f"Analyzing endpoint requirements for {process_name}")
         try:
             response = await self._call_claude(
                 messages=[{"role": "user", "content": self._build_endpoint_analysis_prompt(process_name, standards)}],
-                system=self._build_system_prompt(advisory=False))
+                system=self._build_system_prompt())
             logger.agent_complete(self.name, f"Endpoint analysis for {process_name}")
             return {
                 "process_name": process_name,
@@ -46,7 +42,7 @@ class EUCAgent(BaseAgent):
         try:
             response = await self._call_claude(
                 messages=[{"role": "user", "content": self._build_endpoint_content_prompt(process_name, endpoint_requirements)}],
-                system=self._build_system_prompt(advisory=False))
+                system=self._build_system_prompt())
             logger.agent_complete(self.name, f"Endpoint content for {process_name}")
             return response
         except Exception as e:
@@ -124,9 +120,9 @@ Create professional SOP appendix sections:
 
 Keep "[to confirm]" markers for organization-specific values. Do not include credentials, tenant identifiers or real user data. Format with tables and numbered lists suitable for SOP inclusion."""
 
-    def _build_system_prompt(self, advisory: bool = True) -> str:
-        """Build the endpoint-engineering protocol; chat advice adds the closing format."""
-        prompt = """You are Agent 10, a senior Endpoint Management / End-User Computing (EUC) Infrastructure Engineer and IT Service Management specialist with 15+ years in large, regulated enterprises (aviation-grade uptime, 24/7 operations, distributed sites, and airport, kiosk and shared devices).
+    def _build_system_prompt(self) -> str:
+        """Build the endpoint-engineering protocol shared with the reema-agent10-euc subagent."""
+        return """You are Agent 10, a senior Endpoint Management / End-User Computing (EUC) Infrastructure Engineer and IT Service Management specialist with 15+ years in large, regulated enterprises (aviation-grade uptime, 24/7 operations, distributed sites, and airport, kiosk and shared devices).
 
 You support an IT Section Manager who owns Patch Management, Image Management, Software Distribution, RPA, and end-user device technology coordination. Treat the user as a peer, not a beginner.
 
@@ -158,4 +154,3 @@ You support an IT Section Manager who owns Patch Management, Image Management, S
 **Context:**
 - Saudi Arabian enterprise: Asia/Riyadh (UTC+3), work week Sunday to Thursday. Plan maintenance windows, change freezes and communications around business peaks such as Ramadan, Hajj, Umrah seasons and Eid holidays; treat exact dates as needing confirmation.
 - Communications may need to be bilingual (Arabic/English) and suitable for senior management."""
-        return prompt + self.ADVISORY_CLOSING if advisory else prompt

@@ -24,7 +24,7 @@ def test_skill_names_match_folders_and_name_only_real_skills_and_subagents(path)
     meta, body = frontmatter(path)
     assert meta["name"] == path.parent.name and meta["description"]
     known = {p.parent.name for p in SKILLS} | {p.stem for p in AGENTS}
-    assert set(re.findall(r"\breema-[a-z-]*[a-z]", body)) <= known
+    assert set(re.findall(r"\breema-[a-z0-9-]*[a-z0-9]", body)) <= known
 
 
 @pytest.mark.parametrize("path", AGENTS, ids=lambda p: p.stem)
@@ -47,7 +47,7 @@ def test_revise_skill_offers_review_findings_mode():
 def test_org_chart_members_exist():
     text = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
     chart = text[text.index("### Org chart"):text.index("## Boundaries")]
-    named = set(re.findall(r"`(reema-[a-z-]+)`", chart))
+    named = set(re.findall(r"`(reema-[a-z0-9-]+)`", chart))
     assert named == {p.stem for p in AGENTS}
     assert "`abdullah-docs`" in chart
 

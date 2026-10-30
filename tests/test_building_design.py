@@ -100,3 +100,12 @@ def test_agent_9_generates_a_labeled_local_concept_mesh(tmp_path):
     with pytest.raises(ValueError, match="outside"):
         BuildingDesignAgent(api_key="").create_concept_model(
             source, tmp_path / "invalid", (-1, -1, 10, 8), design_spec=design_spec)
+
+
+def test_agent_9_subagent_names_the_local_commands_and_its_limits():
+    from pathlib import Path
+    text = (Path(__file__).resolve().parents[1] / ".claude" / "agents" / "reema-agent9-design.md").read_text(encoding="utf-8")
+    assert "tools: Read, Write" in text and "drawing inspect" in text and "drawing concept" in text
+    for guard in ("Never invent dimensions", "[to confirm]", "licensed professional", "Khalid's yes",
+                  "output/claude_code/advice/", "cannot read DWG geometry", "Next step:"):
+        assert guard in text

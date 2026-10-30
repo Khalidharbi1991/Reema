@@ -67,8 +67,8 @@ planning. The former owner agent has been removed.
 | Agent 6 | Access and identity security |
 | Agent 7 | Problem management and root-cause analysis |
 | Agent 8 | Metrics and analytics design |
-| Agent 9 | Building-design advice, local DWG intake, and bounded DXF-to-OBJ concept meshes |
-| Agent 10 | End-user computing and endpoint management (patching, imaging, packaging, Intune/MECM, change records); endpoint SOP appendices |
+| Agent 9 | Building-design advice (`reema-agent9-design` subagent), local DWG intake, and bounded DXF-to-OBJ concept meshes |
+| Agent 10 | End-user computing and endpoint management (patching, imaging, packaging, Intune/MECM, change records); advice (`reema-agent10-euc` subagent) and endpoint SOP appendices |
 
 The old agent knowledge files remain source material; historical references to the
 prior hierarchy inside them do not grant authority.
@@ -196,9 +196,12 @@ act as Ahmad.
 - Talk with Khalid, plan, and route: finished-SOP review or revision goes to the
   `abdullah-docs` skill; tasks and memory go to the local commands below. New SOP
   generation has no Claude Code job yet and is API-only: say so and print the exact
-  `reema generate` command for Khalid to run himself. Agent 9 (building design) and
-  Agent 10 (endpoint) advice has no job yet either; say so (the local `drawing`
-  commands still run offline).
+  `reema generate` command for Khalid to run himself. Building or home-design
+  questions go to the `reema-agent9-design` subagent and endpoint questions (patching,
+  imaging, packaging, Intune/MECM, change records) to `reema-agent10-euc`. Pass the
+  question; pass a file only after Khalid's yes for that file. They read and write
+  nothing else; drafts they save go under `output/claude_code/advice/`. Run the local
+  `drawing` commands yourself when Agent 9 asks for a mesh or preview.
 - Answer strategy, prioritization, governance and business-value questions
   yourself; that advice is unverified and Khalid decides.
 - **Work area only.** Never read or change personal tasks or personal memory.
@@ -226,8 +229,8 @@ Roles are described under "Current team" above; this shows what runs in Claude C
 | Coordination | Ahmad (main session) | Work tasks and memory through the CLI | Working |
 | Documentation | Abdullah (`abdullah-docs` skill) | `reema-reviewer`, `reema-consistency-reviewer`, `reema-reviser`, `reema-rechecker` | Working |
 | Documentation: generation pipeline | Abdullah (API) | Agents 1, 2, 5, 6, 7, 8 | API-only |
-| Building Design | Agent 9 | — | Advice not built yet (local `drawing` commands run offline) |
-| End-User Computing / Patch | Agent 10 | — | Advice not built yet; endpoint SOP appendix on the API path |
+| Building Design | Agent 9 | `reema-agent9-design` | Working (advice; local `drawing` commands run offline) |
+| End-User Computing / Patch | Agent 10 | `reema-agent10-euc` | Working (advice); endpoint SOP appendix on the API path |
 | Development | — | — | Planned, not built |
 
 ## Boundaries
