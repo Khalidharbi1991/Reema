@@ -256,6 +256,16 @@ the file's SHA-256 (checked before and after) and writes a normal review run tha
 `reema revise --from-review` accepts. A review has no approval record. The
 `reema review` API path is unchanged.
 
+#### REEMA in Claude Code
+
+Open the Claude desktop app's Code tab on this folder and start a new session (skills
+and subagents load at session start). The main session acts as Ahmad; type in plain
+words, for example "Ahmad, what's on my work list today?" or "Ahmad, review my
+incident SOP", or `/abdullah-docs` to go straight to the Documentation section.
+Ahmad works with the work area only, asks your yes once per session before reading
+work tasks or memory and before reading each SOP, and never approves or pushes. The
+org chart and rules are in AGENTS.md under "REEMA company in Claude Code".
+
 #### Recover exports without model calls
 
 Each run saves phase checkpoints and usage metadata in its own directory. If a
