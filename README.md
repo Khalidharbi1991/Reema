@@ -238,6 +238,18 @@ incident SOP". He lists matching files in `output/` for you to choose, names the
 section, and asks for your yes before anything is sent to Anthropic (the chat must
 also be started with `--allow-external-ai`). He cannot approve the result.
 
+#### Claude Code revise (experimental)
+
+Inside a Claude Code session in this repository you can revise one section of a
+finished SOP with no Anthropic API call from REEMA: ask Claude Code to use the
+`reema-revise` skill. The session writes the section text (`reema-reviser`
+subagent) and the recheck (`reema-rechecker` subagent); `scripts/claude_code_revise.py`
+runs the same gates, Word splice, export and pending approval record as
+`reema revise`. The SOP is still sent to Anthropic through the Claude Code session,
+so you are asked for your yes first. It covers `--instruction` only, and it never
+approves: run the printed `reema approve` command yourself. The `reema revise`
+API path above is unchanged.
+
 #### Recover exports without model calls
 
 Each run saves phase checkpoints and usage metadata in its own directory. If a

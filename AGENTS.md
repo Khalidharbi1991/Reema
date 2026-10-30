@@ -122,6 +122,18 @@ refused. In chat, Ahmad matches the request to files in `output/` by file-name
 words, lists several matches for Khalid to choose, names the section, and needs an
 explicit yes plus chat consent before any external call. He never approves.
 
+### Claude Code revise (experimental)
+
+The `reema-revise` skill (`.claude/skills/reema-revise/`) lets a Claude Code session
+author an `--instruction` revision with no REEMA API call. The `reema-reviser` and
+`reema-rechecker` subagents write `patch.json` and `recheck.json` under
+`output/claude_code/<id>/`; `scripts/claude_code_revise.py` (prepare/check/finish/
+compare) feeds them through `src/agents/file_workers.py` into the unchanged
+`LeaderAgent.revise_existing` gates, with the key and consent cleared while it runs.
+Khalid's yes is still required before the session reads the SOP. The run ends at
+`awaiting_human_approval`; `.claude/settings.json` denies `approve`/`reject`. The
+`reema revise` API path is unchanged.
+
 Specialist handoffs preserve full payloads and use strict internal contracts in
 `src/utils/handoffs.py`; public agent strings/dictionaries remain compatible.
 Optional findings/provenance/assumptions metadata remains unverified. Review and
