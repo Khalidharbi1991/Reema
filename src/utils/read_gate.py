@@ -61,25 +61,26 @@ def require_read_permission(path, sha256: str, confirm_read) -> dict:
             "reference_manifest": manifest}
 
 
-def references_sha256(records) -> str:
-    """One SHA-256 over the reference files (manifest path and file SHA-256) behind a set of excerpts."""
-    files = sorted({(record["source"], record["sha256"]) for record in records})
+def references_sha256(records, extra_files=()) -> str:
+    """One SHA-256 over the files (name and file SHA-256) behind a set of excerpts and any extra input files."""
+    files = sorted({(record["source"], record["sha256"]) for record in records} | set(extra_files))
     return hashlib.sha256(json.dumps(files).encode("utf-8")).hexdigest()
 
 
-def require_references_permission(records, confirm_read) -> dict:
-    """The confirm-read gate for manifest-allowed reference excerpts; nothing to confirm when there are none.
+def require_references_permission(records, confirm_read, extra_files=()) -> dict:
+    """The confirm-read gate for manifest-allowed reference excerpts and extra input files (name, SHA-256).
 
-    The manifest itself (allowed, not restricted, unchanged) is enforced by ReferenceIndex, which
-    selected the excerpts. The token covers exactly these files at these SHA-256 values.
+    Nothing to confirm when there are none. The manifest itself (allowed, not restricted, unchanged) is
+    enforced by ReferenceIndex, which selected the excerpts, and by check_manifest for an extra file
+    under REFERENCES_DIR. One token covers exactly these files at these SHA-256 values.
     """
-    if not records:
-        return {"confirm_read": None, "reference_files": []}
+    if not records and not extra_files:
+        return {"confirm_read": None, "reference_files": [], "input_files": []}
     names = sorted({record["source"] for record in records})
-    token = read_token(references_sha256(records))
+    inputs = sorted(name for name, _ in extra_files)
+    token = read_token(references_sha256(records, extra_files))
     if confirm_read != token:
-        raise ReadNotConfirmed(f"Excerpts from {len(names)} reference file(s) would be read by Claude Code: "
-                               f"{', '.join(names)}. Ask Khalid; on his yes, run prepare again with "
-                               f"--confirm-read {token}")
+        raise ReadNotConfirmed(f"Claude Code would read {', '.join(names + inputs)}. Ask Khalid; on his yes, "
+                               f"run prepare again with --confirm-read {token}")
     return {"confirm_read": token, "confirmed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            "reference_files": names}
+            "reference_files": names, "input_files": inputs}

@@ -269,9 +269,10 @@ standards named, citations, diagrams, control coverage), exports the formats you
 creates the pending approval record. No model reviews the draft, so the approval record has no
 quality score; ask Ahmad to review the Markdown draft first if you want a review. Excerpts from
 `references/` are included only when the reference manifest allows them, and only after your yes
-(a `--confirm-read` token). Processes that select specialists (Incident, Problem, Access
-Management, Workstation Security Patches, Devices Batch Management) still use `reema generate`
-for now.
+(a `--confirm-read` token). For patch processes (Workstation Security Patches, Devices Batch
+Management) Agent 10 writes the "Endpoint Deployment & Rollback Plan" appendix. Access, problem and
+data specialists add no appendix; their local checks on a JSON input file you name (IAM snapshot,
+incident observations, metric data) are given to the writer as data, after the same yes.
 
 #### Claude Code revise (experimental)
 

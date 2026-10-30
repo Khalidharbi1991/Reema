@@ -33,7 +33,7 @@ from ..utils.documents import (ControlRegister, legacy_register, control_coverag
                                validate_located_review, CorrectionAssessment, sha, assert_only_targets_changed,
                                assert_no_new_references)
 from ..utils.diagrams import extract_flows
-from ..utils.specialists import SpecialistInputs, validate_analytics_result
+from ..utils.specialists import SpecialistInputs, specialist_checks, validate_analytics_result
 from ..utils.ownership import RunLease
 from ..utils.coordination import DocumentationRequest, WorkflowPlan
 from ..utils.capabilities import invoke_pipeline
@@ -452,8 +452,9 @@ class LeaderAgent:
         quality["warnings"].extend(controls["warnings"])
         return quality
 
-    async def generate_local(self, process_name, output_formats=None, *, custom=False, objective=None,
-                             constraints=None, acceptance_criteria=None, evidence=None, origin=None) -> Dict[str, str]:
+    async def generate_local(self, process_name, output_formats=None, *, custom=False, specialists=None, objective=None,
+                             constraints=None, acceptance_criteria=None, specialist_inputs=None, evidence=None,
+                             endpoint_appendix=None, origin=None) -> Dict[str, str]:
         """Generate an SOP whose section text was written in a Claude Code session; no model call.
 
         The ContentAgent must be the file-backed FileSectionWriter (src/agents/file_workers.py), so each
@@ -461,24 +462,31 @@ class LeaderAgent:
         REEMA plans, checks, exports and writes the pending approval record. No model reviews the draft,
         so the record's quality_score is None. evidence is the list of manifest-allowed reference
         excerpts the writer was given; [SRC-...] citations must name one of them.
+
+        Specialists: euc adds Agent 10's patch appendix, written in Claude Code (endpoint_appendix).
+        access, problem and data add no appendix; the local checks on any supplied specialist data are
+        recorded with the plan as data.
         """
+        from .euc_agent import EUCAgent
         from .file_workers import FileSectionWriter
         if self.workflow_status == "running":
             raise RuntimeError("This leader already has a running workflow; use a separate instance")
         if not isinstance(self.worker_agents.get("ContentAgent"), FileSectionWriter) or "FormatAgent" not in self.worker_agents:
             raise ValueError("A Claude Code generate run needs the file-backed ContentAgent and the FormatAgent")
         process_id, request = self.documentation_request(
-            process_name, output_formats, custom=custom, objective=objective, constraints=constraints,
-            acceptance_criteria=acceptance_criteria)
-        if request.specialists:
-            raise ValueError("Processes with specialists (" + ", ".join(request.specialists) + ") are not in the "
-                             "Claude Code generate path yet")
+            process_name, output_formats, custom=custom, specialists=specialists, objective=objective,
+            constraints=constraints, acceptance_criteria=acceptance_criteria, specialist_inputs=specialist_inputs)
+        if ("euc" in request.specialists) != (endpoint_appendix is not None):
+            raise ValueError("The euc specialist needs Agent 10's patch appendix, and only it takes one")
+        if endpoint_appendix is not None:
+            EUCAgent.check_appendix(endpoint_appendix)
         process_name, output_formats = request.process_name, request.formats
         formatter = self.worker_agents["FormatAgent"]
         formatter.validate_requested_formats(output_formats)
         if config_manager.system_config.enforce_page_target and "pdf" not in output_formats:
             raise ValueError("ENFORCE_PAGE_TARGET requires PDF output for a real rendered page count")
-        self.context = {"process_id": process_id, "specialists": [], "request": request.model_dump(), "last_review": None}
+        self.context = {"process_id": process_id, "specialists": request.specialists, "request": request.model_dump(),
+                        "last_review": None}
         run_dir = config_manager.system_config.output_dir / "runs" / uuid4().hex
         self.context["run_dir"] = str(run_dir)
         original_output_dir = formatter.output_dir
@@ -498,10 +506,15 @@ class LeaderAgent:
                 workflow = await self._plan_workflow(process_name)
                 register = legacy_register(workflow["applicable_standards"])
                 self.context["control_register"] = register.model_dump()
+                if request.specialist_inputs:
+                    workflow["specialist_checks"] = specialist_checks(
+                        request.specialist_inputs, runtime.sources, config_manager.specialist_policy)
                 store.save("planned", workflow)
             async with self._phase("content"):
                 content = await self._invoke("content", {"process_name": process_name, "research_data": {
                     "standards": {"control_register": self.context["control_register"]}}})
+                if endpoint_appendix is not None:
+                    content += "\n\n" + self._format_euc_section(endpoint_appendix, process_name)
                 store.save("generated", {"content": content, "sources": runtime.sources})
             async with self._phase("checks"):
                 quality = self.check_draft(content, workflow["applicable_standards"], runtime.sources, register)

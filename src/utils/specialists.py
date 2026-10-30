@@ -437,3 +437,20 @@ def validate_analytics_result(result, supplied, policy, sources=None):
     expected = [calculate_metric(s, supplied.get("metric_rows"), policy, sources) for s in specs]
     if json.dumps(result["calculation_checks"], sort_keys=True, allow_nan=False) != json.dumps(expected, sort_keys=True, allow_nan=False):
         raise ValueError("Analytics calculation checks do not match the supplied data")
+
+
+def specialist_checks(inputs, sources, policy):
+    """The local checks on supplied specialist data (IAM, problem case, metrics), as data; no model call."""
+    from .domain_depth import iam_drift
+    inputs = SpecialistInputs.model_validate(inputs)
+    checks = {}
+    if inputs.iam_environment is not None:
+        checks["iam"] = check_iam(inputs.iam_environment, sources, policy)
+        if inputs.iam_previous is not None:
+            check_iam(inputs.iam_previous, sources, policy)
+            checks["iam"]["drift"] = iam_drift(inputs.iam_previous, inputs.iam_environment)
+    if inputs.problem_case is not None:
+        checks["problem"] = assess_problem(inputs.problem_case, [], sources, policy)
+    if inputs.metric_specs:
+        checks["metrics"] = [calculate_metric(spec, inputs.metric_rows, policy, sources) for spec in inputs.metric_specs]
+    return checks
