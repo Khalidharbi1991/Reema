@@ -6,6 +6,7 @@ the Word splice and re-read, export and the pending human approval record.
 
     prepare FILE --section TITLE --instruction TEXT   write output/claude_code/<id>/request.json
     prepare FILE --from-review RUN --finding ID       the same, from 1-5 findings of a review run of FILE
+    prepare ... --major                               name the revision with the next major version (V2.3 -> V3.0)
     check   ID                                        validate patch.json; write recheck_request.json
     finish  ID                                        run the revise job into a NEW output/runs/ folder
     compare RUN_A RUN_B                               compare two revise runs of the same SOP
@@ -32,7 +33,8 @@ from src.utils.config import config_manager  # noqa: E402
 from src.utils.documents import (CorrectionAssessment, SectionPatch, assert_no_new_references,  # noqa: E402
                                  assert_only_targets_changed, section_map, sha)
 from src.utils.existing_sops import (changes_markdown, instruction_findings, load_sop,  # noqa: E402
-                                     require_unique_sections, resolve_sections, review_findings, splice_docx)
+                                     is_revision_output, require_unique_sections, resolve_sections, review_findings,
+                                     splice_docx)
 from src.utils.quality import parse_fenced_json_response  # noqa: E402
 from src.utils.validation import missing_sections  # noqa: E402
 from src.agents.content_agent import ContentAgent  # noqa: E402
@@ -125,9 +127,9 @@ def _options(sections, instruction, from_review, finding_ids):
     return {"mode": "review", "review_run": str(run), "finding_ids": finding_ids}
 
 
-def prepare(file, sections=(), instruction=None, *, from_review=None, finding_ids=()):
+def prepare(file, sections=(), instruction=None, *, from_review=None, finding_ids=(), major=False):
     request = {"source_path": str(Path(file).expanduser().resolve()),
-               **_options(sections, instruction, from_review, finding_ids)}
+               **_options(sections, instruction, from_review, finding_ids), "major": bool(major)}
     request["source_sha256"] = load_sop(request["source_path"]).sha256
     if request["mode"] == "review":
         request["review_findings_sha256"] = _review_checkpoint(request["review_run"])
@@ -147,6 +149,8 @@ def prepare(file, sections=(), instruction=None, *, from_review=None, finding_id
     print(f"Prepared {work_id}: {', '.join(v['title'] for v in request['target_sections'].values())}")
     if request["mode"] == "review":
         print(f"Findings: {', '.join(request['finding_ids'])} from {request['review_run']}")
+    if request["major"]:
+        print("The revision will take the next major version.")
     print(f"Request: {path / 'request.json'}")
     print(f"Write the patch to: {path / 'patch.json'}")
     return work_id
@@ -193,7 +197,7 @@ def finish(work_id):
 
     async def run():
         try:
-            return await leader.revise_existing(source, findings, local_author=True,
+            return await leader.revise_existing(source, findings, local_author=True, major=request.get("major", False),
                                                 origin={**origin, "claude_code_work": str(path)})
         finally:
             await leader.close()
@@ -237,7 +241,7 @@ def _run_facts(run_dir):
             "lines_added": sum(l.startswith("+ ") for l in lines), "lines_removed": sum(l.startswith("- ") for l in lines),
             "recheck_resolved": f"{sum(c['status'] == 'resolved' for c in corrections)}/{len(corrections)}",
             "model_calls": len(usage.get("calls", [])), "api_tokens": usage.get("accounted_tokens", 0),
-            "outputs": ", ".join(sorted(p.name for p in run_dir.glob("*_revised.*") if not p.name.startswith("~$"))),
+            "outputs": ", ".join(sorted(p.name for p in run_dir.glob("*") if is_revision_output(p) and not p.name.startswith("~$"))),
             "_bodies": {k: after[new[k]["body_start"]:new[k]["end"]].strip() for k in revised["target_sections"]},
             "_titles": {k: new[k]["title"] for k in revised["target_sections"]}}
 
@@ -267,6 +271,7 @@ def main(argv=None):
     one.add_argument("--instruction")
     one.add_argument("--from-review", type=Path, help="Review run folder of this same SOP")
     one.add_argument("--finding", action="append", help=f"Finding id from --from-review; repeatable, 1-{MAX_FINDINGS}")
+    one.add_argument("--major", action="store_true", help="Next major version (V2.3 -> V3.0) instead of the next minor")
     for name in ("check", "finish"):
         commands.add_parser(name).add_argument("work_id")
     two = commands.add_parser("compare")
@@ -278,7 +283,7 @@ def main(argv=None):
     try:
         if args.command == "prepare":
             prepare(args.file, args.section or (), args.instruction,
-                    from_review=args.from_review, finding_ids=args.finding or ())
+                    from_review=args.from_review, finding_ids=args.finding or (), major=args.major)
         elif args.command == "check":
             check(args.work_id)
         elif args.command == "finish":

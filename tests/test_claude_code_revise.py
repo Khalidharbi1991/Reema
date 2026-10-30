@@ -348,3 +348,24 @@ def test_cli_prepare_from_review(reviewed, capsys):
     assert ccr.main(["prepare", str(path), "--from-review", str(run), "--finding", ids["sec-tools"],
                      "--finding", ids["sec-procedures"]]) == 0
     assert "Findings:" in capsys.readouterr().out
+
+
+def test_drafts_take_version_numbers_and_major_is_kept_from_prepare(tmp_path, output_root, no_provider, capsys):
+    _, work_id, work, request = prepared(tmp_path)
+    write_patch(work, request)
+    ccr.check(work_id)
+    write_recheck(work, request)
+    assert Path(ccr.finish(work_id)["docx"]).name == "incident_V1.1.docx"
+    path = build_docx(tmp_path / "incident.docx", DOCX_SECTIONS)
+    assert ccr.main(["prepare", str(path), "--section", "2. Escalation", "--instruction", INSTRUCTION, "--major"]) == 0
+    assert "next major version" in capsys.readouterr().out
+    work_id = max(ccr.work_root().iterdir(), key=lambda p: p.stat().st_mtime).name
+    work = ccr.work_root() / work_id
+    request = json.loads((work / "request.json").read_text())
+    assert request["major"] is True
+    write_patch(work, request)
+    ccr.check(work_id)
+    write_recheck(work, request)
+    outputs = ccr.finish(work_id)
+    assert {Path(p).name for p in outputs.values()} == {"incident_V2.0.md", "incident_V2.0.docx"}
+    assert "incident_V2.0.docx" in ccr._run_facts(Path(outputs["docx"]).parent)["outputs"]

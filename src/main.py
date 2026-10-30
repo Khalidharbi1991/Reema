@@ -533,6 +533,7 @@ def revise(
     sections: Optional[List[str]] = typer.Option(None, "--section", help="Section to change, by title or id; repeatable"),
     from_review: Optional[Path] = typer.Option(None, "--from-review", help="Review run folder whose findings to fix"),
     finding_ids: Optional[List[str]] = typer.Option(None, "--finding", help="Only this finding from --from-review; repeatable"),
+    major: bool = typer.Option(False, "--major", help="Name it with the next major version (V2.3 -> V3.0), not the next minor"),
     allow_external_ai: bool = typer.Option(False, "--allow-external-ai", help="Authorize sending this SOP's text to Anthropic"),
     output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Output root (default: ./output)"),
 ):
@@ -576,7 +577,7 @@ def revise(
             settings.output_dir = output_dir.expanduser().resolve()
         _warn_if_output_unignored(settings.output_dir)
         outputs = asyncio.run(_close_after(leader, leader.revise_existing(
-            source, findings, allow_external_ai=allow_external_ai, origin=origin)))
+            source, findings, allow_external_ai=allow_external_ai, origin=origin, major=major)))
     except (ValueError, OSError, PermissionError, RuntimeError) as error:
         console.print(str(error), markup=False)
         if leader.context.get("unparsed_reply"):

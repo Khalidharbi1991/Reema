@@ -15,6 +15,8 @@ gate, edit the script, or hand-write files under output/runs/ to get past a refu
    `python3 scripts/dev.py python scripts/claude_code_revise.py prepare "<file>" --section "<title>" --instruction "<text>"`
    Review mode (one `--finding` per ID, 1-5; the review must be of this exact file):
    `python3 scripts/dev.py python scripts/claude_code_revise.py prepare "<file>" --from-review "<run folder>" --finding <id>`
+   Add `--major` only when Khalid has said this change is a major version (V2.3 -> V3.0); otherwise
+   the draft takes the next minor version (V2 -> V2.1). Never choose major yourself.
    Note the work id it prints. A refusal here (findings changed, SOP changed since the review,
    unknown or template-gap ID) is final: report it; do not edit the review run.
 3. Ask the `reema-reviser` subagent to write patch.json for that work id.
@@ -22,5 +24,6 @@ gate, edit the script, or hand-write files under output/runs/ to get past a refu
    On "Refused", pass the exact reason back to `reema-reviser`; at most 3 rounds, then stop and report.
 5. Ask the `reema-rechecker` subagent (a fresh one, not the reviser) to write recheck.json.
 6. `python3 scripts/dev.py python scripts/claude_code_revise.py finish <id>`
-7. Report the run folder, changes.md, the recheck result, and print the approve command for Khalid
+7. Report the run folder, the new file name and version, that Document Control inside the document
+   was not changed (Khalid updates it), changes.md, the recheck result, and print the approve command for Khalid
    to run himself. Never run `reema approve` or `reema reject`, and never supply a reviewer name.
