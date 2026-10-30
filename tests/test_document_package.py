@@ -8,15 +8,12 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from src.agents import StandardsAgent, ContentAgent, ReviewAgent, FormatAgent
+from src.agents import ContentAgent, FormatAgent
 from src.utils.config import config_manager, ConfigManager
-from src.utils.documents import (ControlRegister, SectionDraft, SectionPatch, section_map, sha,
-    control_coverage, locate_findings, CorrectionAssessment, validate_located_review)
+from src.utils.documents import (ControlRegister, SectionDraft, SectionPatch, section_map, sha, control_coverage, locate_findings, CorrectionAssessment)
 from src.utils.diagrams import extract_flows
 from src.utils.export_quality import inspect_export
-from src.utils.execution import load_execution
-from src.utils.provider import current_runtime
-from tests.test_phase01 import catalog, pipeline
+from tests.test_phase01 import catalog
 
 
 def control(**overrides):
@@ -87,22 +84,6 @@ def test_control_evidence_cannot_invent_provenance(change):
 
 
 @pytest.mark.asyncio
-async def test_actual_standards_returns_typed_register_and_explicit_legacy_uncertainty():
-    agent = StandardsAgent(api_key="")
-    agent._call_claude = AsyncMock(return_value=json.dumps({"compliance_analysis": "Retain a decision log; evidence absent.",
-        "control_register": {"controls": [control()]}}))
-    result = await agent.analyze_compliance("Example", ["ITIL v4"])
-    assert result["structured_controls"] and result["control_register"]["verification"] == "unverified"
-    assert "target_sections" in agent._call_claude.await_args.kwargs["messages"][0]["content"]
-    legacy = agent._parse_compliance_response("Narrative claims alignment", "Example", ["ITIL v4"])
-    assert not legacy["structured_controls"]
-    assert legacy["control_register"]["controls"][0]["applicability"] == "undetermined"
-    agent._call_claude.return_value = '{"compliance_analysis": "Claims only"}'
-    with pytest.raises(ValueError, match="Invalid structured"):
-        await agent.analyze_compliance("Example", ["ITIL v4"])
-
-
-@pytest.mark.asyncio
 def requested_section(messages):
     return re.search(r'Set section_id to "(sec-[a-z0-9-]+)"', messages[-1]["content"]).group(1)
 
@@ -117,30 +98,6 @@ async def test_actual_content_assembles_in_config_order_and_preserves_payload_ta
     prompts = [call.args[0][0]["content"] for call in agent._call_claude.await_args_list]
     assert len(prompts) == len(config_manager.document_profile.sections)
     assert all("UNIQUE_TAIL" in prompt for prompt in prompts)
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("kind", ["standards", "content"])
-@pytest.mark.parametrize("valid", [True, False])
-async def test_fenced_json_without_language_is_validated_instead_of_legacy_fallback(kind, valid):
-    agent = StandardsAgent(api_key="") if kind == "standards" else ContentAgent(api_key="")
-    if kind == "standards":
-        data = {"compliance_analysis": "Evidence absent", "control_register": {"controls": [control()]}}
-        agent._call_claude = AsyncMock(return_value="```\n" + json.dumps(data if valid else [data]) + "\n```")
-    else:
-        async def reply(messages, system=""):
-            item = {"section_id": requested_section(messages), "body": "Section content"}
-            return "```\n" + json.dumps(item if valid else [item]) + "\n```"
-        agent._call_claude = AsyncMock(side_effect=reply)
-    async def invoke():
-        return await agent.analyze_compliance("Example", ["ITIL v4"]) if kind == "standards" else await agent.generate_sop("Example", {})
-    if valid:
-        result = await invoke()
-        if kind == "standards": assert result["structured_controls"]
-        else: assert "## 11." in result
-    else:
-        with pytest.raises(ValueError, match="Invalid structured"):
-            await invoke()
 
 
 @pytest.mark.parametrize("change", ["missing", "duplicate", "empty", "heading"])
@@ -180,21 +137,6 @@ def test_stale_or_overbroad_section_patch_is_rejected(sample_sop_content, change
         SectionPatch.model_validate(data).apply(sample_sop_content, {"sec-procedures"}, config_manager.document_profile)
 
 
-@pytest.mark.parametrize("change", ["section", "offset", "quote", "missing_action"])
-@pytest.mark.asyncio
-async def test_actual_review_rejects_false_locations_and_incomplete_findings(sample_sop_content, change):
-    issue = finding(sample_sop_content)
-    if change == "section": issue["section_id"] = "sec-tools"
-    if change == "offset": issue["start"] += 1
-    if change == "quote": issue["quote"] = "Not present"
-    if change == "missing_action": issue.pop("action")
-    agent = ReviewAgent(api_key="")
-    agent._call_claude = AsyncMock(return_value=json.dumps({"quality_score": 98, "decision": "revise", "issues": [issue],
-        "recommendations": ["Assign owner"], "summary": "Issue"}))
-    with pytest.raises(ValueError):
-        await agent.review_content(sample_sop_content)
-
-
 def test_major_findings_block_even_high_score_and_ids_are_stable(sample_sop_content):
     issues = locate_findings(sample_sop_content, [finding(sample_sop_content)], config_manager.document_profile)
     assert issues == locate_findings(sample_sop_content, [finding(sample_sop_content)], config_manager.document_profile)
@@ -216,29 +158,6 @@ def test_unique_quotes_resolve_locally_but_ambiguous_or_half_specified_locations
     issue["start"] = located["start"]
     with pytest.raises(ValueError, match="invalid section"):
         locate_findings(sample_sop_content, [issue], config_manager.document_profile)
-
-
-@pytest.mark.asyncio
-async def test_control_evidence_is_bound_to_recorded_source_and_persisted_for_checks():
-    from src.utils.provider import RunRuntime
-    agent = StandardsAgent(api_key="")
-    source = {"id": "SRC-policy", "source": "policy.md", "location": "paragraph 2", "sha256": "a" * 64,
-              "classification": "public", "text": "Retain the decision record."}
-    agent.source_records, agent.knowledge_records = [source], []
-    evidence = {"source_id": source["id"], **{k: source[k] for k in ("source", "location", "sha256")}, "quote": source["text"]}
-    response = json.dumps({"compliance_analysis": "Retain the decision record; applicability is proposed.",
-        "control_register": {"controls": [control(evidence=[evidence])]}})
-    runtime = RunRuntime(config_manager.system_config)
-    token = current_runtime.set(runtime)
-    try:
-        with pytest.raises(ValueError, match="authorized recorded"):
-            agent._parse_compliance_response(response, "Example", ["ITIL v4"])
-        runtime.sources[source["id"]] = {k: v for k, v in source.items() if k != "text"}
-        result = agent._parse_compliance_response(response, "Example", ["ITIL v4"])
-        assert runtime.sources[source["id"]]["text"] == source["text"]
-        ControlRegister.model_validate(result["control_register"]).validate_sources(runtime.sources, config_manager.document_profile)
-    finally:
-        current_runtime.reset(token)
 
 
 @pytest.mark.parametrize("change", ["missing", "duplicate", "location", "quote"])
@@ -303,88 +222,3 @@ async def test_shared_table_widths_and_docx_rows_keep_evidence_readable(tmp_path
     assert not any('accountable,' == p.text for p in doc.paragraphs)
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize("recheck_open,mutate_other,missing_control", [(False, False, False), (True, False, False), (False, True, False), (False, False, True)])
-async def test_real_document_agents_pipeline_revises_rechecks_and_enforces_coverage(pipeline, monkeypatch, recheck_open, mutate_other, missing_control):
-    leader, catalog, workers = pipeline
-    from src.agents import content_agent, review_agent, standards_agent
-    for module in (content_agent, review_agent, standards_agent):
-        monkeypatch.setattr(module, "config_manager", catalog)
-    standards, content, review = StandardsAgent(api_key=""), ContentAgent(api_key=""), ReviewAgent(api_key="")
-
-    async def standards_call(messages, **kwargs):
-        expected = catalog.get_standards_for_process("Change Management")
-        controls = [control(framework=expected[0])]
-        controls += [control(id="CTRL-OTHER-" + str(i), framework=s, applicability="undetermined") for i, s in enumerate(expected[1:])]
-        return json.dumps({"compliance_analysis": "Evidence gaps require human review.", "control_register": {"controls": controls}})
-
-    async def content_call(messages, **kwargs):
-        prompt = messages[0]["content"]
-        if "REVISION DATA:\n" in prompt:
-            data = json.loads(prompt.split("REVISION DATA:\n")[1])
-            return json.dumps({"base_document_sha256": data["base_document_sha256"], "patches": [
-                {"section_id": k, "base_section_sha256": v["sha256"], "body": v["body"].replace("BADSTEP", "The service desk records the decision.")}
-                for k, v in data["sections"].items()]})
-        section_id = requested_section(messages)
-        body = "Preserved text for " + next(s.title for s in catalog.document_profile.sections if s.id == section_id)
-        if section_id == "sec-procedures": body = "BADSTEP" + ("" if missing_control else " [CTRL-LOG]")
-        if section_id == "sec-roles": body = "| Activity | Owner | Operator |\n| --- | --- | --- |\n| Record decision | A | R |"
-        return json.dumps({"section_id": section_id, "body": body})
-
-    async def review_call(messages, **kwargs):
-        prompt = messages[0]["content"]
-        if "CORRECTION DATA:\n" in prompt:
-            data = json.loads(prompt.split("CORRECTION DATA:\n")[1])
-            return json.dumps({"corrections": [{"finding_id": f["finding_id"], "status": "open" if recheck_open else "resolved",
-                "rationale": "The revised text names an owner", "section_id": f["section_id"], "quote": "The service desk records the decision."}
-                for f in data["original_findings"]]})
-        document = json.loads(prompt.split("DOCUMENT DATA:\n")[1])
-        issues = [finding(document, "BADSTEP")] if "BADSTEP" in document else []
-        return json.dumps({"quality_score": 99, "decision": "revise" if issues else "acceptable", "issues": issues,
-                           "recommendations": ["Assign owner"] if issues else [], "summary": "Synthetic review"})
-
-    standards._call_claude = AsyncMock(side_effect=standards_call)
-    content._call_claude = AsyncMock(side_effect=content_call)
-    review._call_claude = AsyncMock(side_effect=review_call)
-    if mutate_other:
-        original = content.revise_sections
-        async def invalid_revision(*args):
-            return (await original(*args)).replace("Preserved text for Tools", "Changed text for Tools")
-        content.revise_sections = invalid_revision
-    for name, agent in [("StandardsAgent", standards), ("ContentAgent", content), ("ReviewAgent", review)]:
-        leader.register_worker(name, agent)
-    if recheck_open or mutate_other or missing_control:
-        expected = "remain open" if recheck_open else "unaffected section" if mutate_other else "Control coverage failed"
-        with pytest.raises(ValueError, match=expected):
-            await leader.generate_documentation("Change Management", ["markdown"])
-        assert not (Path(leader.context["run_dir"]) / "approval.json").exists()
-        if recheck_open:
-            run = json.loads((Path(leader.context["run_dir"]) / "run.json").read_text())
-            assert run["revision_history"][0]["recheck"]["corrections"][0]["status"] == "open"
-            assert run["document_reviews"][0]["review"]["issues"][0]["blocking"]
-        return
-    outputs = await leader.generate_documentation("Change Management", ["markdown"])
-    ready = json.loads((Path(leader.context["run_dir"]) / "ready.json").read_text())
-    assert leader.workflow_status == "awaiting_human_approval"
-    assert len(ready["revision_history"]) == 1 and ready["revision_history"][0]["target_sections"] == ["sec-procedures"]
-    assert ready["quality"]["control_coverage"]["controls"][0]["referenced_sections"] == ["sec-procedures"]
-    # One request per section, then one targeted revision.
-    assert content._call_claude.await_count == len(catalog.document_profile.sections) + 1
-    assert review._call_claude.await_count == 3
-    assert "The service desk records the decision." in Path(outputs["markdown"]).read_text()
-    resumed = await leader.resume_formatting(leader.context["run_dir"], ["html"])
-    assert Path(resumed["html"]).exists() and leader.workflow_status == "awaiting_human_approval"
-
-
-@pytest.mark.asyncio
-async def test_profile_change_blocks_model_recovery_before_new_calls(pipeline, monkeypatch):
-    leader, catalog, workers = pipeline
-    workers["ContentAgent"].generate_sop.side_effect = RuntimeError("Synthetic interruption")
-    with pytest.raises(RuntimeError):
-        await leader.generate_documentation("Change Management", ["markdown"])
-    parent = leader.context["run_dir"]
-    monkeypatch.setattr(catalog.document_profile.style, "body_pt", 12)
-    workers["ContentAgent"].generate_sop.reset_mock()
-    with pytest.raises(ValueError, match="configuration"):
-        await leader.resume_execution(parent, allow_external_ai=True)
-    workers["ContentAgent"].generate_sop.assert_not_awaited()

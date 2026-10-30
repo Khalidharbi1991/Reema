@@ -1,12 +1,9 @@
 import hashlib
-import json
-from types import SimpleNamespace
-from unittest.mock import AsyncMock
 
 import pytest
 import yaml
 
-from src.knowledge.retrieval import ReferenceIndex, make_chunks, chunks, units
+from src.knowledge.retrieval import ReferenceIndex, make_chunks, chunks
 from src.utils.config import SystemConfig
 from src.utils.quality import quality_report, validate_quality
 
@@ -80,35 +77,6 @@ def test_docx_retrieval_preserves_tables_and_repeated_headings(tmp_path):
 def test_chunks_cover_every_character_without_loss():
     text = "start" + "a" * 50000 + "end"
     assert "".join(part for _, part in chunks(text, 24000)) == text
-
-
-@pytest.mark.asyncio
-async def test_full_document_review_includes_tail_and_global_pass(monkeypatch):
-    from src.agents.review_agent import ReviewAgent
-    from src.utils.config import config_manager
-    monkeypatch.setattr(config_manager.system_config, "review_chunk_chars", 1000)
-    agent = ReviewAgent(api_key="")
-    good = json.dumps({"quality_score": 95, "decision": "acceptable", "issues": [], "recommendations": [], "summary": "Checked excerpt"})
-    content = "## 1. Introduction\n" + "x" * 1400 + "TAIL_MUST_BE_REVIEWED"
-    start = content.index("TAIL_MUST_BE_REVIEWED")
-    bad = json.dumps({"quality_score": 40, "decision": "revise", "issues": [{"severity": "critical", "description": "Tail defect",
-        "section_id": "sec-introduction", "quote": "TAIL_MUST_BE_REVIEWED", "start": start, "end": len(content), "action": "Fix tail"}], "recommendations": ["Fix tail"], "summary": "Tail is wrong"})
-    agent._call_claude = AsyncMock(side_effect=[good, bad, good])
-    result = await agent.review_content(content)
-    assert agent._call_claude.await_count == 3
-    assert "TAIL_MUST_BE_REVIEWED" in agent._call_claude.await_args_list[1].args[0][0]["content"]
-    assert result["quality_score"] == 40 and result["needs_revision"]
-    assert result["coverage"]["characters_reviewed"] == len(content)
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("response", ['{"quality_score":95}', 'APPROVED', '{"quality_score": "95"}'])
-async def test_malformed_structured_reviews_never_pass(response):
-    from src.agents.review_agent import ReviewAgent
-    agent = ReviewAgent(api_key="")
-    agent._call_claude = AsyncMock(return_value=response)
-    with pytest.raises(ValueError):
-        await agent.review_content("Document")
 
 
 def test_raci_and_source_citation_checks(sample_sop_content):

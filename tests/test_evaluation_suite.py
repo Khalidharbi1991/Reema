@@ -84,11 +84,11 @@ async def test_live_provider_failure_preserves_partial_report_and_stops_paid_att
 ])
 def test_actual_agents_and_proposal_preserve_family_and_role_model_overrides(catalog,monkeypatch,family,role_model,expected):
     from src.agents import base_agent,leader_agent
-    from src.agents.research_agent import ResearchAgent
+    from src.agents.review_agent import ReviewAgent
     monkeypatch.setattr(base_agent,'config_manager',catalog);monkeypatch.setattr(leader_agent,'config_manager',catalog)
     catalog.system_config.worker_model=family;catalog.system_config.leader_model=family
-    for role in ['research_agent','leader_agent']:catalog.agents_config[role]['model']=role_model
-    assert ResearchAgent(api_key='').model==expected
+    for role in ['review_agent','research_agent','leader_agent']:catalog.agents_config[role]['model']=role_model
+    assert ReviewAgent(api_key='').model==expected
     assert leader_agent.LeaderAgent(api_key='').model==expected
     selected=[item['request']['model'] for item in evaluation.requests(catalog) if item['role'] in ['research_agent','leader_agent']]
     assert selected==[expected]*4

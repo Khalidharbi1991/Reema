@@ -1,5 +1,6 @@
 """Regression tests for process selection, fail-closed delivery and human review."""
 
+import json
 import shutil
 from pathlib import Path
 from types import SimpleNamespace
@@ -114,116 +115,6 @@ def test_paths_follow_project_root_and_docker_env(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("process, selected", [
-    ("Change Management", set()),
-    ("Incident Management", {"problem"}),
-    ("Problem Management", {"problem"}),
-    ("Access Management", {"access"}),
-])
-async def test_end_to_end_routing_and_pending_record(pipeline, process, selected):
-    leader, catalog, workers = pipeline
-    outputs = await leader.generate_documentation(process, ["markdown", "html", "docx"])
-    assert set(outputs) == {"markdown", "html", "docx"}
-    record = read_record(Path(leader.context["delivery"]["approval_record"]))
-    assert record.status == "awaiting_human_approval"
-    assert record.reviewer is None
-    for key, cls, method in [
-        ("access", "AccessAgent", "analyze_access_requirements"),
-        ("problem", "ProblemAgent", "research_problem_management"),
-        ("data", "DataAgent", "design_analytics_framework"),
-    ]:
-        assert getattr(workers[cls], method).await_count == int(key in selected)
-    assert workers["FormatAgent"].output_dir == catalog.system_config.output_dir
-    # Verify real DOCX export retains headings separated by horizontal rules.
-    from docx import Document
-    paragraphs = "\n".join(p.text for p in Document(outputs["docx"]).paragraphs)
-    assert "Detailed Procedures" in paragraphs and "Document Control" in paragraphs
-
-
-@pytest.mark.asyncio
-async def test_explicit_specialists_and_compliance_argument_order(pipeline, sample_sop_content):
-    leader, catalog, workers = pipeline
-    await leader.generate_documentation("Change Management", ["markdown"], specialists=["access", "data"])
-    workers["DataAgent"].create_dashboard_design.assert_awaited_once()
-    # Exercise the real prompt builder, not only the mock's call count.
-    from src.agents.data_agent import DataAgent
-    dashboard_args = workers["DataAgent"].create_dashboard_design.await_args.args
-    assert "Metrics to visualize" in DataAgent(api_key="")._build_dashboard_prompt(*dashboard_args)
-    args = workers["AccessAgent"].validate_access_compliance.await_args.args
-    assert sample_sop_content in args[0]
-    assert args[1] == catalog.get_standards_for_process("Change Management")
-
-
-@pytest.mark.asyncio
-async def test_generations_do_not_overwrite_or_reuse_approval(pipeline):
-    leader, _, _ = pipeline
-    first = await leader.generate_documentation("Change Management", ["markdown"])
-    record = Path(leader.context["delivery"]["approval_record"])
-    record_decision(record, "approved", "Test reviewer")
-    second = await leader.generate_documentation("Change Management", ["markdown"])
-    assert first != second
-    assert Path(first["markdown"]).exists()
-    assert read_record(record).status == "approved"
-    assert read_record(Path(leader.context["delivery"]["approval_record"])).status == "awaiting_human_approval"
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("case", ["no_auth", "missing_agent", "missing_format", "unknown_process", "invalid_format"])
-async def test_preflight_blocks_before_model_calls(pipeline, case):
-    leader, catalog, workers = pipeline
-    process, formats = "Change Management", ["markdown"]
-    if case == "no_auth":
-        catalog.system_config.allow_external_ai = False
-    elif case == "missing_agent":
-        del leader.worker_agents["ContentAgent"]
-    elif case == "missing_format":
-        workers["FormatAgent"].formatters.pop("markdown")
-    elif case == "unknown_process":
-        process = "Typos"
-    elif case == "invalid_format":
-        formats = ["exe"]
-    with pytest.raises((ValueError, PermissionError)):
-        await leader.generate_documentation(process, formats)
-    workers["ResearchAgent"].research_process.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("case", ["empty", "incomplete", "review_failed", "revision_requested", "critical", "compliance_failed", "compliance_error", "enrichment_error", "format_failed"])
-async def test_failed_runs_cannot_reach_human_approval(pipeline, case):
-    leader, catalog, workers = pipeline
-    process = "Access Management"
-    if case in ("empty", "incomplete"):
-        workers["ContentAgent"].generate_sop.return_value = "" if case == "empty" else "# Incomplete"
-    elif case == "review_failed":
-        workers["ReviewAgent"].review_content.return_value = {"quality_score": 40, "needs_revision": True}
-    elif case == "critical":
-        workers["ReviewAgent"].review_content.return_value = {"quality_score": 99, "issues": [{"severity": "critical"}]}
-    elif case == "revision_requested":
-        workers["ReviewAgent"].review_content.return_value = {"quality_score": 99, "approval_status": "REQUIRES_REVISION"}
-    elif case == "compliance_failed":
-        workers["AccessAgent"].validate_access_compliance.return_value = {"compliant": False}
-    elif case == "compliance_error":
-        workers["AccessAgent"].validate_access_compliance.side_effect = RuntimeError("Unavailable")
-    elif case == "enrichment_error":
-        workers["AccessAgent"].generate_access_content.side_effect = RuntimeError("Unavailable")
-    elif case == "format_failed":
-        workers["FormatAgent"].formatters["markdown"].convert = AsyncMock(side_effect=RuntimeError("Disk failure"))
-    with pytest.raises((ValueError, RuntimeError)):
-        await leader.generate_documentation(process, ["markdown"])
-    assert not list(catalog.system_config.output_dir.rglob("approval.json"))
-    assert workers["FormatAgent"].output_dir == catalog.system_config.output_dir
-
-
-@pytest.mark.asyncio
-async def test_threshold_configuration_is_honored(pipeline):
-    leader, catalog, workers = pipeline
-    catalog.agents_config["review_agent"]["quality_threshold"] = 95
-    with pytest.raises(ValueError, match="Quality review failed"):
-        await leader.generate_documentation("Change Management", ["markdown"])
-    assert workers["ReviewAgent"].review_content.await_count == 2
-
-
-@pytest.mark.asyncio
 async def test_formatter_failure_cannot_report_partial_success(pipeline, sample_sop_content):
     _, catalog, workers = pipeline
     formatter = workers["FormatAgent"]
@@ -315,13 +206,6 @@ def test_supporting_review_records_are_bound_to_approval(tmp_path, missing):
     assert read_record(path).status == "awaiting_human_approval"
 
 
-def test_high_scoring_review_still_requires_requested_changes():
-    from src.agents.review_agent import ReviewAgent
-    review = ReviewAgent(api_key="")
-    result = review._parse_review_response("Overall Quality Score: 99/100\nRequires revision", "Draft")
-    assert result["needs_revision"] is True
-
-
 @pytest.mark.asyncio
 async def test_docx_retains_sections_between_horizontal_rules(tmp_path):
     from docx import Document
@@ -351,40 +235,30 @@ async def test_external_ai_denied_before_client_call(monkeypatch):
     ["generate", "Typo"],
     ["generate", "Change Management", "-f", "invalid"],
     ["generate", "Change Management", "--specialist", "invalid"],
-    ["generate", "Change Management"],
 ])
-def test_cli_rejects_invalid_or_unauthorized_input(catalog, monkeypatch, args):
-    from src import main
-    catalog.system_config.allow_external_ai = False
+def test_cli_rejects_invalid_input_before_preparing(catalog, monkeypatch, args):
+    from src import main, generate_job
     monkeypatch.setattr(main, "config_manager", catalog)
-    initialize = MagicMock(side_effect=AssertionError("Must not initialize"))
-    monkeypatch.setattr(main, "initialize_system", initialize)
+    monkeypatch.setattr(generate_job, "config_manager", catalog)
     result = CliRunner().invoke(main.app, args)
     assert result.exit_code == 2, result.output
-    initialize.assert_not_called()
+    assert not (catalog.system_config.output_dir / "claude_code").exists()
 
 
-def test_cli_custom_output_applied_before_initialization(catalog, monkeypatch, tmp_path):
-    from src import main
+def test_cli_generate_prepares_in_the_custom_output_and_restores_it(catalog, monkeypatch, tmp_path):
+    from src import main, generate_job
     monkeypatch.setattr(main, "config_manager", catalog)
+    monkeypatch.setattr(generate_job, "config_manager", catalog)
     original_dir = catalog.system_config.output_dir
-    catalog.system_config.allow_external_ai = False
     custom_dir = tmp_path / "custom"
-    leader = SimpleNamespace(
-        generate_documentation=AsyncMock(return_value={"markdown": str(custom_dir / "draft.md")}),
-        context={"delivery": {"approval_record": str(custom_dir / "approval.json")}},
-    )
-    def initialize(selected):
-        assert catalog.system_config.output_dir == custom_dir
-        assert catalog.system_config.allow_external_ai is True
-        assert selected == ["data"]
-        return {"leader": leader}
-    monkeypatch.setattr(main, "initialize_system", initialize)
-    result = CliRunner().invoke(main.app, ["generate", "Bespoke", "--custom", "--allow-external-ai", "--specialist", "data", "-f", "markdown", "-o", str(custom_dir)])
+    result = CliRunner().invoke(main.app, ["generate", "Bespoke", "--custom", "--specialist", "data", "-f", "markdown",
+                                           "-o", str(custom_dir)], terminal_width=1000)
     assert result.exit_code == 0, result.output
-    assert "awaiting human approval" in result.output
+    work = next((custom_dir / "claude_code").iterdir())
+    request = json.loads((work / "generate_request.json").read_text())
+    assert request["request"]["process_name"] == "Bespoke" and request["specialists"] == ["data"]
+    assert f"write SOP work {work.name} with output root {custom_dir}" in result.output and "reema-generate" in result.output
     assert catalog.system_config.output_dir == original_dir
-    assert catalog.system_config.allow_external_ai is False
 
 
 @pytest.mark.parametrize("answer, status", [("n\n", "awaiting_human_approval"), ("y\n", "approved")])

@@ -61,13 +61,11 @@ def test_shipped_default_output_folder_is_ignored():
 
 @needs_git
 @pytest.mark.parametrize("folder, warned", [("my-docs", True), ("output/my-docs", False)])
-def test_generate_warns_before_the_consent_check(repo, monkeypatch, folder, warned):
+def test_generate_warns_before_preparing(repo, monkeypatch, folder, warned):
     from src import main
     monkeypatch.setattr(main, "console", Console(width=1000))
-    monkeypatch.setattr(main.config_manager.system_config, "allow_external_ai", False)
     result = CliRunner().invoke(main.app, ["generate", "Incident Management", "-f", "markdown",
                                            "--output", str(repo / folder)])
-    assert result.exit_code == 2
+    assert result.exit_code == 0, result.output
     assert ("Warning: output folder" in result.output) == warned
-    assert "--allow-external-ai" in result.output
-    assert not (repo / folder).exists()
+    assert list((repo / folder / "claude_code").iterdir())

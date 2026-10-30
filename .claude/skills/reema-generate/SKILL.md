@@ -16,6 +16,8 @@ model reviews the draft, and nothing is approved here.
    If it refuses with a `--confirm-read` token, it names the reference and input files that would be
    read. Ask Khalid; only with his yes, run the same command again with `--confirm-read <token>`.
    Never pass a token without that yes. Note the work id. Any other refusal is final: report it.
+   If Khalid already ran `reema generate` and gives you a work id, skip this step; when he names an
+   output root, add `-o "<root>"` before the subcommand in every script call below.
 3. Ask the `reema-writer` subagent to write the section files for that work id. If prepare printed a
    patch appendix path, also ask the `reema-agent10-euc` subagent to write that appendix for the work id.
 4. `python3 scripts/dev.py python scripts/claude_code_generate.py check <id>`

@@ -1,8 +1,6 @@
 """Package five acceptance checks using synthetic inputs and fake providers only."""
 
-import asyncio
 import json
-import os
 from pathlib import Path
 import subprocess
 import sys
@@ -16,14 +14,12 @@ from src.utils.config import config_manager
 from src.utils.diagrams import parse_flow, png_flow, svg_flow
 from src.utils.execution import ExecutionJournal, load_execution
 from src.utils.ownership import RunLease
-from src.utils.provider import RunRuntime, current_runtime, Completion
+from src.utils.provider import RunRuntime, current_runtime
 from src.utils.quality import assess_all, ComplianceAssessment
 from src.utils.runs import RunStore
-from src.utils.specialists import (SpecialistPolicy, IAMSnapshot, check_iam, ProblemCase,
-    Hypothesis, assess_problem, MetricSpec, calculate_metric, SpecialistInputs)
+from src.utils.specialists import (SpecialistPolicy, IAMSnapshot, check_iam, ProblemCase, Hypothesis, assess_problem, MetricSpec, calculate_metric)
 from src.utils.domain_depth import iam_drift
-from tests.test_coordination_package import interrupted
-from tests.test_phase01 import catalog, pipeline
+from tests.test_phase01 import catalog
 from tests.test_specialist_package import source, evidence, snapshot, hypotheses, case
 
 
@@ -74,23 +70,6 @@ def test_real_owner_blocks_reads_and_hard_kill_releases_authenticated_running_re
     finally:
         if process.poll() is None: process.kill(); process.wait(timeout=5)
         for stream in [process.stdin,process.stdout,process.stderr]: stream.close()
-
-
-@pytest.mark.asyncio
-async def test_concurrent_resumer_cannot_enter_parent_while_first_resume_is_running(pipeline):
-    leader,config,workers=pipeline
-    directory=await interrupted(pipeline)
-    entered,release=asyncio.Event(),asyncio.Event()
-    original=leader.generate_documentation
-    async def blocked(*args,**kwargs):
-        entered.set(); await release.wait(); return await original(*args,**kwargs)
-    leader.generate_documentation=blocked
-    task=asyncio.create_task(leader.resume_execution(directory,allow_external_ai=True))
-    await asyncio.wait_for(entered.wait(),2)
-    try:
-        with pytest.raises(RuntimeError,match='active owner'): load_execution(directory,config)
-    finally:
-        release.set(); await task
 
 
 def test_ownership_refuses_cross_host_and_symlink(tmp_path):
@@ -266,8 +245,8 @@ def test_calendar_rejects_ambiguous_dst_work_boundary():
 
 @pytest.mark.asyncio
 async def test_retrieval_does_not_erase_pinned_excerpt_text(catalog):
-    from src.agents import ResearchAgent
-    agent=ResearchAgent(api_key='synthetic')
+    from src.agents import ContentAgent
+    agent=ContentAgent(api_key='synthetic')
     agent.source_records=[source()];agent.knowledge_records=[]
     runtime=RunRuntime(catalog.system_config);runtime.sources={'SRC-fixture':source()}
     runtime.call=AsyncMock(return_value='Synthetic')

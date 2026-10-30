@@ -1,7 +1,7 @@
 """Tests for individual agent implementations."""
 
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch, MagicMock
 from pathlib import Path
 
 
@@ -119,94 +119,6 @@ class TestLeaderAgent:
         assert kpis == ["Custom KPI 1", "Custom KPI 2"]
 
 
-class TestReviewLoopFixes:
-    """Test the review loop bug fixes (Gap 2)."""
-
-    @patch('src.agents.leader_agent.config_manager')
-    @pytest.mark.asyncio
-    async def test_review_none_handling(self, mock_cm):
-        """Verify content is NOT None when refined_content is None (Gap 2 fix)."""
-        mock_cm.system_config.anthropic_api_key = "test-key"
-        mock_cm.system_config.leader_model = "claude-sonnet-4-6"
-        mock_cm.get_agent_config.return_value = {"quality_threshold": 85}
-        mock_cm.document_profile.max_review_cycles = 2
-
-        from src.agents.leader_agent import LeaderAgent
-        leader = LeaderAgent(api_key="test-key")
-
-        # Mock ReviewAgent that returns quality_score=90 but refined_content=None
-        mock_review = MagicMock()
-        mock_review.review_content = AsyncMock(return_value={
-            "quality_score": 90,
-            "refined_content": None,
-            "feedback": [],
-            "needs_revision": False
-        })
-        leader.worker_agents["ReviewAgent"] = mock_review
-
-        result = await leader._coordinate_review("Original SOP content here")
-        assert result is not None
-        assert result == "Original SOP content here"
-
-    @patch('src.agents.leader_agent.config_manager')
-    @pytest.mark.asyncio
-    async def test_review_max_two_cycles(self, mock_cm):
-        """Verify max 2 review cycles."""
-        mock_cm.system_config.anthropic_api_key = "test-key"
-        mock_cm.system_config.leader_model = "claude-sonnet-4-6"
-        mock_cm.get_agent_config.return_value = {"quality_threshold": 85}
-        mock_cm.document_profile.max_review_cycles = 2
-
-        from src.agents.leader_agent import LeaderAgent
-        leader = LeaderAgent(api_key="test-key")
-
-        # Mock ReviewAgent that always fails
-        mock_review = MagicMock()
-        mock_review.review_content = AsyncMock(return_value={
-            "quality_score": 50,
-            "refined_content": None,
-            "feedback": ["Needs work"],
-            "needs_revision": True
-        })
-        leader.worker_agents["ReviewAgent"] = mock_review
-
-        # Mock ContentAgent for refinement
-        mock_content = MagicMock()
-        mock_content.refine_content = AsyncMock(return_value="Refined content")
-        leader.worker_agents["ContentAgent"] = mock_content
-
-        with pytest.raises(ValueError, match="Quality review failed"):
-            await leader._coordinate_review("Initial content")
-
-        # Should call review_content exactly 2 times (2 cycles max)
-        assert mock_review.review_content.call_count == 2
-
-    @patch('src.agents.leader_agent.config_manager')
-    @pytest.mark.asyncio
-    async def test_review_passes_first_cycle(self, mock_cm):
-        """Verify early return when quality passes on first cycle."""
-        mock_cm.system_config.anthropic_api_key = "test-key"
-        mock_cm.system_config.leader_model = "claude-sonnet-4-6"
-        mock_cm.get_agent_config.return_value = {"quality_threshold": 85}
-        mock_cm.document_profile.max_review_cycles = 2
-
-        from src.agents.leader_agent import LeaderAgent
-        leader = LeaderAgent(api_key="test-key")
-
-        mock_review = MagicMock()
-        mock_review.review_content = AsyncMock(return_value={
-            "quality_score": 92,
-            "refined_content": "Polished content",
-            "feedback": [],
-            "needs_revision": False
-        })
-        leader.worker_agents["ReviewAgent"] = mock_review
-
-        result = await leader._coordinate_review("Content")
-        assert mock_review.review_content.call_count == 2  # A reviewer rewrite requires its own review.
-        assert result == "Polished content"
-
-
 class TestContentAgent:
     """Test ContentAgent (Saad)."""
 
@@ -261,14 +173,12 @@ class TestAgentInheritance:
         from src.agents.base_agent import BaseAgent
         from src.agents import (
             ContentAgent, ReviewAgent, FormatAgent,
-            DataAgent, AccessAgent, ResearchAgent,
-            StandardsAgent, SecretaryAgent
+            SecretaryAgent, BuildingDesignAgent, EUCAgent
         )
 
         agents = [
             ContentAgent, ReviewAgent, FormatAgent,
-            DataAgent, AccessAgent, ResearchAgent,
-            StandardsAgent, SecretaryAgent
+            SecretaryAgent, BuildingDesignAgent, EUCAgent
         ]
 
         for agent_cls in agents:
@@ -279,14 +189,12 @@ class TestAgentInheritance:
         """Verify all agents define required class attributes."""
         from src.agents import (
             ContentAgent, ReviewAgent, FormatAgent,
-            DataAgent, AccessAgent, ResearchAgent,
-            StandardsAgent, SecretaryAgent
+            SecretaryAgent, BuildingDesignAgent, EUCAgent
         )
 
         agents = [
             ContentAgent, ReviewAgent, FormatAgent,
-            DataAgent, AccessAgent, ResearchAgent,
-            StandardsAgent, SecretaryAgent
+            SecretaryAgent, BuildingDesignAgent, EUCAgent
         ]
 
         for agent_cls in agents:
