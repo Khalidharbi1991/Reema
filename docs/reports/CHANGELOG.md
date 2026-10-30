@@ -5,6 +5,18 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md); open external requirements live in the
 [finite ledger](PENDING_LEDGER.md).
 
+## 2026-10-30 — Cleanup after the gap review
+
+No user-facing features changed. `reema version` now reports 2.0.0, matching the
+package metadata, and `reema status` no longer lists an ITOM file. Removed code that
+nothing called: the research/problem agents' ITOM loaders, the leader's model client
+and `_call_claude`, Ahmad's delivery-summary and owner-briefing helpers, unused
+`agent_config.yaml` keys and `scripts/utilities/agent_introductions.py`. README setup,
+troubleshooting, license and Python API example were corrected, and outdated guides
+moved to `docs/archive/`. Unused dependencies were left in place until the lock files
+can be regenerated with `uv`. Suite: 677 before, 673 after (one test added, five
+removed with the deleted helpers).
+
 ## 2026-10-29 — Personal assistant purpose
 
 Purpose changed to personal assistant; work-first priority; patch report
