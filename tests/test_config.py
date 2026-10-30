@@ -108,3 +108,11 @@ class TestConfigManager:
         ]
         for agent in expected_agents:
             assert agent in config_manager.agents_config, f"Missing config for {agent}"
+
+
+def test_package_version_matches_project_metadata():
+    """`reema version` reports the same version as pyproject.toml."""
+    import tomllib
+    import src
+    project = tomllib.loads((Path(__file__).resolve().parents[1] / "pyproject.toml").read_text())["project"]
+    assert src.__version__ == project["version"]

@@ -109,7 +109,7 @@ and decision authority. Run `python3 scripts/dev.py run agents` for the active r
 
 1. **Clone or navigate to the project directory:**
 ```bash
-cd "C:\Users\Khali\Desktop\Projects\IT Consultant"
+cd "/path/to/IT Consultant"
 ```
 
 2. **Create and verify the locked project environment:**
@@ -266,7 +266,7 @@ IT-Consultant/
 ├── CLAUDE.md                      # Imports AGENTS.md
 ├── README.md                      # This file
 ├── pyproject.toml                 # Package and test configuration
-├── requirements.txt               # Python dependencies
+├── requirements.txt               # Convenience alias for .[dev]; the lock files are the install source
 ├── config/                        # Agent, process, and standards YAML
 ├── src/                           # Main REEMA application
 │   ├── agents/                    # Management and worker agents
@@ -426,58 +426,44 @@ See the [source setup guide](docs/guides/RELIABILITY_AND_SOURCES.md).
 
 ### Import Errors
 
-Ensure all dependencies are installed:
+Rebuild and check the locked project environment:
 
 ```bash
-pip install -r requirements.txt
+python3 scripts/dev.py bootstrap
+python3 scripts/dev.py doctor
 ```
 
 ### Permission Errors
 
-Ensure the output directory has write permissions:
-
-```bash
-chmod 755 output/
-```
+Make sure your user owns `output/` (`ls -ld output`). Do not widen its
+permissions: REEMA keeps the task and memory stores owner-only.
 
 ## Advanced Usage
 
 ### Python API
 
-You can also use the system programmatically:
+You can also use the system programmatically. Save a script and run it through
+the locked launcher with `python3 scripts/dev.py python your_script.py`:
 
 ```python
 import asyncio
-from src.agents.leader_agent import LeaderAgent
-from src.agents.research_agent import ResearchAgent
-from src.agents.standards_agent import StandardsAgent
-from src.agents.content_agent import ContentAgent
-from src.agents.review_agent import ReviewAgent
-from src.agents.format_agent import FormatAgent
+from src.main import initialize_system
 
 async def generate_docs():
-    # Initialize leader
-    leader = LeaderAgent()
-
-    # Register workers
-    leader.register_worker("ResearchAgent", ResearchAgent())
-    leader.register_worker("StandardsAgent", StandardsAgent())
-    leader.register_worker("ContentAgent", ContentAgent())
-    leader.register_worker("ReviewAgent", ReviewAgent())
-    leader.register_worker("FormatAgent", FormatAgent())
-
-    # Generate documentation
-    # Requires ALLOW_EXTERNAL_AI=true only after authorizing the input material.
+    # Registers Abdullah and the core workers (Agents 1–5).
+    leader = initialize_system()["leader"]
     try:
+        # Set allow_external_ai=True only after authorizing this run's input material.
         return await leader.generate_documentation(
-            "Incident Management", ["pdf", "docx"]
+            "Incident Management", ["pdf", "docx"], allow_external_ai=True
         )
     finally:
         await leader.close()
 
-# Run
 asyncio.run(generate_docs())
 ```
+
+Drafts stop at `awaiting_human_approval`; only the named human reviewer approves.
 
 ## Contributing
 
@@ -496,7 +482,7 @@ For issues or questions:
 
 ## License
 
-Internal use only - IT Process Documentation System
+Internal use only
 
 ## Version
 

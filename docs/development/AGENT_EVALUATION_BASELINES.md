@@ -47,7 +47,7 @@ decision explicitly; they do not prove a model can detect missing evidence.
 
 ## Reconciled acceptance targets after package 5
 
-Package 5's full suite passes 597 offline tests. The prior future targets below
+Package 5's full suite passed 597 offline tests; the current suite passes 678. The prior future targets below
 are reconciled individually; passing mocks does not establish model reasoning or
 production truth. See the [package 5 report](../reports/AGENT_IMPROVEMENTS_PACKAGE_5.md),
 [finite ledger](../reports/PENDING_LEDGER.md) and

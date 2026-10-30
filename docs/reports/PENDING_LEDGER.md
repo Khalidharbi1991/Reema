@@ -7,7 +7,7 @@ universal understanding, production certification or a full building/BIM product
 
 | ID | Named commitment | Status | Completion evidence or requirement |
 | --- | --- | --- | --- |
-| P1–P4 | Complete handoffs/contracts, truthful status, coordination, session continuity, SOP quality, project setup and specialist validators | Complete | Historical package 1–4 reports; prior baseline 446 tests, current full suite 597 |
+| P1–P4 | Complete handoffs/contracts, truthful status, coordination, session continuity, SOP quality, project setup and specialist validators | Complete | Historical package 1–4 reports; prior baseline 446 tests, package 5 suite 597, current full suite 678 |
 | R1 | Broader Arabic/English intent, contextual references, exclusions and ambiguity | Complete bounded implementation | `coordination.py`, `assistant.py`, configured bilingual hints; actual planner/local/consent/override tests in `test_completion_package.py`; real semantic quality remains E2 |
 | R2 | Hard-crash/stale-running recovery without interfering with live owners | Complete on verified host | `ownership.py`, `runs.py`, `execution.py`; actual subprocess kill, active-owner and concurrent-resumer tests; cross-host recovery rejected; other hosts E4 |
 | R3 | Reuse completed individual review/compliance chunks | Complete | `quality.py` and signed `completed_assessments`; exact prompt/schema/identity binding, validation before cache/use, interruption/reuse and durable unknown-usage reservation tests |
