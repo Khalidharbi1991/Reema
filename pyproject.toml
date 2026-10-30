@@ -49,23 +49,15 @@ dependencies = [
     "pypdf>=6.6.0",
     "pdfplumber>=0.10.0",
 
-    # Async Operations
-    "aiofiles>=23.0.0",
-
     # HTML/CSS Processing
     "beautifulsoup4>=4.12.0",
-    "lxml>=4.9.0",
 
     # Image Generation (for diagrams)
     "pillow>=10.0.0",
     "ezdxf>=1.4.4,<2.0",
 
     # Data Processing
-    "pandas>=2.0.0",
     "openpyxl>=3.1.0",
-
-    # Environment
-    "python-dotenv>=1.0.0",
 ]
 
 [project.optional-dependencies]
