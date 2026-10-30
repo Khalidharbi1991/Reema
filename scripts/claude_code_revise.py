@@ -26,6 +26,7 @@ sys.path.insert(0, str(ROOT))
 
 from src.agents.file_workers import FilePatchWorker, FileRecheckWorker  # noqa: E402
 from src.agents.leader_agent import LeaderAgent  # noqa: E402
+from src.utils.approvals import read_record  # noqa: E402
 from src.utils.config import config_manager  # noqa: E402
 from src.utils.documents import (CorrectionAssessment, SectionPatch, assert_no_new_references,  # noqa: E402
                                  assert_only_targets_changed, section_map, sha)
@@ -166,8 +167,11 @@ def _run_facts(run_dir):
     lines = list(difflib.ndiff(before.splitlines(), after.splitlines()))
     corrections = revised["recheck"]["corrections"]
     usage = state.get("usage", {})
+    # run.json keeps the job's end state; the human decision lives only in approval.json.
+    record = read_record(run_dir / "approval.json")
     return {"run": run_dir.name, "authoring": state.get("authoring", "anthropic_api"),
-            "status": state.get("status"), "source_sha256": source["sha256"],
+            "status": state.get("status"), "decision": record.status, "reviewer": record.reviewer or "-",
+            "decided_at": record.decided_at or "-", "source_sha256": source["sha256"],
             "sections_changed": "; ".join(changed),
             "lines_added": sum(l.startswith("+ ") for l in lines), "lines_removed": sum(l.startswith("- ") for l in lines),
             "recheck_resolved": f"{sum(c['status'] == 'resolved' for c in corrections)}/{len(corrections)}",

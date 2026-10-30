@@ -11,7 +11,7 @@ from src.agents.content_agent import ContentAgent
 from src.agents.file_workers import FilePatchWorker, FileRecheckWorker
 from src.agents.leader_agent import LeaderAgent
 from src.agents.review_agent import ReviewAgent
-from src.utils.approvals import read_record
+from src.utils.approvals import read_record, record_decision
 from src.utils.config import config_manager
 from src.utils.existing_sops import load_sop
 from src.utils.provider import RunRuntime
@@ -142,10 +142,15 @@ def test_cli_reports_refusals_and_compare_reads_both_runs(tmp_path, output_root,
         ccr.check(work_id)
         write_recheck(work, request)
         runs.append(Path(ccr.finish(work_id)["docx"]).parent)
+    record_decision(runs[0] / "approval.json", "approved", "Synthetic Reviewer")
     capsys.readouterr()
     assert ccr.main(["compare", str(runs[0]), str(runs[1])]) == 0
     out = capsys.readouterr().out
     assert "claude_code_session" in out and "2. Escalation" in out and "1/1" in out
+    rows = {line.split()[0]: line.split(None, 1)[1] for line in out.splitlines() if line.strip()}
+    assert rows["decision"].split() == ["approved", "awaiting_human_approval"]
+    assert rows["reviewer"].split("  ")[0] == "Synthetic Reviewer" and rows["reviewer"].rstrip().endswith("-")
+    assert read_record(runs[0] / "approval.json").decided_at in rows["decided_at"]
 
 
 @pytest.mark.asyncio
