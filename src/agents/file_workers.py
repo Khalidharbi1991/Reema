@@ -1,11 +1,13 @@
-"""File-backed stand-ins for Agent 3 and Agent 4 in a finished-SOP review or revision (experiment).
+"""File-backed stand-ins for Agent 3 and Agent 4 in Claude Code generate, review and revise jobs.
 
-A Claude Code session writes the review, patch and recheck JSON; these workers feed that text through
-the unchanged ReviewAgent.review_existing, ContentAgent.revise_sections and ReviewAgent.recheck_corrections
-parsing and validation instead of a provider reply. They have no client and never call a provider.
+A Claude Code session writes the section files, review, patch and recheck JSON; these workers feed that
+text through the unchanged ContentAgent.generate_sop, ReviewAgent.review_existing,
+ContentAgent.revise_sections and ReviewAgent.recheck_corrections parsing and validation instead of a
+provider reply. They have no client and never call a provider.
 """
 
 import json
+import re
 from pathlib import Path
 from typing import Dict, List
 
@@ -116,3 +118,34 @@ class FileReviewWorker(ReviewAgent):
         if not self._replies:
             raise ValueError("The review asked for more assessments than were written")
         return self._replies.pop(0)
+
+
+def section_files(directory):
+    """The expected Markdown file for each configured section, in document order: NN-<section id>.md."""
+    profile = config_manager.document_profile
+    return {section.id: Path(directory) / f"{number:02d}-{section.id}.md"
+            for number, section in enumerate(profile.sections, 1)}
+
+
+class FileSectionWriter(ContentAgent):
+    """Agent 3's generate step, with each section body read from its own Markdown file.
+
+    generate_sop asks for the sections in order; each request ends by naming its section id, and the
+    reply is that section's file wrapped as a SectionBody, so the unchanged per-section checks apply.
+    """
+
+    SECTION_ID = re.compile(r'Set section_id to "([^"]+)"\.$')
+
+    def __init__(self, sections_dir):
+        super().__init__(api_key="")
+        self.client = None
+        self.files = section_files(sections_dir)
+
+    async def _call_claude(self, messages: List[Dict], system: str = "", max_tokens: int = None) -> str:
+        match = self.SECTION_ID.search(messages[-1]["content"])
+        if not match or match.group(1) not in self.files:
+            raise ValueError("The generate step asked for a section this writer does not know")
+        path = self.files[match.group(1)]
+        if not path.is_file():
+            raise ValueError(f"No {path.name} yet: ask Claude Code to run reema-writer on this work id ({path.parent.parent.name})")
+        return json.dumps({"section_id": match.group(1), "body": _read(path)})

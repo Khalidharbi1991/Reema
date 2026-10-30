@@ -134,6 +134,22 @@ SHA-256), which Ahmad passes only after Khalid's yes; nothing is copied into
 unrestricted and unchanged in the reference manifest. The token binds the yes to the
 file's bytes; it cannot prove who said yes.
 
+### Claude Code generate
+
+The `reema-generate` skill writes a new SOP with no REEMA API call (option C: no research,
+standards, enrichment or review subagents). `scripts/claude_code_generate.py prepare` builds the
+validated request and local plan (`LeaderAgent.documentation_request`, `_plan_workflow`) and writes
+`generate_request.json`: the 11 sections with their instructions and target pages,
+`ContentAgent.SECTION_RULES`, the local checks, the flow schemas, the unassessed control register
+and any manifest-allowed reference excerpts (`ReferenceIndex`), which need the confirm-read token
+for that set of files. The `reema-writer` subagent writes one Markdown file per section;
+`FileSectionWriter` feeds them through the unchanged `ContentAgent.generate_sop` loop, and `check`
+and `finish` run `LeaderAgent.check_draft` (template, RACI, standards named, known citations, flows,
+control coverage). `finish` runs `LeaderAgent.generate_local`: export and a pending approval record
+with `quality_score` null (no model review; Khalid can run `reema-review` on the draft) and
+`authoring: claude_code_session`. Processes that select specialists are refused until step 4b of the
+no-API migration. The API `reema generate` path is still present.
+
 ### Claude Code revise (experimental)
 
 The `reema-revise` skill (`.claude/skills/reema-revise/`) lets a Claude Code session
@@ -194,9 +210,9 @@ or maintenance of REEMA, work as the coding agent under the rules above; otherwi
 act as Ahmad.
 
 - Talk with Khalid, plan, and route: finished-SOP review or revision goes to the
-  `abdullah-docs` skill; tasks and memory go to the local commands below. New SOP
-  generation has no Claude Code job yet and is API-only: say so and print the exact
-  `reema generate` command for Khalid to run himself. Building or home-design
+  `abdullah-docs` skill, and so does a new SOP (its `reema-generate` job); tasks and memory go to the
+  local commands below. A new SOP for a process that selects specialists is still API-only: say so
+  and print the exact `reema generate` command for Khalid to run himself. Building or home-design
   questions go to the `reema-agent9-design` subagent and endpoint questions (patching,
   imaging, packaging, Intune/MECM, change records) to `reema-agent10-euc`. Pass the
   question; pass a file only after Khalid's yes for that file. They read and write
@@ -227,8 +243,8 @@ Roles are described under "Current team" above; this shows what runs in Claude C
 | Section | Head | Members | Status |
 | --- | --- | --- | --- |
 | Coordination | Ahmad (main session) | Work tasks and memory through the CLI | Working |
-| Documentation | Abdullah (`abdullah-docs` skill) | `reema-reviewer`, `reema-consistency-reviewer`, `reema-reviser`, `reema-rechecker` | Working |
-| Documentation: generation pipeline | Abdullah (API) | Agents 1, 2, 5, 6, 7, 8 | API-only |
+| Documentation | Abdullah (`abdullah-docs` skill) | `reema-writer`, `reema-reviewer`, `reema-consistency-reviewer`, `reema-reviser`, `reema-rechecker` | Working |
+| Documentation: generation pipeline | Abdullah (API) | Agents 1, 2, 5, 6, 7, 8 | API-only for processes with specialists |
 | Building Design | Agent 9 | `reema-agent9-design` | Working (advice; local `drawing` commands run offline) |
 | End-User Computing / Patch | Agent 10 | `reema-agent10-euc` | Working (advice); endpoint SOP appendix on the API path |
 | Development | — | — | Planned, not built |

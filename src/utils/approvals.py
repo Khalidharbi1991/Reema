@@ -28,7 +28,8 @@ class ApprovalRecord(BaseModel):
     schema_version: Literal[1] = 1
     process_name: str
     status: Literal["awaiting_human_approval", "approved", "rejected"] = "awaiting_human_approval"
-    quality_score: int = Field(ge=0, le=100)
+    # None for a draft no model reviewed (a Claude Code generate run); older records always carry a score.
+    quality_score: Optional[int] = Field(default=None, ge=0, le=100)
     created_at: str
     artifacts: Dict[str, Artifact] = Field(min_length=1)
     supporting_records: Dict[str, Artifact] = Field(default_factory=dict)
@@ -54,7 +55,8 @@ def checksum(path):
     return digest.hexdigest()
 
 
-def create_pending_record(path: Path, process_name: str, output_files: dict, quality_score: int, supporting_records=None):
+def create_pending_record(path: Path, process_name: str, output_files: dict, quality_score: Optional[int],
+                          supporting_records=None):
     validate_output_files(output_files, list(output_files))
     record = ApprovalRecord(
         process_name=process_name, quality_score=quality_score, created_at=timestamp(),
