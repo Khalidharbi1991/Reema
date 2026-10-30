@@ -30,7 +30,8 @@ from ..utils.quality import validate_quality, UnparsedReplyError
 from ..knowledge.retrieval import ReferenceIndex
 from ..utils.handoffs import adapt_handoff, ReviewResult, ComplianceResult
 from ..utils.documents import (ControlRegister, legacy_register, control_coverage, section_map,
-                               validate_located_review, CorrectionAssessment, sha, assert_only_targets_changed)
+                               validate_located_review, CorrectionAssessment, sha, assert_only_targets_changed,
+                               assert_no_new_references)
 from ..utils.diagrams import extract_flows
 from ..utils.specialists import SpecialistInputs, validate_analytics_result
 from ..utils.ownership import RunLease
@@ -1088,6 +1089,7 @@ class LeaderAgent:
                 revised = await self._invoke("revise_sections", {"content": content, "findings": findings,
                                                                  "require_complete": complete})
                 assert_only_targets_changed(content, revised, targets, profile, require_complete=complete)
+                assert_no_new_references(content, revised, targets, profile, require_complete=complete)
             async with self._phase("recheck"):
                 recheck = await self._invoke("recheck", {"content": revised, "findings": findings,
                                                          "require_complete": complete})

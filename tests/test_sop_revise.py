@@ -316,3 +316,33 @@ def test_raw_reply_file_is_git_ignored():
     root = Path(__file__).resolve().parents[1]
     result = subprocess.run(["git", "check-ignore", "-q", "output/runs/any-run/unparsed_reply.txt"], cwd=root)
     assert result.returncode == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("added", ["[SRC-a43e47d25494795c]", "[CTRL-ISO-5.26]", "see SRC-new and CTRL-x"])
+async def test_patch_adding_a_source_or_control_id_is_blocked(tmp_path, output_root, added):
+    path = tmp_path / "incident.md"
+    path.write_text(template_sop())
+    source = load_sop(path)
+    findings = instruction_findings(source.content, PROFILE, "Add a P1 rule", ["sec-procedures"])
+    leader, _, review = leader_with(patch_reply(source.content, {"sec-procedures": NEW_ESCALATION + " " + added}), "{}")
+    with pytest.raises(ValueError, match="source or control IDs that are not in the original section"):
+        await leader.revise_existing(source, findings, allow_external_ai=True)
+    review._call_claude.assert_not_awaited()
+    run = Path(leader.context["run_dir"])
+    assert json.loads((run / "run.json").read_text())["status"] == "failed" and not (run / "approval.json").exists()
+
+
+@pytest.mark.asyncio
+async def test_existing_ids_in_the_section_may_be_kept_or_dropped(tmp_path, output_root):
+    original = template_sop({"Detailed Procedures": NEW_ESCALATION.replace("Log every incident in the tool.",
+                                                                           "Log every incident in the tool [SRC-old] [CTRL-A1].")})
+    path = tmp_path / "incident.md"
+    path.write_text(original)
+    source = load_sop(path)
+    findings = instruction_findings(source.content, PROFILE, "Shorten logging", ["sec-procedures"])
+    body = NEW_ESCALATION.replace("Log every incident in the tool.", "Log every incident [SRC-old].")
+    leader, _, _ = leader_with(patch_reply(source.content, {"sec-procedures": body}),
+                               lambda *a, **k: recheck_reply(findings, "Log every incident"))
+    outputs = await leader.revise_existing(source, findings, allow_external_ai=True)
+    assert "[SRC-old]" in Path(outputs["markdown"]).read_text()

@@ -253,6 +253,25 @@ class LocatedFinding(Contract):
     action: str = Field(min_length=1)
 
 
+REFERENCE_ID = re.compile(r"(?<![\w-])(?:SRC|CTRL)-[A-Za-z0-9_-]+")
+
+
+def assert_no_new_references(before, after, targets, profile, require_complete=True):
+    """A finished-SOP revision may keep or drop source/control IDs in a section, never introduce one.
+
+    Revise supplies no sources, so a new ID cannot point to recorded evidence.
+    """
+    old = section_map(before, profile, require_complete=require_complete)
+    new = section_map(after, profile, require_complete=require_complete)
+    added = set()
+    for key in targets:
+        added |= (set(REFERENCE_ID.findall(after[new[key]["body_start"]:new[key]["end"]]))
+                  - set(REFERENCE_ID.findall(before[old[key]["body_start"]:old[key]["end"]])))
+    if added:
+        raise ValueError("Revision added source or control IDs that are not in the original section: "
+                         + ", ".join(sorted(added)) + "; nothing was delivered")
+
+
 class ExistingFinding(LocatedFinding):
     """A located finding on a finished SOP; the category is not part of its identity."""
     category: Literal["outdated", "missing_step", "vague", "template_gap", "other"]
