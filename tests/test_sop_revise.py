@@ -346,3 +346,23 @@ async def test_existing_ids_in_the_section_may_be_kept_or_dropped(tmp_path, outp
                                lambda *a, **k: recheck_reply(findings, "Log every incident"))
     outputs = await leader.revise_existing(source, findings, allow_external_ai=True)
     assert "[SRC-old]" in Path(outputs["markdown"]).read_text()
+
+
+@pytest.mark.asyncio
+async def test_finished_sop_prompt_limits_scope_but_generate_prompt_does_not(tmp_path, output_root):
+    path = tmp_path / "incident.md"
+    path.write_text(template_sop())
+    source = load_sop(path)
+    findings = instruction_findings(source.content, PROFILE, "Add a 15 minute rule", ["sec-procedures"])
+    leader, content, _ = leader_with(patch_reply(source.content, {"sec-procedures": NEW_ESCALATION}),
+                                     lambda *a, **k: recheck_reply(findings, "within 15 minutes"))
+    await leader.revise_existing(source, findings, allow_external_ai=True)
+    prompt = content._call_claude.await_args.args[0][0]["content"]
+    for phrase in ("Make only the change each finding asks for", "Do not add requirements, roles, tools",
+                   "do not add source or control IDs", "State the change once"):
+        assert phrase in prompt
+    # generate's correction loop keeps its prompt (positional call, no finished_sop).
+    generator = ContentAgent(api_key="")
+    generator._call_claude = AsyncMock(return_value=patch_reply(source.content, {"sec-procedures": NEW_ESCALATION}))
+    await generator.revise_sections(source.content, findings)
+    assert "finished SOP" not in generator._call_claude.await_args.args[0][0]["content"]

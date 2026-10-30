@@ -233,7 +233,14 @@ Please provide the complete refined document addressing all feedback points."""
             logger.agent_error(self.name, str(e))
             raise
 
-    async def revise_sections(self, content: str, findings: List[Dict], require_complete: bool = True) -> str:
+    FINISHED_SOP_SCOPE = (
+        "This is a finished SOP already in use. Make only the change each finding asks for. Do not add requirements, "
+        "roles, tools, systems, contacts, time limits or sources that the finding does not ask for, and do not add "
+        "source or control IDs. State the change once, in the single most fitting place in the section; do not repeat "
+        "it in other paragraphs, tables or notes. Keep all other wording in the section exactly as it is. ")
+
+    async def revise_sections(self, content: str, findings: List[Dict], require_complete: bool = True,
+                              finished_sop: bool = False) -> str:
         """Apply an exact, digest-bound section patch; all other bytes survive.
 
         require_complete=False revises a finished SOP that does not follow the 11-section profile.
@@ -246,7 +253,8 @@ Please provide the complete refined document addressing all feedback points."""
         data = {"base_document_sha256": sha(content), "findings": findings,
                 "sections": {key: {**locations[key], "body": content[locations[key]["body_start"]:locations[key]["end"]]}
                              for key in sorted(targets)}}
-        prompt = ("Correct only these sections and address each finding. Preserve citations, control IDs, constraints and full specialist material. "
+        prompt = ((self.FINISHED_SOP_SCOPE if finished_sop else "")
+                  + "Correct only these sections and address each finding. Preserve citations, control IDs, constraints and full specialist material. "
                   "Do not add top-level headings or claim approvals. Return only the JSON object, with no text "
                   "before or after it, matching:\n"
                   + json.dumps(SectionPatch.model_json_schema()) + "\nREVISION DATA:\n" + payload_json(data))

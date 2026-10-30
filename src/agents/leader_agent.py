@@ -1086,8 +1086,8 @@ class LeaderAgent:
             store.state.update(job="revise", origin=origin or {}, full_profile_checks=complete)
             store.save("source", source.record())
             async with self._phase("revision"):
-                revised = await self._invoke("revise_sections", {"content": content, "findings": findings,
-                                                                 "require_complete": complete})
+                revised = await self._invoke("revise_finished", {"content": content, "findings": findings,
+                                                                 "require_complete": complete, "finished_sop": True})
                 assert_only_targets_changed(content, revised, targets, profile, require_complete=complete)
                 assert_no_new_references(content, revised, targets, profile, require_complete=complete)
             async with self._phase("recheck"):

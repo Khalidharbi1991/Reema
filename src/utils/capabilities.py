@@ -67,6 +67,12 @@ class LocatedRevisionInputs(ReviewInputs):
     require_complete: bool | None = None
 
 
+class FinishedRevisionInputs(LocatedRevisionInputs):
+    # Revising a finished SOP: full-profile choice is explicit and the scope limits apply.
+    require_complete: bool
+    finished_sop: bool
+
+
 class AccessComplianceInputs(ReviewInputs):
     regulations: list[str]
 
@@ -97,6 +103,7 @@ PIPELINE_CAPABILITIES = {
     "review_existing": ("ReviewAgent", "review_existing", ReviewInputs),
     "refine": ("ContentAgent", "refine_content", RefineInputs),
     "revise_sections": ("ContentAgent", "revise_sections", LocatedRevisionInputs),
+    "revise_finished": ("ContentAgent", "revise_sections", FinishedRevisionInputs),
     "recheck": ("ReviewAgent", "recheck_corrections", LocatedRevisionInputs),
     "access_compliance": ("AccessAgent", "validate_access_compliance", AccessComplianceInputs),
     "problem_compliance": ("ProblemAgent", "validate_problem_compliance", ProblemComplianceInputs),
