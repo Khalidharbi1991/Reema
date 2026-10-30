@@ -1053,16 +1053,24 @@ class LeaderAgent:
             current_runtime.reset(token)
             self._task_store = None
 
-    async def revise_existing(self, source, findings, *, allow_external_ai=False, origin=None) -> Dict[str, str]:
+    async def revise_existing(self, source, findings, *, allow_external_ai=False, origin=None,
+                              local_author=False) -> Dict[str, str]:
         """Targeted revision of a finished SOP into a NEW run, ending at awaiting_human_approval.
 
         Only the sections named by the findings may change; the source file is never written.
+        local_author=True takes the patch and recheck from files written in a Claude Code session
+        (src/agents/file_workers.py); it makes no provider call and needs no --allow-external-ai.
         """
         from ..utils.existing_sops import require_unique_sections, splice_docx, load_sop, changes_markdown
         from ..utils.validation import missing_sections, safe_filename
         if self.workflow_status == "running":
             raise RuntimeError("This leader already has a running workflow; use a separate instance")
-        if not (allow_external_ai or config_manager.system_config.allow_external_ai):
+        if local_author:
+            from .file_workers import FilePatchWorker, FileRecheckWorker
+            if not (isinstance(self.worker_agents.get("ContentAgent"), FilePatchWorker)
+                    and isinstance(self.worker_agents.get("ReviewAgent"), FileRecheckWorker)):
+                raise ValueError("local_author needs the file-backed ContentAgent and ReviewAgent workers")
+        elif not (allow_external_ai or config_manager.system_config.allow_external_ai):
             raise PermissionError("Authorize sending this SOP to Anthropic with --allow-external-ai")
         missing = {"ContentAgent", "ReviewAgent"} - self.worker_agents.keys()
         if missing:
@@ -1076,7 +1084,8 @@ class LeaderAgent:
         run_dir = config_manager.system_config.output_dir / "runs" / uuid4().hex
         self.context = {"run_dir": str(run_dir), "job": "revise", "source_path": str(source.path)}
         self._begin_workflow(source.path.name, ["revision", "recheck", "formatting", "human_review_record"])
-        runtime = RunRuntime(config_manager.system_config.model_copy(update={"allow_external_ai": True}))
+        # A local-author run keeps external AI off, so any provider call would be refused.
+        runtime = RunRuntime(config_manager.system_config.model_copy(update={"allow_external_ai": not local_author}))
         token = current_runtime.set(runtime)
         store = None
         try:
@@ -1084,6 +1093,8 @@ class LeaderAgent:
             store = RunStore(run_dir, source.path.name, formats)
             self._task_store = store
             store.state.update(job="revise", origin=origin or {}, full_profile_checks=complete)
+            if local_author:
+                store.state["authoring"] = "claude_code_session"
             store.save("source", source.record())
             async with self._phase("revision"):
                 revised = await self._invoke("revise_finished", {"content": content, "findings": findings,
