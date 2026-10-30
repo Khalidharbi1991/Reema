@@ -33,6 +33,7 @@ KNOWN = {
     "pyproject.toml": ["package"],
     "requirements-dev.lock": ["package"],
     "requirements.lock": ["package"],
+    "scripts/claude_code_generate.py": ["consent", "setting"],
     "scripts/claude_code_review.py": ["consent", "setting"],
     "scripts/claude_code_revise.py": ["consent", "setting"],
     "scripts/evaluate_agents.py": ["consent", "endpoint", "import", "key", "setting"],

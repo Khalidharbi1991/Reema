@@ -524,7 +524,8 @@ def _human_decision(record: Path, reviewer: str, decision: str, notes: str, publ
         pending = read_record(record)
         if pending.status != "awaiting_human_approval":
             raise ValueError("This run already has a human decision")
-        console.print(f"Process: {pending.process_name}\nModel quality score: {pending.quality_score}", markup=False)
+        score = "not reviewed" if pending.quality_score is None else pending.quality_score
+        console.print(f"Process: {pending.process_name}\nModel quality score: {score}", markup=False)
         for fmt, artifact in pending.artifacts.items():
             console.print(f"{fmt}: {artifact.path}", markup=False)
         for label, artifact in pending.supporting_records.items():

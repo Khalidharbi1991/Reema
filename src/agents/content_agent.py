@@ -299,6 +299,11 @@ Create documentation that is immediately usable by IT teams."""
     # Written early and shared with every later section so terms and RACI stay consistent.
     FOUNDATION_SECTIONS = ("sec-definitions", "sec-roles")
     DIAGRAM_SECTIONS = ("sec-procedures", "sec-flow")
+    # Shared with the Claude Code generate request (scripts/claude_code_generate.py).
+    SECTION_RULES = ("Write only this section's body: no level one or two headings (the section heading is added "
+                     "automatically); use level three and below. Be specific and actionable; use tables, numbered "
+                     "steps and real-world examples where useful. Reference relevant standards. Never invent "
+                     "signatures or approvals.")
 
     def _build_shared_context(self, process_name: str, research_data: Dict) -> str:
         """Context repeated verbatim at the start of every section request."""
@@ -340,10 +345,7 @@ Create documentation that is immediately usable by IT teams."""
                    f"Instructions: {section.instructions}\n")
         if section.target_pages:
             prompt += f"Target length: {section.target_pages[0]}-{section.target_pages[1]} pages.\n"
-        prompt += ("Write only this section's body: no level one or two headings (the section heading is added "
-                   "automatically); use level three and below. Be specific and actionable; use tables, numbered "
-                   "steps and real-world examples where useful. Reference relevant standards. Never invent "
-                   "signatures or approvals.\n")
+        prompt += self.SECTION_RULES + "\n"
         if controls:
             prompt += ("Include each of these applicable control IDs in square brackets in this section: "
                        + ", ".join(controls) + ". A reference demonstrates traceability, not compliance. "

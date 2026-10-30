@@ -230,17 +230,11 @@ class LeaderAgent:
             raise RuntimeError("This leader already has a running workflow; use a separate instance")
         logger.agent_start(self.name, f"Generating documentation for {process_name}")
 
-        output_formats = validate_formats(
-            config_manager.system_config.default_formats if output_formats is None else output_formats
-        )
-        process_id, definition = config_manager.resolve_process(process_name, custom=custom)
-        process_name = definition["name"]
-        inputs = SpecialistInputs.model_validate(specialist_inputs) if specialist_inputs is not None else None
-        if inputs:
-            inputs.validate_limits(config_manager.specialist_policy)
-        selected = set(definition.get("specialists", [])) | set(specialists or []) | (inputs.required_specialists() if inputs else set())
-        if selected - {"access", "problem", "data", "euc"}:
-            raise ValueError("Specialists must be access, problem, data, or euc")
+        process_id, request = self.documentation_request(
+            process_name, output_formats, custom=custom, specialists=specialists, objective=objective,
+            constraints=constraints, required_deliverables=required_deliverables,
+            acceptance_criteria=acceptance_criteria, specialist_inputs=specialist_inputs)
+        process_name, output_formats, selected = request.process_name, request.formats, set(request.specialists)
         required_workers = {"ResearchAgent", "StandardsAgent", "ContentAgent", "ReviewAgent", "FormatAgent"}
         required_workers.update({"access": "AccessAgent", "problem": "ProblemAgent", "data": "DataAgent",
                                  "euc": "EUCAgent"}[key] for key in selected)
@@ -259,13 +253,6 @@ class LeaderAgent:
             if not isinstance(_resume_lease, RunLease):
                 raise ValueError("Use resume_execution to hold the parent recovery lease")
             previous, recovered = load_execution(_resume_from, config_manager, lease=_resume_lease)
-        request = DocumentationRequest(
-            process_name=process_name, custom=custom, formats=output_formats, specialists=sorted(selected),
-            objective=objective or f"Document {process_name} as an operational SOP",
-            constraints=list(dict.fromkeys(definition.get("constraints", []) + (constraints or []))),
-            required_deliverables=required_deliverables or ["SOP", *output_formats],
-            acceptance_criteria=list(dict.fromkeys(definition.get("acceptance_criteria", []) + (acceptance_criteria or []))),
-            specialist_inputs=specialist_inputs)
         self.context = {"process_id": process_id, "specialists": sorted(selected), "request": request.model_dump()}
         run_dir = config_manager.system_config.output_dir / "runs" / uuid4().hex
         self.context["run_dir"] = str(run_dir)
@@ -425,6 +412,126 @@ class LeaderAgent:
             formatter.output_dir = original_output_dir
             self._task_store = None
             self._journal = None
+
+    @staticmethod
+    def documentation_request(process_name, output_formats=None, *, custom=False, specialists=None, objective=None,
+                              constraints=None, required_deliverables=None, acceptance_criteria=None,
+                              specialist_inputs=None):
+        """Resolve the process and build the validated request; local, no model call."""
+        output_formats = validate_formats(
+            config_manager.system_config.default_formats if output_formats is None else output_formats
+        )
+        process_id, definition = config_manager.resolve_process(process_name, custom=custom)
+        process_name = definition["name"]
+        inputs = SpecialistInputs.model_validate(specialist_inputs) if specialist_inputs is not None else None
+        if inputs:
+            inputs.validate_limits(config_manager.specialist_policy)
+        selected = set(definition.get("specialists", [])) | set(specialists or []) | (inputs.required_specialists() if inputs else set())
+        if selected - {"access", "problem", "data", "euc"}:
+            raise ValueError("Specialists must be access, problem, data, or euc")
+        return process_id, DocumentationRequest(
+            process_name=process_name, custom=custom, formats=output_formats, specialists=sorted(selected),
+            objective=objective or f"Document {process_name} as an operational SOP",
+            constraints=list(dict.fromkeys(definition.get("constraints", []) + (constraints or []))),
+            required_deliverables=required_deliverables or ["SOP", *output_formats],
+            acceptance_criteria=list(dict.fromkeys(definition.get("acceptance_criteria", []) + (acceptance_criteria or []))),
+            specialist_inputs=specialist_inputs)
+
+    @staticmethod
+    def check_draft(content, standards, sources, register):
+        """Every local check a generated SOP must pass before export; returns the quality report."""
+        profile = config_manager.document_profile
+        validate_sop(content)
+        section_map(content, profile, require_complete=True)
+        extract_flows(content)
+        quality = validate_quality(content, standards, sources)
+        controls = control_coverage(content, register, sources, profile)
+        if controls["errors"]:
+            raise ValueError("Control coverage failed: " + "; ".join(controls["errors"]))
+        quality["control_coverage"] = controls
+        quality["warnings"].extend(controls["warnings"])
+        return quality
+
+    async def generate_local(self, process_name, output_formats=None, *, custom=False, objective=None,
+                             constraints=None, acceptance_criteria=None, evidence=None, origin=None) -> Dict[str, str]:
+        """Generate an SOP whose section text was written in a Claude Code session; no model call.
+
+        The ContentAgent must be the file-backed FileSectionWriter (src/agents/file_workers.py), so each
+        section runs through the unchanged per-section loop and checks in ContentAgent.generate_sop.
+        REEMA plans, checks, exports and writes the pending approval record. No model reviews the draft,
+        so the record's quality_score is None. evidence is the list of manifest-allowed reference
+        excerpts the writer was given; [SRC-...] citations must name one of them.
+        """
+        from .file_workers import FileSectionWriter
+        if self.workflow_status == "running":
+            raise RuntimeError("This leader already has a running workflow; use a separate instance")
+        if not isinstance(self.worker_agents.get("ContentAgent"), FileSectionWriter) or "FormatAgent" not in self.worker_agents:
+            raise ValueError("A Claude Code generate run needs the file-backed ContentAgent and the FormatAgent")
+        process_id, request = self.documentation_request(
+            process_name, output_formats, custom=custom, objective=objective, constraints=constraints,
+            acceptance_criteria=acceptance_criteria)
+        if request.specialists:
+            raise ValueError("Processes with specialists (" + ", ".join(request.specialists) + ") are not in the "
+                             "Claude Code generate path yet")
+        process_name, output_formats = request.process_name, request.formats
+        formatter = self.worker_agents["FormatAgent"]
+        formatter.validate_requested_formats(output_formats)
+        if config_manager.system_config.enforce_page_target and "pdf" not in output_formats:
+            raise ValueError("ENFORCE_PAGE_TARGET requires PDF output for a real rendered page count")
+        self.context = {"process_id": process_id, "specialists": [], "request": request.model_dump(), "last_review": None}
+        run_dir = config_manager.system_config.output_dir / "runs" / uuid4().hex
+        self.context["run_dir"] = str(run_dir)
+        original_output_dir = formatter.output_dir
+        formatter.output_dir = run_dir
+        # External AI stays off, so any provider call would be refused.
+        runtime = RunRuntime(config_manager.system_config.model_copy(update={"allow_external_ai": False}))
+        runtime.sources = {record["id"]: {key: value for key, value in record.items() if key != "text"}
+                           for record in evidence or []}
+        token = current_runtime.set(runtime)
+        store = None
+        self._begin_workflow(process_name, ["planning", "content", "checks", "formatting", "human_review_record"])
+        try:
+            store = RunStore(run_dir, process_name, output_formats)
+            self._task_store = store
+            store.state.update(job="generate", authoring="claude_code_session", origin=origin or {})
+            async with self._phase("planning"):
+                workflow = await self._plan_workflow(process_name)
+                register = legacy_register(workflow["applicable_standards"])
+                self.context["control_register"] = register.model_dump()
+                store.save("planned", workflow)
+            async with self._phase("content"):
+                content = await self._invoke("content", {"process_name": process_name, "research_data": {
+                    "standards": {"control_register": self.context["control_register"]}}})
+                store.save("generated", {"content": content, "sources": runtime.sources})
+            async with self._phase("checks"):
+                quality = self.check_draft(content, workflow["applicable_standards"], runtime.sources, register)
+                self.context["quality"] = quality
+                store.save("ready", {"content": content, "review": None, "sources": runtime.sources,
+                                     "standards": workflow["applicable_standards"], "quality": quality,
+                                     "control_register": self.context["control_register"],
+                                     "document_profile": config_manager.document_profile.model_dump()})
+            async with self._phase("formatting"):
+                output_files = await self._coordinate_formatting(content, output_formats, process_name)
+                validate_output_files(output_files, output_formats)
+                self._check_page_count(output_files, quality)
+                store.save("exported", {"outputs": output_files, "quality": quality, "sources": runtime.sources,
+                                        "export_checks": getattr(formatter, "last_export_checks", {})})
+            async with self._phase("human_review_record"):
+                self.context["delivery"] = await self._coordinate_delivery(process_name, output_files)
+            self._finish_workflow("awaiting_human_approval")
+            store.finish("awaiting_human_approval", runtime.summary())
+            return output_files
+        except BaseException as error:
+            self._finish_workflow("cancelled" if isinstance(error, asyncio.CancelledError) else "failed")
+            if store:
+                store.finish(self.workflow_status, runtime.summary(), type(error).__name__)
+            raise
+        finally:
+            if store:
+                store.close()
+            current_runtime.reset(token)
+            formatter.output_dir = original_output_dir
+            self._task_store = None
 
     def _check_page_count(self, output_files, quality):
         target = config_manager.system_config.page_target
@@ -985,7 +1092,7 @@ class LeaderAgent:
         record_path = Path(self.context["run_dir"]) / "approval.json"
         record = create_pending_record(
             record_path, process_name, output_files,
-            self.context["last_review"]["quality_score"],
+            (self.context.get("last_review") or {}).get("quality_score"),
             supporting_records={phase: str(record_path.parent / f"{phase}.json")
                                 for phase in ("ready", "exported") if (record_path.parent / f"{phase}.json").is_file()},
         )

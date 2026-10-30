@@ -260,6 +260,19 @@ reema publish output/runs/RUN_ID/approval.json
 later. Generate runs, old `_revised` drafts and runs approved before this feature are
 not published.
 
+#### Claude Code generate
+
+In a Claude Code session, ask Ahmad for a new SOP (the `reema-generate` skill). REEMA plans it
+and prepares the 11-section skeleton; the `reema-writer` subagent writes one file per section;
+`scripts/claude_code_generate.py` checks every section and the whole document (template, RACI,
+standards named, citations, diagrams, control coverage), exports the formats you asked for and
+creates the pending approval record. No model reviews the draft, so the approval record has no
+quality score; ask Ahmad to review the Markdown draft first if you want a review. Excerpts from
+`references/` are included only when the reference manifest allows them, and only after your yes
+(a `--confirm-read` token). Processes that select specialists (Incident, Problem, Access
+Management, Workstation Security Patches, Devices Batch Management) still use `reema generate`
+for now.
+
 #### Claude Code revise (experimental)
 
 Inside a Claude Code session in this repository you can revise one section of a
