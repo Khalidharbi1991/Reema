@@ -206,6 +206,38 @@ This is a local, self-declared review record, not authenticated identity or a
 digital signature. AI agent scores and recommendations never grant human approval.
 The original draft files are not rewritten after approval.
 
+#### Review and revise finished SOPs
+
+Existing `.md` or `.docx` SOPs can be checked and fixed without regenerating
+them. The original file is only read; every job writes a new
+`output/runs/<run-id>/` folder.
+
+```bash
+# Template-gap check only: no model call, no consent needed
+python3 scripts/dev.py run review output/SOP_User_Incident_Management_V2.docx --local-only
+# Located findings (outdated content, missing steps, vague sections, template gaps)
+python3 scripts/dev.py run review output/SOP_User_Incident_Management_V2.docx --allow-external-ai
+# Change only the named section, from your own words...
+python3 scripts/dev.py run revise output/SOP_User_Incident_Management_V2.docx \
+  --instruction "Escalate P1 incidents to the Incident Manager within 15 minutes" \
+  --section "Detailed Procedures" --allow-external-ai
+# ...or from a review run's findings
+python3 scripts/dev.py run revise output/SOP_User_Incident_Management_V2.docx \
+  --from-review output/runs/<review-run-id> --finding F-<id> --allow-external-ai
+```
+
+Review saves `findings.md`/`findings.json` and has no approval record. Revise
+changes only the target sections (everything else stays word for word), runs a
+targeted recheck, writes `changes.md`, and ends at `awaiting_human_approval`; use
+`approve` as above. For DOCX input the revised sections are spliced into a copy of
+your Word file, so other sections keep their formatting; a section holding
+images, tracked changes, fields or content controls must be edited in Word.
+
+In chat, ask Ahmad in plain words, for example "fix the escalation part in my
+incident SOP". He lists matching files in `output/` for you to choose, names the
+section, and asks for your yes before anything is sent to Anthropic (the chat must
+also be started with `--allow-external-ai`). He cannot approve the result.
+
 #### Recover exports without model calls
 
 Each run saves phase checkpoints and usage metadata in its own directory. If a

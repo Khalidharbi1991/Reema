@@ -5,6 +5,10 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md); open external requirements live in the
 [finite ledger](PENDING_LEDGER.md).
 
+## 2026-10-30 — Review and revise finished SOPs
+
+Added `reema review` (with `--local-only`), `reema revise` (instruction or review findings; DOCX splice) and Ahmad chat access through Abdullah, all ending without AI approval. Suite: 673 before, 714 after.
+
 ## 2026-10-30 — Unused dependencies removed
 
 Dropped aiofiles, pandas, lxml and python-dotenv from `pyproject.toml` and relocked with `uv` (lxml and python-dotenv remain as python-docx and pydantic-settings dependencies); removed leftover ITOM blank lines from two agent prompts. Suite: 673 before, 673 after.

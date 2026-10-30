@@ -48,14 +48,15 @@ commands. Change history is in `docs/reports/CHANGELOG.md`.
 There are twelve active agent roles. The user speaks to **Ahmad**, the personal
 coordinator, who consults chat specialists directly and frames advice in the
 former owner agent's strategy, governance, quality, and business-value terms.
-**Abdullah** leads only the SOP generation pipeline and is not consulted in chat;
-his strategic guidance still feeds pipeline planning. The former owner agent has
+**Abdullah** leads the SOP pipeline and runs SOP jobs, including review and
+revise jobs that Ahmad triggers from chat after Khalid confirms them; he is not
+consulted in chat. His strategic guidance still feeds pipeline planning. The former owner agent has
 been removed.
 
 | Agent | Responsibility |
 | --- | --- |
 | Ahmad | Task management, planning, communication, direct specialist consultation, strategy/governance framing in chat |
-| Abdullah | SOP pipeline leader: planning, specialist orchestration, document workflow, recovery |
+| Abdullah | SOP pipeline leader: planning, specialist orchestration, document workflow, recovery; runs SOP review/revise jobs, including chat-triggered ones (not consulted in chat) |
 | Agent 1 | Research and IT service practices |
 | Agent 2 | Standards and control alignment |
 | Agent 3 | Writing and SOP content |
@@ -106,6 +107,21 @@ judgments remain unverified. Successful generation produces drafts in
 `output/runs/<run-id>/` and ends at `awaiting_human_approval`. No agent can
 approve a document as a human reviewer.
 
+Finished SOPs (`.md` or `.docx`) can be reviewed and revised; the source file is
+only read. `reema review` saves located findings (outdated, missing step, vague,
+template gap) to a new run with no `approval.json`; `--local-only` runs just the
+template-gap check (missing, empty or duplicated required sections) with no model
+call or consent. `reema revise` (`--instruction`/`--section` or `--from-review`/
+`--finding`) changes only the named sections through `ContentAgent.revise_sections`,
+the shared preservation gate and the targeted recheck, then ends at
+`awaiting_human_approval`; its record's score is the share of findings the recheck
+marked resolved. Non-template SOPs use relaxed section checks; generate keeps the
+full profile. DOCX revisions splice only the target sections into a copy of the
+original; sections with images, tracked changes, fields or content controls are
+refused. In chat, Ahmad matches the request to files in `output/` by file-name
+words, lists several matches for Khalid to choose, names the section, and needs an
+explicit yes plus chat consent before any external call. He never approves.
+
 Specialist handoffs preserve full payloads and use strict internal contracts in
 `src/utils/handoffs.py`; public agent strings/dictionaries remain compatible.
 Optional findings/provenance/assumptions metadata remains unverified. Review and
@@ -129,8 +145,8 @@ Details: `docs/guides/AGENT_HANDOFFS_AND_STATUS.md`,
 
 The CLI has local tasks and a chat entry point. It has no connected mailbox,
 calendar, task cloud, background notification process, or deployed chat UI.
-Chat can help plan, research, and draft; it cannot send communications or alter
-external accounts. Ahmad's legacy communication helper records locally and
+Chat can help plan, research, and draft, and can start a confirmed review or
+revision of a local SOP; it cannot send communications or alter external accounts. Ahmad's legacy communication helper records locally and
 reports `not_dispatched`. Actual account integration requires the user's chosen
 provider and authorization. Agent 9 can produce a limited, editable OBJ concept
 mesh and PNG preview from a selected DXF area, but not a verified full-building
@@ -149,6 +165,8 @@ external requirements are tracked in `docs/reports/PENDING_LEDGER.md`.
 - `src/main.py`: CLI commands.
 - `src/assistant.py`: Ahmad's conversation and specialist routing.
 - `src/utils/tasks.py`: separate local work and personal task stores.
+- `src/utils/existing_sops.py`: finished-SOP intake (Markdown/DOCX), template
+  gaps, section resolution, review-run findings, file search and DOCX splicing.
 - `src/utils/coordination.py`, `capabilities.py`, `execution.py`: plans and
   request/session contracts, shared capability adapters, and locally
   authenticated execution records for verified SOP recovery.
