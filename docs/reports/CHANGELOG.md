@@ -5,6 +5,10 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md); open external requirements live in the
 [finite ledger](PENDING_LEDGER.md).
 
+## 2026-10-30 — Unused dependencies removed
+
+Dropped aiofiles, pandas, lxml and python-dotenv from `pyproject.toml` and relocked with `uv` (lxml and python-dotenv remain as python-docx and pydantic-settings dependencies); removed leftover ITOM blank lines from two agent prompts. Suite: 673 before, 673 after.
+
 ## 2026-10-30 — Cleanup after the gap review
 
 No user-facing features changed. `reema version` now reports 2.0.0, matching the
