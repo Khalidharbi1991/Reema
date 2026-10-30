@@ -58,6 +58,12 @@ def _write(path, value):
     path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
+def _require(path, agent):
+    """The Claude Code step that writes this file has not run yet; say which one."""
+    if not path.is_file():
+        raise ValueError(f"No {path.name} yet: ask Claude Code to run {agent} on this work id ({path.parent.name}).")
+
+
 def _derive(request):
     """Re-read the SOP and re-locate the findings from the recorded instruction; nothing is taken on trust."""
     source = load_sop(request["source_path"])
@@ -99,6 +105,7 @@ def check(work_id):
     path = work_dir(work_id)
     request = json.loads((path / "request.json").read_text(encoding="utf-8"))
     source, findings, targets, complete = _derive(request)
+    _require(path / "patch.json", "reema-reviser")
     patch = parse_fenced_json_response((path / "patch.json").read_text(encoding="utf-8"), SectionPatch)
     revised = patch.apply(source.content, targets, PROFILE, complete)
     assert_only_targets_changed(source.content, revised, targets, PROFILE, require_complete=complete)
@@ -124,6 +131,9 @@ def finish(work_id):
     path = work_dir(work_id)
     request = json.loads((path / "request.json").read_text(encoding="utf-8"))
     source, findings, _, _ = _derive(request)
+    # Checked before the run starts, so a missing file leaves no failed run folder behind.
+    _require(path / "patch.json", "reema-reviser")
+    _require(path / "recheck.json", "reema-rechecker")
     settings = config_manager.system_config
     saved = settings.anthropic_api_key, settings.allow_external_ai
     leader = LeaderAgent(api_key="")

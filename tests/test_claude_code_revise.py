@@ -124,6 +124,19 @@ def test_recheck_of_other_text_is_refused(tmp_path, output_root, no_provider):
     assert not list((output_root / "runs").glob("*/approval.json"))
 
 
+def test_missing_files_name_the_step_to_run(tmp_path, output_root, no_provider, capsys):
+    _, work_id, work, request = prepared(tmp_path)
+    assert ccr.main(["check", work_id]) == 1
+    assert f"No patch.json yet: ask Claude Code to run reema-reviser on this work id ({work_id})." in capsys.readouterr().err
+    assert ccr.main(["finish", work_id]) == 1
+    assert "No patch.json yet: ask Claude Code to run reema-reviser" in capsys.readouterr().err
+    write_patch(work, request)
+    ccr.check(work_id)
+    assert ccr.main(["finish", work_id]) == 1
+    assert "No recheck.json yet: ask Claude Code to run reema-rechecker" in capsys.readouterr().err
+    assert not (output_root / "runs").exists()
+
+
 def test_source_changed_after_prepare_is_refused(tmp_path, output_root):
     path, work_id, work, request = prepared(tmp_path)
     build_docx(path, DOCX_SECTIONS, title="Changed title")
