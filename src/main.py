@@ -486,11 +486,13 @@ def resume(
 @app.command()
 def review(
     file: Path = typer.Argument(..., help="Finished SOP (.md or .docx); it is only read, never changed"),
-    allow_external_ai: bool = typer.Option(False, "--allow-external-ai", help="Authorize sending this SOP's text to Anthropic"),
-    local_only: bool = typer.Option(False, "--local-only", help="Template-gap check only: no model call, no consent needed"),
+    local_only: bool = typer.Option(True, "--local-only", hidden=True, help="Accepted for old commands; review here is always local"),
     output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Output root (default: ./output)"),
 ):
-    """Review a finished SOP and save located findings to a NEW run folder."""
+    """Check a finished SOP against the template (no model) and save the gaps to a NEW run folder.
+
+    The full review runs in Claude Code: ask Ahmad there (reema-review skill).
+    """
     from .utils.existing_sops import load_sop
     try:
         source = load_sop(file)
@@ -498,102 +500,30 @@ def review(
         console.print(str(error), markup=False)
         raise typer.Exit(code=2)
     settings = config_manager.system_config
-    if not local_only:
-        if not (allow_external_ai or settings.allow_external_ai):
-            console.print("Review sends this SOP's text to Anthropic. Use --allow-external-ai after confirming "
-                          "permission for this document, or --local-only for the template check.", markup=False)
-            raise typer.Exit(code=2)
-        if not settings.anthropic_api_key:
-            console.print("ANTHROPIC_API_KEY is needed for a model review; --local-only needs no key.", markup=False)
-            raise typer.Exit(code=1)
     leader = LeaderAgent(api_key="")
-    if not local_only:
-        leader.register_worker("ReviewAgent", ReviewAgent())
     previous_output = settings.output_dir
     try:
         if output_dir is not None:
             settings.output_dir = output_dir.expanduser().resolve()
         _warn_if_output_unignored(settings.output_dir)
-        findings = asyncio.run(_close_after(leader, leader.review_existing(
-            source, local_only=local_only, allow_external_ai=allow_external_ai)))
+        findings = asyncio.run(_close_after(leader, leader.review_existing(source, local_only=True)))
     except (ValueError, OSError, PermissionError, RuntimeError) as error:
         console.print(str(error), markup=False)
         raise typer.Exit(code=1)
     finally:
         settings.output_dir = previous_output
     run_dir = Path(leader.context["run_dir"])
-    console.print(f"{len(findings['template_gaps'])} template gap(s), {len(findings['findings'])} model finding(s). "
-                  "The SOP was not changed.", markup=False)
+    console.print(f"{len(findings['template_gaps'])} template gap(s). The SOP was not changed.", markup=False)
     console.print(f"Findings: {run_dir / 'findings.md'}", markup=False)
+    console.print("For the full review, ask Ahmad in Claude Code (reema-review skill).", markup=False)
 
 
-@app.command()
-def revise(
-    file: Path = typer.Argument(..., help="Finished SOP (.md or .docx); it is only read, never changed"),
-    instruction: Optional[str] = typer.Option(None, "--instruction", help="What to change, in plain words"),
-    sections: Optional[List[str]] = typer.Option(None, "--section", help="Section to change, by title or id; repeatable"),
-    from_review: Optional[Path] = typer.Option(None, "--from-review", help="Review run folder whose findings to fix"),
-    finding_ids: Optional[List[str]] = typer.Option(None, "--finding", help="Only this finding from --from-review; repeatable"),
-    major: bool = typer.Option(False, "--major", help="Name it with the next major version (V2.3 -> V3.0), not the next minor"),
-    allow_external_ai: bool = typer.Option(False, "--allow-external-ai", help="Authorize sending this SOP's text to Anthropic"),
-    output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Output root (default: ./output)"),
-):
-    """Change only the named sections into a NEW run folder; ends awaiting human approval."""
-    from .utils.existing_sops import load_sop, resolve_sections, instruction_findings, review_findings
-    try:
-        if (instruction is None) == (from_review is None):
-            raise ValueError("Give exactly one of --instruction or --from-review")
-        if from_review is None and finding_ids:
-            raise ValueError("--finding needs --from-review")
-        if from_review is not None and sections:
-            raise ValueError("--section works with --instruction; use --finding with --from-review")
-        source = load_sop(file)
-        profile = config_manager.document_profile
-        if instruction is not None:
-            if not instruction.strip():
-                raise ValueError("--instruction cannot be empty")
-            targets = resolve_sections(source.content, profile, instruction, sections or ())
-            findings = instruction_findings(source.content, profile, instruction.strip(), targets)
-            origin = {"instruction": instruction.strip()}
-        else:
-            findings = review_findings(from_review, source, finding_ids or ())
-            origin = {"review_run": str(from_review.expanduser().resolve()), "finding_ids": [f["finding_id"] for f in findings]}
-    except ValueError as error:
-        console.print(str(error), markup=False)
-        raise typer.Exit(code=2)
-    settings = config_manager.system_config
-    if not (allow_external_ai or settings.allow_external_ai):
-        console.print("Revise sends this SOP's text to Anthropic. Use --allow-external-ai after confirming "
-                      "permission for this document.", markup=False)
-        raise typer.Exit(code=2)
-    if not settings.anthropic_api_key:
-        console.print("ANTHROPIC_API_KEY is needed for a revision.", markup=False)
-        raise typer.Exit(code=1)
-    leader = LeaderAgent(api_key="")
-    leader.register_worker("ContentAgent", ContentAgent())
-    leader.register_worker("ReviewAgent", ReviewAgent())
-    previous_output = settings.output_dir
-    try:
-        if output_dir is not None:
-            settings.output_dir = output_dir.expanduser().resolve()
-        _warn_if_output_unignored(settings.output_dir)
-        outputs = asyncio.run(_close_after(leader, leader.revise_existing(
-            source, findings, allow_external_ai=allow_external_ai, origin=origin, major=major)))
-    except (ValueError, OSError, PermissionError, RuntimeError) as error:
-        console.print(str(error), markup=False)
-        if leader.context.get("unparsed_reply"):
-            console.print(f"The model's reply was saved locally for diagnosis: {leader.context['unparsed_reply']}", markup=False)
-        raise typer.Exit(code=1)
-    finally:
-        settings.output_dir = previous_output
-    titles = sorted({f["section_id"] for f in findings})
-    console.print(f"Revised {len(titles)} section(s); the original file was not changed.", markup=False)
-    for fmt, path in outputs.items():
-        console.print(f"{fmt}: {path}", markup=False)
-    record = leader.context["delivery"]["approval_record"]
-    console.print(f"Changes: {Path(record).parent / 'changes.md'}", markup=False)
-    console.print(f"Awaiting human approval: {record}", markup=False)
-    console.print(f'After reading it, approve with: reema approve "{record}" --reviewer "<your name>"', markup=False)
+@app.command(hidden=True, context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
+def revise(ctx: typer.Context):
+    """Revisions run in Claude Code; this only says so."""
+    console.print("Revisions now run in Claude Code: ask Ahmad there to revise the SOP (reema-revise skill). "
+                  "Nothing was read or changed.", markup=False)
+    raise typer.Exit(code=2)
 
 
 async def _close_after(leader, job):

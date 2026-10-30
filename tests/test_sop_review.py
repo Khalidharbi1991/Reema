@@ -1,4 +1,4 @@
-"""Read-only review of finished SOPs (`reema review`). Mocked provider only."""
+"""Read-only review of finished SOPs: the local template check and the Claude Code review path. No provider calls."""
 
 import hashlib
 import json
@@ -15,7 +15,7 @@ from src.utils.config import config_manager
 from src.utils.existing_sops import load_sop, template_gaps, duplicate_sections
 from src.utils.validation import missing_sections, validate_sop
 from tests.existing_sop_helpers import (template_sop, NON_TEMPLATE_SOP, build_docx, DOCX_SECTIONS,
-                                        assessment, issue)
+                                        assessment, issue, stand_in_review)
 
 
 @pytest.fixture
@@ -97,16 +97,17 @@ async def test_local_only_review_makes_no_model_call_and_changes_nothing(tmp_pat
 
 
 @pytest.mark.asyncio
-async def test_model_review_requires_consent(tmp_path, output_root, monkeypatch):
-    monkeypatch.setattr(config_manager.system_config, "allow_external_ai", False)
+async def test_model_review_runs_only_through_claude_code(tmp_path, output_root):
     path = tmp_path / "sop.md"
     path.write_text(template_sop())
     review = ReviewAgent(api_key="")
     review._call_claude = AsyncMock()
     leader = LeaderAgent(api_key="")
     leader.register_worker("ReviewAgent", review)
-    with pytest.raises(PermissionError):
+    with pytest.raises(ValueError, match="Claude Code"):
         await leader.review_existing(load_sop(path))
+    with pytest.raises(ValueError, match="file-backed ReviewAgent"):
+        await leader.review_existing(load_sop(path), local_author=True)
     review._call_claude.assert_not_awaited()
     assert not (output_root / "runs").exists()
 
@@ -116,13 +117,12 @@ async def test_model_review_locates_categorized_findings(tmp_path, output_root):
     path = tmp_path / "sop.md"
     path.write_text(template_sop())
     before = digest(path)
-    review = ReviewAgent(api_key="")
-    review._call_claude = AsyncMock(return_value=assessment(
+    review = stand_in_review(assessment(
         issue("sec-tools", "ServiceNow version 2019.", category="outdated", description="Old tool version"),
         issue("sec-procedures", "Escalate when needed.", category="missing_step")))
     leader = LeaderAgent(api_key="")
     leader.register_worker("ReviewAgent", review)
-    findings = await leader.review_existing(load_sop(path), allow_external_ai=True)
+    findings = await leader.review_existing(load_sop(path), local_author=True)
     assert [(f["section_id"], f["category"]) for f in findings["findings"]] == [("sec-tools", "outdated"),
                                                                              ("sec-procedures", "missing_step")]
     assert all(f["finding_id"].startswith("F-") and f["blocking"] for f in findings["findings"])
@@ -136,12 +136,11 @@ async def test_model_review_locates_categorized_findings(tmp_path, output_root):
 async def test_model_review_rejects_an_invented_location(tmp_path, output_root):
     path = tmp_path / "sop.md"
     path.write_text(template_sop())
-    review = ReviewAgent(api_key="")
-    review._call_claude = AsyncMock(return_value=assessment(issue("sec-tools", "Text that is not in the SOP")))
+    review = stand_in_review(assessment(issue("sec-tools", "Text that is not in the SOP")))
     leader = LeaderAgent(api_key="")
     leader.register_worker("ReviewAgent", review)
     with pytest.raises(ValueError):
-        await leader.review_existing(load_sop(path), allow_external_ai=True)
+        await leader.review_existing(load_sop(path), local_author=True)
     run = next((output_root / "runs").iterdir())
     assert json.loads((run / "run.json").read_text())["status"] == "failed"
 
@@ -152,14 +151,13 @@ async def test_model_review_of_non_template_and_docx_sops(tmp_path, output_root)
     md.write_text(NON_TEMPLATE_SOP)
     docx = build_docx(tmp_path / "sop.docx", DOCX_SECTIONS)
     docx_before = digest(docx)
-    review = ReviewAgent(api_key="")
-    review._call_claude = AsyncMock(side_effect=[
+    review = stand_in_review([
         assessment(issue("extra-" + hashlib.sha256(b"steps").hexdigest()[:16], "Collect the device from stores.")),
         assessment(issue("extra-" + hashlib.sha256(b"escalation").hexdigest()[:16], "Escalate when needed."))])
     for path in (md, docx):
         leader = LeaderAgent(api_key="")
         leader.register_worker("ReviewAgent", review)
-        findings = await leader.review_existing(load_sop(path), allow_external_ai=True)
+        findings = await leader.review_existing(load_sop(path), local_author=True)
         assert len(findings["findings"]) == 1 and len(findings["template_gaps"]) >= 8
     assert digest(docx) == docx_before
 
@@ -168,25 +166,22 @@ async def test_model_review_of_non_template_and_docx_sops(tmp_path, output_root)
 async def test_model_review_refuses_duplicate_headings_before_any_call(tmp_path, output_root):
     path = tmp_path / "sop.md"
     path.write_text(template_sop().replace("# Synthetic Incident SOP", "# Synthetic Incident SOP\n\n## Document Control\n\nDraft."))
-    review = ReviewAgent(api_key="")
-    review._call_claude = AsyncMock()
+    review = stand_in_review([])
     leader = LeaderAgent(api_key="")
     leader.register_worker("ReviewAgent", review)
     with pytest.raises(ValueError, match="more than once: Document Control"):
-        await leader.review_existing(load_sop(path), allow_external_ai=True)
+        await leader.review_existing(load_sop(path), local_author=True)
     review._call_claude.assert_not_awaited()
 
 
-def test_cli_review_needs_consent_unless_local_only(tmp_path, monkeypatch):
+def test_cli_review_is_the_local_template_check(tmp_path, monkeypatch):
     from src import main
     monkeypatch.setattr(main, "console", Console(width=1000))
-    monkeypatch.setattr(config_manager.system_config, "allow_external_ai", False)
     path = tmp_path / "sop.md"
     path.write_text(NON_TEMPLATE_SOP)
     out = tmp_path / "output"
-    denied = CliRunner().invoke(main.app, ["review", str(path), "-o", str(out)])
-    assert denied.exit_code == 2 and "--allow-external-ai" in denied.output and not out.exists()
-    local = CliRunner().invoke(main.app, ["review", str(path), "--local-only", "-o", str(out)])
-    assert local.exit_code == 0, local.output
-    assert "11 template gap(s), 0 model finding(s)" in local.output
-    assert len(list((out / "runs").iterdir())) == 1
+    for extra in ([], ["--local-only"]):
+        local = CliRunner().invoke(main.app, ["review", str(path), *extra, "-o", str(out)])
+        assert local.exit_code == 0, local.output
+        assert "11 template gap(s). The SOP was not changed." in local.output and "Claude Code" in local.output
+    assert len(list((out / "runs").iterdir())) == 2

@@ -365,7 +365,7 @@ class AssistantSession:
         return {"reply": text, "consulted": None, "consulted_agents": [],
                 "usage": usage or {"calls": [], "accounted_tokens": 0}}
 
-    async def _sop_request(self, message, allow_external_ai):
+    async def _sop_request(self, message):
         terms = config_manager.assistant_routing.sop_maintenance
         if terms is None:
             return None
@@ -381,14 +381,9 @@ class AssistantSession:
                     return self._sop_reply(f"Choose a number from 1 to {len(pending['choices'])}, or say cancel.")
                 return self._sop_confirm(pending["action"], pending["choices"][int(answer) - 1],
                                          pending["instruction"], pending["file_words"])
-            if pending["stage"] == "section":
-                return self._sop_confirm(pending["action"], pending["path"], pending["instruction"],
-                                         pending["file_words"], section=message.strip())
             if pending["stage"] == "confirm":
-                if answer in {"local", "محلي"} and pending["action"] == "review":
-                    return await self._sop_run(pending, local_only=True)
-                if self._has_term(answer, terms.confirm_terms) and len(answer.split()) <= 3:
-                    return await self._sop_run(pending, allow_external_ai=allow_external_ai)
+                if answer in {"local", "محلي"} or (self._has_term(answer, terms.confirm_terms) and len(answer.split()) <= 3):
+                    return await self._sop_run(pending)
             # Anything else drops the waiting request and is handled as a new message.
         if re.match(r"(?:how|what|why|when|should|كيف|ما|ماذا|لماذا|متي)(?!\w)", text):
             return None
@@ -418,120 +413,60 @@ class AssistantSession:
         return self._sop_reply(f"I found several SOPs that could match. Which one should I {action}? Reply with its number, or cancel.\n"
                                + "\n".join(lines) + more)
 
-    def _sop_confirm(self, action, path, instruction, file_words, section=None):
-        from .utils.existing_sops import load_sop, require_unique_sections, resolve_sections
-        from .utils.documents import section_map
-        profile = config_manager.document_profile
+    CLAUDE_CODE = "The full review and revisions run in Claude Code: ask Ahmad there."
+
+    def _sop_confirm(self, action, path, instruction, file_words):
+        from .utils.existing_sops import load_sop, require_unique_sections
+        if action == "revise":
+            return self._sop_reply(f"I found {Path(path).name}. Revisions run in Claude Code: ask Ahmad there to "
+                                   "revise it. Nothing was read or changed.")
         try:
             source = load_sop(path)
-            require_unique_sections(source.content, profile)
+            require_unique_sections(source.content, config_manager.document_profile)
         except ValueError as error:
             return self._sop_reply(f"I can't use {Path(path).name}: {error}")
-        targets = []
-        if action == "revise":
-            locations = section_map(source.content, profile)
-            # Words that picked the file (for example "incident") must not pick the section too.
-            used = file_words & set(re.split(r"[^\w]+|_", Path(path).stem.casefold()))
-            words = " ".join(w for w in re.split(r"[^\w]+", normalized_text(instruction)) if w not in used)
-            try:
-                targets = resolve_sections(source.content, profile, words, [section] if section else ())
-            except ValueError:
-                self.pending_sop = {"stage": "section", "action": action, "path": path, "instruction": instruction,
-                                    "file_words": file_words}
-                return self._sop_reply(f"Which section of {Path(path).name} should I change? Sections: "
-                                       + "; ".join(v["title"] for v in locations.values()) + ". Or say cancel.")
-            titles = ", ".join(f"'{locations[t]['title']}'" for t in targets)
-        self.pending_sop = {"stage": "confirm", "action": action, "path": source.path, "sha256": source.sha256,
-                            "instruction": instruction, "targets": targets}
+        self.pending_sop = {"stage": "confirm", "action": action, "path": source.path, "sha256": source.sha256}
         modified = datetime.fromtimestamp(source.path.stat().st_mtime)
-        if action == "review":
-            return self._sop_reply(
-                f"I found {source.path.name} (modified {modified:%Y-%m-%d}). Shall Abdullah review it? Its full text will be "
-                "sent to Anthropic (Claude); the file itself will not change. Reply yes to go ahead, local for the "
-                "template check only (nothing leaves this computer), or no to cancel.")
         return self._sop_reply(
-            f"I found {source.path.name} (modified {modified:%Y-%m-%d}). Abdullah will change only {titles}, using your "
-            f"words: \"{instruction}\". Its full text will be sent to Anthropic (Claude) and the result saved as a new "
-            "draft for your approval; the original file stays as it is. Reply yes to go ahead, or no to cancel.")
+            f"I found {source.path.name} (modified {modified:%Y-%m-%d}). Shall Abdullah check it against the template? "
+            "Nothing leaves this computer and the file will not change. Reply yes to go ahead, or no to cancel. "
+            + self.CLAUDE_CODE)
 
     def sop_commands(self):
         """Commands that finish a waiting SOP request when the chat cannot ask a follow-up question."""
-        from .utils.existing_sops import load_sop
-        from .utils.documents import section_map
         pending = self.pending_sop
         if not pending:
             return None
+        if pending["action"] == "revise":
+            return self.CLAUDE_CODE
         paths = pending["choices"] if pending["stage"] == "choose" else [pending["path"]]
-        commands = []
-        for path in paths:
-            command = f"reema {pending['action']} {shlex.quote(str(path))}"
-            if pending["action"] == "revise":
-                command += f" --instruction {shlex.quote(pending['instruction'])}"
-                if pending.get("targets"):
-                    titles = section_map(load_sop(path).content, config_manager.document_profile)
-                    command += "".join(f" --section {shlex.quote(titles[t]['title'])}" for t in pending["targets"])
-            commands.append(command + " --allow-external-ai")
-        return (f"This one-message chat can't wait for your answer. Continue interactively with:\n"
-                f"reema chat --area {self.area} --allow-external-ai\n"
-                "or run the job directly:\n" + "\n".join(commands))
+        return ("This one-message chat can't wait for your answer. Run the template check directly:\n"
+                + "\n".join(f"reema review {shlex.quote(str(path))}" for path in paths) + "\n" + self.CLAUDE_CODE)
 
-    def _sop_leader(self, action, local_only):
+    async def _sop_run(self, pending):
         from .agents.leader_agent import LeaderAgent
-        leader = LeaderAgent(api_key="")
-        if not local_only:
-            leader.register_worker("ReviewAgent", ReviewAgent(api_key=self.api_key))
-        if action == "revise":
-            leader.register_worker("ContentAgent", ContentAgent(api_key=self.api_key))
-        return leader
-
-    async def _sop_run(self, pending, *, allow_external_ai=False, local_only=False):
-        from .utils.existing_sops import load_sop, instruction_findings
-        action, path = pending["action"], pending["path"]
-        command = f'reema {action} "{path}"' + (f' --instruction "{pending["instruction"]}"' if action == "revise" else "")
-        if not local_only and not (allow_external_ai or config_manager.system_config.allow_external_ai):
-            return self._sop_reply("This chat was started without permission to send text to Anthropic, so I did not "
-                                   "send the SOP. Restart the chat with --allow-external-ai, or run:\n"
-                                   f"{command} --allow-external-ai")
-        if not local_only and not (self.api_key if self.api_key is not None else config_manager.system_config.anthropic_api_key):
-            return self._sop_reply("ANTHROPIC_API_KEY is needed for this job; nothing was sent.")
+        from .utils.existing_sops import load_sop
+        path = pending["path"]
         try:
             source = load_sop(path)
         except ValueError as error:
             return self._sop_reply(f"I can't read {Path(path).name} any more: {error}")
         if source.sha256 != pending["sha256"]:
             return self._sop_reply(f"{source.path.name} changed after you confirmed it, so I stopped. Ask me again.")
-        leader = self._sop_leader(action, local_only)
+        leader = LeaderAgent(api_key="")
         try:
-            if action == "review":
-                findings = await leader.review_existing(source, local_only=local_only, allow_external_ai=True)
-            else:
-                located = instruction_findings(source.content, config_manager.document_profile,
-                                               pending["instruction"], pending["targets"])
-                outputs = await leader.revise_existing(source, located, allow_external_ai=True,
-                                                       origin={"instruction": pending["instruction"], "via": "chat"})
+            findings = await leader.review_existing(source, local_only=True)
         except (ValueError, PermissionError, OSError, RuntimeError) as error:
-            return self._sop_reply(f"Abdullah stopped the {action}: {error}. The original file was not changed "
-                                   "and nothing was approved.")
+            return self._sop_reply(f"Abdullah stopped the review: {error}. The original file was not changed.")
         finally:
             await leader.close()
         run_dir = Path(leader.context["run_dir"])
-        usage = json.loads((run_dir / "run.json").read_text(encoding="utf-8")).get("usage")
-        if action == "review":
-            items = findings["template_gaps"] + findings["findings"]
-            lines = [f"- [{i['severity']}, {i['category']}] {i.get('section') or findings['section_locations'].get(i['section_id'], {}).get('title', i['section_id'])}: {i['description']}"
-                     for i in items[:6]]
-            more = f"\n…and {len(items) - 6} more." if len(items) > 6 else ""
-            return self._sop_reply(
-                f"Review of {source.path.name} finished ({'template check only' if local_only else 'model review'}): "
-                f"{len(findings['template_gaps'])} template gap(s), {len(findings['findings'])} other finding(s). "
-                "The file was not changed. These are unverified suggestions.\n" + "\n".join(lines) + more
-                + f"\nFull list: {run_dir / 'findings.md'}", usage)
-        record = leader.context["delivery"]["approval_record"]
+        gaps = findings["template_gaps"]
+        lines = [f"- [{i['severity']}, {i['category']}] {i.get('section') or i['section_id']}: {i['description']}" for i in gaps[:6]]
+        more = f"\n…and {len(gaps) - 6} more." if len(gaps) > 6 else ""
         return self._sop_reply(
-            f"Abdullah revised {source.path.name}; only the confirmed section(s) changed and the original file is untouched.\n"
-            + "\n".join(f"{fmt}: {p}" for fmt, p in outputs.items())
-            + f"\nChanges: {run_dir / 'changes.md'}\nThe draft is awaiting your approval. I can't approve it. After you "
-            f'read it, run: reema approve "{record}" --reviewer "<your name>"', usage)
+            f"Template check of {source.path.name} finished: {len(gaps)} template gap(s). The file was not changed.\n"
+            + "\n".join(lines) + more + f"\nFull list: {run_dir / 'findings.md'}\n" + self.CLAUDE_CODE)
 
     @staticmethod
     def _system(key):
@@ -592,7 +527,7 @@ class AssistantSession:
             else:
                 local = self._local_memory(message)
             return self._local_reply(local, message)
-        sop_reply = await self._sop_request(message, allow_external_ai)
+        sop_reply = await self._sop_request(message)
         if sop_reply is not None:
             return sop_reply
         natural_task = self._natural_task(message)

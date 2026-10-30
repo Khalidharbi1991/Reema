@@ -4,7 +4,8 @@ Claude Code writes the findings; REEMA's code does everything else: the excerpt 
 template-gap check, quote location, finding IDs, hash binding and the run folder. The SOP file is
 only read, and a review has no approval record.
 
-    prepare FILE         write output/claude_code/<id>/review_request.json
+    prepare FILE         refuse and print the confirm-read token for FILE
+    prepare FILE --confirm-read TOKEN   after Khalid's yes, write output/claude_code/<id>/review_request.json
     check   ID           validate excerpts.json (and consistency.json); write consistency_request.json
     finish  ID           run the review job into a NEW output/runs/ folder
     compare RUN_A RUN_B  compare two review runs of the same SOP
@@ -33,6 +34,7 @@ from src.knowledge.retrieval import chunks  # noqa: E402
 from src.utils.config import config_manager  # noqa: E402
 from src.utils.documents import ExistingSopAssessment, section_map, sha  # noqa: E402
 from src.utils.existing_sops import load_sop, require_unique_sections, template_gaps  # noqa: E402
+from src.utils.read_gate import require_read_permission  # noqa: E402
 
 # Shared work-folder helpers from the revise experiment.
 _spec = importlib.util.spec_from_file_location("claude_code_revise", Path(__file__).with_name("claude_code_revise.py"))
@@ -93,12 +95,14 @@ def _consistency(path, request):
     return consistency
 
 
-def prepare(file):
+def prepare(file, confirm_read=None):
     source = load_sop(file)
     require_unique_sections(source.content, PROFILE)
     locations = section_map(source.content, PROFILE)
     if not locations:
         raise ValueError("This SOP has no top-level sections (## headings or Word Heading 1) to review")
+    # Checked after the local section checks, and before any SOP text is copied.
+    permission = require_read_permission(source.path, source.sha256, confirm_read)
     parts = chunks(source.content, config_manager.system_config.review_chunk_chars)
     request = {
         "source_path": str(source.path), "source_sha256": source.sha256, "document_sha256": sha(source.content),
@@ -106,7 +110,7 @@ def prepare(file):
         "template_gaps": template_gaps(source.content, PROFILE), "consistency_pass": len(parts) > 1,
         "excerpts": [{"excerpt": number, "start": offset, "end": offset + len(part), "text": part}
                      for number, (offset, part) in enumerate(parts, 1)],
-        "assessment_schema": ExistingSopAssessment.model_json_schema()}
+        "assessment_schema": ExistingSopAssessment.model_json_schema(), "read_permission": permission}
     work_id = uuid4().hex
     path = work_root() / work_id
     path.mkdir(parents=True)
@@ -217,7 +221,9 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--output", "-o", type=Path, help="Output root (default: ./output)")
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("prepare").add_argument("file", type=Path)
+    one = commands.add_parser("prepare")
+    one.add_argument("file", type=Path)
+    one.add_argument("--confirm-read", help="Token printed for this file; give it only after Khalid's yes")
     for name in ("check", "finish"):
         commands.add_parser(name).add_argument("work_id")
     two = commands.add_parser("compare")
@@ -228,7 +234,7 @@ def main(argv=None):
         config_manager.system_config.output_dir = args.output.expanduser().resolve()
     try:
         if args.command == "prepare":
-            prepare(args.file)
+            prepare(args.file, args.confirm_read)
         elif args.command == "check":
             check(args.work_id)
         elif args.command == "finish":

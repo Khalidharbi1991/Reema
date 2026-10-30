@@ -4,7 +4,8 @@ Claude Code writes the section text and the recheck; REEMA's code does everythin
 section choice, hash binding, the "only the target section changed" and "no new IDs" gates,
 the Word splice and re-read, export and the pending human approval record.
 
-    prepare FILE --section TITLE --instruction TEXT   write output/claude_code/<id>/request.json
+    prepare FILE --section TITLE --instruction TEXT   refuse and print the confirm-read token for FILE
+    prepare ... --confirm-read TOKEN                  after Khalid's yes, write output/claude_code/<id>/request.json
     prepare FILE --from-review RUN --finding ID       the same, from 1-5 findings of a review run of FILE
     prepare ... --major                               name the revision with the next major version (V2.3 -> V3.0)
     check   ID                                        validate patch.json; write recheck_request.json
@@ -35,6 +36,7 @@ from src.utils.documents import (CorrectionAssessment, SectionPatch, assert_no_n
 from src.utils.existing_sops import (changes_markdown, instruction_findings, load_sop,  # noqa: E402
                                      is_revision_output, require_unique_sections, resolve_sections, review_findings,
                                      splice_docx)
+from src.utils.read_gate import require_read_permission  # noqa: E402
 from src.utils.quality import parse_fenced_json_response  # noqa: E402
 from src.utils.validation import missing_sections  # noqa: E402
 from src.agents.content_agent import ContentAgent  # noqa: E402
@@ -127,13 +129,15 @@ def _options(sections, instruction, from_review, finding_ids):
     return {"mode": "review", "review_run": str(run), "finding_ids": finding_ids}
 
 
-def prepare(file, sections=(), instruction=None, *, from_review=None, finding_ids=(), major=False):
+def prepare(file, sections=(), instruction=None, *, from_review=None, finding_ids=(), major=False, confirm_read=None):
     request = {"source_path": str(Path(file).expanduser().resolve()),
                **_options(sections, instruction, from_review, finding_ids), "major": bool(major)}
     request["source_sha256"] = load_sop(request["source_path"]).sha256
     if request["mode"] == "review":
         request["review_findings_sha256"] = _review_checkpoint(request["review_run"])
     source, findings, targets, complete = _derive(request)
+    # Checked after the local option and finding checks, and before any SOP text is copied.
+    request["read_permission"] = require_read_permission(source.path, source.sha256, confirm_read)
     locations = section_map(source.content, PROFILE, require_complete=complete)
     request.update(
         base_document_sha256=sha(source.content), require_complete=complete, findings=findings,
@@ -272,6 +276,7 @@ def main(argv=None):
     one.add_argument("--from-review", type=Path, help="Review run folder of this same SOP")
     one.add_argument("--finding", action="append", help=f"Finding id from --from-review; repeatable, 1-{MAX_FINDINGS}")
     one.add_argument("--major", action="store_true", help="Next major version (V2.3 -> V3.0) instead of the next minor")
+    one.add_argument("--confirm-read", help="Token printed for this file; give it only after Khalid's yes")
     for name in ("check", "finish"):
         commands.add_parser(name).add_argument("work_id")
     two = commands.add_parser("compare")
@@ -283,7 +288,8 @@ def main(argv=None):
     try:
         if args.command == "prepare":
             prepare(args.file, args.section or (), args.instruction,
-                    from_review=args.from_review, finding_ids=args.finding or (), major=args.major)
+                    from_review=args.from_review, finding_ids=args.finding or (), major=args.major,
+                    confirm_read=args.confirm_read)
         elif args.command == "check":
             check(args.work_id)
         elif args.command == "finish":

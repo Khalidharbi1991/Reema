@@ -110,14 +110,14 @@ judgments remain unverified. Successful generation produces drafts in
 approve a document as a human reviewer.
 
 Finished SOPs (`.md` or `.docx`) can be reviewed and revised; the source file is
-only read. `reema review` saves located findings (outdated, missing step, vague,
-template gap) to a new run with no `approval.json`; `--local-only` runs just the
-template-gap check (missing, empty or duplicated required sections) with no model
-call or consent. `reema revise` (`--instruction`/`--section` or `--from-review`/
-`--finding`) changes only the named sections through `ContentAgent.revise_sections`,
-the shared preservation gate and the targeted recheck, then ends at
-`awaiting_human_approval`; its record's score is the share of findings the recheck
-marked resolved. Revised drafts are named with the next file version (`_V2` → `_V2.1`;
+only read. Review and revise run only in Claude Code (sections below); REEMA no longer
+calls a model for them. `reema review` runs just the template-gap check (missing, empty
+or duplicated required sections) with no model call, saving it to a new run with no
+`approval.json` (`--local-only` is still accepted). `reema revise` only points to Claude
+Code. A revision (`--instruction`/`--section` or `--from-review`/`--finding`) changes
+only the named sections through `ContentAgent.revise_sections`, the shared preservation
+gate and the targeted recheck, then ends at `awaiting_human_approval`; its record's score
+is the share of findings the recheck marked resolved. Revised drafts are named with the next file version (`_V2` → `_V2.1`;
 no version → `_V1.1`; `--major` → `_V3.0`, never automatic), counting every draft in
 `output/`, its runs and `output/archive/`, rejected ones included; old `_revised` files are not
 renamed and count as their plain version. Document Control inside the document is not changed.
@@ -132,9 +132,16 @@ existed are not published; `approve --no-publish` skips it. Ahmad's file search 
 draft only as its `output/` copy. Non-template SOPs use relaxed section checks; generate keeps the
 full profile. DOCX revisions splice only the target sections into a copy of the
 original; sections with images, tracked changes, fields or content controls are
-refused. In chat, Ahmad matches the request to files in `output/` by file-name
-words, lists several matches for Khalid to choose, names the section, and needs an
-explicit yes plus chat consent before any external call. He never approves.
+refused. In `reema chat`, Ahmad matches the request to files in `output/` by file-name
+words, lists several matches for Khalid to choose, and on his yes runs only the local
+template check; review and revise requests are pointed to Claude Code. He never approves.
+
+Both Claude Code prepare steps (`src/utils/read_gate.py`) refuse until given
+`--confirm-read` with the token they print for that exact file (the start of its
+SHA-256), which Ahmad passes only after Khalid's yes; nothing is copied into
+`output/claude_code/` before that. A file under `references/` must also be allowed,
+unrestricted and unchanged in the reference manifest. The token binds the yes to the
+file's bytes; it cannot prove who said yes.
 
 ### Claude Code revise (experimental)
 
@@ -147,22 +154,22 @@ checkpoint or `request.json` changed since prepare. The `reema-reviser` and
 `reema-rechecker` subagents write `patch.json` and `recheck.json` under
 `output/claude_code/<id>/`; `scripts/claude_code_revise.py` (prepare/check/finish/
 compare) feeds them through `src/agents/file_workers.py` into the unchanged
-`LeaderAgent.revise_existing` gates, with the key and consent cleared while it runs.
-Khalid's yes is still required before the session reads the SOP. The run ends at
-`awaiting_human_approval`; `.claude/settings.json` denies `approve`/`reject`. The
-`reema revise` API path is unchanged.
+`LeaderAgent.revise_existing` gates (which accept only these file workers), with the key
+and consent cleared while it runs. Khalid's yes, passed as the confirm-read token, is
+required before the session reads the SOP. The run ends at `awaiting_human_approval`;
+`.claude/settings.json` denies `approve`/`reject`.
 
 ### Claude Code review (experimental)
 
-The `reema-review` skill does the same for `reema review`. `reema-reviewer` writes
+The `reema-review` skill is the only model review. `reema-reviewer` writes
 one assessment per excerpt (`excerpts.json`); when the SOP has several excerpts, a
 fresh `reema-consistency-reviewer` writes the cross-section pass
 (`consistency.json`, bound to the excerpts' SHA-256). `scripts/claude_code_review.py`
 (prepare/check/finish/compare) runs them through `FileReviewWorker` and the
 unchanged `ReviewAgent.review_existing` checks into `LeaderAgent.review_existing`
-(`local_author=True`). Both paths share `ReviewAgent.EXISTING_SOP_INSTRUCTIONS`.
-The source file is only read (finish compares its byte SHA-256 before and after),
-and no `approval.json` is written. The `reema review` API path is unchanged.
+(`local_author=True`, required for any review beyond the template check). The request
+carries `ReviewAgent.EXISTING_SOP_INSTRUCTIONS`. The source file is only read (finish
+compares its byte SHA-256 before and after), and no `approval.json` is written.
 
 Specialist handoffs preserve full payloads and use strict internal contracts in
 `src/utils/handoffs.py`; public agent strings/dictionaries remain compatible.
@@ -186,7 +193,7 @@ Details: `docs/guides/AGENT_HANDOFFS_AND_STATUS.md`,
 ## REEMA company in Claude Code
 
 These rules apply only in a Claude Code session in this repository; other coding
-agents skip this section. The API path (`reema chat`, `review`, `revise`,
+agents skip this section. The API path (`reema chat`,
 `generate`) is unchanged.
 
 ### Ahmad (the main session)

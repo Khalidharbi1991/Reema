@@ -10,7 +10,8 @@ Ahmad follows this playbook; Abdullah is not a separate session. One job at a ti
    without opening any file. List the matches; Khalid picks one.
 2. Ask for Khalid's explicit yes to read that SOP in this session (it goes to Anthropic through
    Claude Code). No yes: stop. Offer the template check instead, which reads nothing into the session:
-   `python3 scripts/dev.py run review "<file>" --local-only`
+   `python3 scripts/dev.py run review "<file>"`. With the yes, the prepare step prints a
+   `--confirm-read` token; pass it only because Khalid said yes to that file.
 3. Choose the job:
    - Review: follow the reema-review skill.
    - Revise one section in Khalid's words: confirm the section title and the exact instruction,
