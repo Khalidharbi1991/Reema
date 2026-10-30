@@ -118,20 +118,17 @@ class TestPipelineStructure:
         output = tmp_path / "test.md"
         output.write_text("Draft document")
 
-        # Mock SecretaryAgent (Ahmad)
-        mock_secretary = MagicMock()
-        mock_secretary.coordinate_delivery = AsyncMock(return_value={
-            "delivery_status": "completed",
-            "executive_summary": "SOP delivered."
-        })
-        leader.worker_agents["SecretaryAgent"] = mock_secretary
+        # Ahmad as a spec'd fake: any call to a real SecretaryAgent method is recorded
+        from src.agents.secretary_agent import SecretaryAgent
+        mock_secretary = MagicMock(spec=SecretaryAgent)
+        leader.register_worker("SecretaryAgent", mock_secretary)
 
         result = await leader._coordinate_delivery(
             "Incident Management",
             {"markdown": str(output)}
         )
 
-        mock_secretary.coordinate_delivery.assert_not_called()
+        assert mock_secretary.mock_calls == []
         assert result["delivery_status"] == "awaiting_human_approval"
         assert Path(result["approval_record"]).is_file()
 

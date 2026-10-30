@@ -351,7 +351,6 @@ Be specific, actionable, and reference standards with specific control numbers a
 
 Applicable Standards/Regulations: {', '.join(standards)}
 
-
 Provide comprehensive Problem Management research including:
 
 ## 1. PROBLEM MANAGEMENT PRACTICE OVERVIEW
@@ -503,7 +502,6 @@ Format professionally with tables, numbered lists, and clear formatting suitable
 **Scope:** {scope}
 **Target Length:** 20-30 pages
 **Format:** Professional SOP following ITIL v4 and industry standards
-
 
 Create a complete SOP with ALL of these sections:
 

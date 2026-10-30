@@ -98,7 +98,6 @@ Provide thorough, accurate, and well-structured research findings."""
 
 Standards to reference: {', '.join(standards)}
 
-
 Please provide comprehensive research including:
 
 1. **Process Definition**
