@@ -184,7 +184,12 @@ compares its byte SHA-256 before and after), and no `approval.json` is written.
 
 Leader status counts actual job phases, with persisted failure/cancellation and
 skipped states in `run.json`. Model-phase recovery is gone with the API generate
-path; `reema resume RUN` only re-exports a run's checked ready checkpoint offline.
+path, with its signed journal and `.recovery-key`. `reema export RUN` re-exports a run's
+unchanged ready checkpoint offline into a new run awaiting approval: a Claude Code run's
+draft passes every local check again; an older API run keeps its review gate. `resume`
+is a hidden old name for it. Old runs keep loading: unknown `run.json` keys, `usage`
+lineage, `execution.json` and `.owner.lock` files are ignored; `RunLease` stays as the
+lock on a run folder while a job writes it.
 
 Details: `docs/guides/AGENT_HANDOFFS_AND_STATUS.md`,
 `docs/guides/COORDINATION_AND_RECOVERY.md`, `docs/guides/DOCUMENT_QUALITY.md`,

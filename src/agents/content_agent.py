@@ -6,7 +6,7 @@ from ..utils.logger import logger
 from ..utils.config import config_manager
 from ..utils.handoffs import payload_json
 from ..utils.documents import SectionBody, SectionDraft, SectionPatch, section_map, sha, validate_body
-from ..utils.quality import parse_json_response, parse_fenced_json_response, checkpointed_call, UnparsedReplyError
+from ..utils.quality import parse_json_response, parse_fenced_json_response, structured_call, UnparsedReplyError
 from ..utils.diagrams import SequenceFlow, GraphFlow
 import json
 
@@ -148,8 +148,7 @@ class ContentAgent(BaseAgent):
         Generate the SOP one configured section per model request, then assemble it.
 
         max_tokens bounds each section reply, not the whole document. Sections run in
-        order so later ones reuse the written definitions and RACI. Each finished
-        section is checkpointed in the signed run journal and reused on recovery.
+        order so later ones reuse the written definitions and RACI.
 
         Args:
             process_name: Name of the IT process
@@ -174,7 +173,7 @@ class ContentAgent(BaseAgent):
                     validate_body(result.body)
 
                 try:
-                    result = await checkpointed_call(self, prompt, SectionBody, check)
+                    result = await structured_call(self, prompt, SectionBody, check)
                 except (ValueError, RuntimeError) as error:
                     hint = f"; it exceeded max_tokens={self.max_tokens}" if "max_tokens" in str(error) else ""
                     category = ValueError if isinstance(error, ValueError) else RuntimeError

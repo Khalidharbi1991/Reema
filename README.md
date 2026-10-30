@@ -174,7 +174,7 @@ python3 scripts/dev.py run generate "Service Request Management" --output ./outp
 ```
 
 Keep custom output folders under `output/` or another Git-ignored path. Drafts,
-run checkpoints and source excerpts are written there; `generate` and `resume`
+run checkpoints and source excerpts are written there; `generate` and `export`
 print a warning when the folder is inside the repository but not ignored.
 
 Unknown process names fail unless `--custom` is supplied. Additional specialists can be
@@ -311,11 +311,12 @@ Each run saves phase checkpoints and usage metadata in its own directory. If a
 run reached `ready.json` but export failed, regenerate the exports offline:
 
 ```bash
-python3 scripts/dev.py run resume output/runs/<run-id> -f markdown -f docx
+python3 scripts/dev.py run export output/runs/<run-id> -f markdown -f docx
 ```
 
-This validates the checkpoint hash, creates a new run, and requires a fresh human
-decision. It makes no model call.
+This validates the checkpoint hash, runs the local checks again on a Claude Code draft,
+creates a new run, and requires a fresh human decision. It makes no model call. It also
+exports older runs made by the removed API path; `resume` still works as an old name.
 
 ## Examples
 
