@@ -39,13 +39,8 @@ class SopSource:
     def record(self):
         return {"path": str(self.path), "kind": self.kind, "sha256": self.sha256, "content": self.content}
 
-    def verify_unchanged(self):
-        """The file on disk must still be the exact bytes that were read."""
-        if hashlib.sha256(self.path.read_bytes()).hexdigest() != self.sha256:
-            raise ValueError(f"The SOP file changed after it was read: {self.path}")
 
-
-def load_sop(path, profile=None) -> SopSource:
+def load_sop(path) -> SopSource:
     path = Path(path).expanduser()
     kind = KINDS.get(path.suffix.lower())
     if kind is None:
@@ -66,11 +61,6 @@ def load_sop(path, profile=None) -> SopSource:
         content, blocks = _docx_markdown(data)
     if not content.strip():
         raise ValueError("SOP has no readable text")
-    if profile is None:
-        from .config import config_manager
-        profile = config_manager.document_profile
-    if not section_map(content, profile):
-        raise ValueError("SOP has no top-level section headings (## in Markdown, Heading 1 in Word)")
     return SopSource(path.resolve(), kind, digest, content, blocks)
 
 
@@ -304,3 +294,39 @@ def splice_docx(source, revised_bodies, profile, destination):
     destination = Path(destination)
     doc.save(str(destination))
     return destination
+
+
+def review_findings(run_dir, source, finding_ids=()):
+    """Revisable findings from a checksum-verified review run of this exact file."""
+    import json
+    run_dir = Path(run_dir).expanduser()
+    try:
+        state = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+        data = (run_dir / "findings.json").read_bytes()
+    except (OSError, ValueError):
+        raise ValueError(f"{run_dir} is not a review run folder") from None
+    if state.get("job") != "review" or hashlib.sha256(data).hexdigest() != state.get("checkpoints", {}).get("findings"):
+        raise ValueError("Review run is missing, not a review, or its findings changed after it was saved")
+    findings = json.loads(data)
+    if findings["source_sha256"] != source.sha256 or findings["document_sha256"] != sha(source.content):
+        raise ValueError("The SOP changed since that review; review it again before revising")
+    available = {item["finding_id"]: item for item in findings["findings"]}
+    gaps = {item["finding_id"] for item in findings["template_gaps"]}
+    if finding_ids:
+        unknown = [f for f in finding_ids if f not in available]
+        if unknown:
+            reason = "template gaps cannot be revised in place" if set(unknown) <= gaps else "unknown finding"
+            raise ValueError(f"Cannot revise {', '.join(unknown)}: {reason}")
+        selected = [available[f] for f in dict.fromkeys(finding_ids)]
+    else:
+        selected = list(available.values())
+    if not selected:
+        raise ValueError("That review has no section findings to revise (template gaps need new sections)")
+    return selected
+
+
+def changes_markdown(before, after, name):
+    import difflib
+    diff = difflib.unified_diff(before.splitlines(keepends=True), after.splitlines(keepends=True),
+                                fromfile=name + " (original)", tofile=name + " (revised)")
+    return "```diff\n" + "".join(diff) + "\n```\n"

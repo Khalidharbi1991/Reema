@@ -520,8 +520,73 @@ def review(
     run_dir = Path(leader.context["run_dir"])
     console.print(f"{len(findings['template_gaps'])} template gap(s), {len(findings['findings'])} model finding(s). "
                   "The SOP was not changed.", markup=False)
-    console.print(f"Run folder: {run_dir}", markup=False)
     console.print(f"Findings: {run_dir / 'findings.md'}", markup=False)
+
+
+@app.command()
+def revise(
+    file: Path = typer.Argument(..., help="Finished SOP (.md or .docx); it is only read, never changed"),
+    instruction: Optional[str] = typer.Option(None, "--instruction", help="What to change, in plain words"),
+    sections: Optional[List[str]] = typer.Option(None, "--section", help="Section to change, by title or id; repeatable"),
+    from_review: Optional[Path] = typer.Option(None, "--from-review", help="Review run folder whose findings to fix"),
+    finding_ids: Optional[List[str]] = typer.Option(None, "--finding", help="Only this finding from --from-review; repeatable"),
+    allow_external_ai: bool = typer.Option(False, "--allow-external-ai", help="Authorize sending this SOP's text to Anthropic"),
+    output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Output root (default: ./output)"),
+):
+    """Change only the named sections into a NEW run folder; ends awaiting human approval."""
+    from .utils.existing_sops import load_sop, resolve_sections, instruction_findings, review_findings
+    try:
+        if (instruction is None) == (from_review is None):
+            raise ValueError("Give exactly one of --instruction or --from-review")
+        if from_review is None and finding_ids:
+            raise ValueError("--finding needs --from-review")
+        if from_review is not None and sections:
+            raise ValueError("--section works with --instruction; use --finding with --from-review")
+        source = load_sop(file)
+        profile = config_manager.document_profile
+        if instruction is not None:
+            if not instruction.strip():
+                raise ValueError("--instruction cannot be empty")
+            targets = resolve_sections(source.content, profile, instruction, sections or ())
+            findings = instruction_findings(source.content, profile, instruction.strip(), targets)
+            origin = {"instruction": instruction.strip()}
+        else:
+            findings = review_findings(from_review, source, finding_ids or ())
+            origin = {"review_run": str(from_review.expanduser().resolve()), "finding_ids": [f["finding_id"] for f in findings]}
+    except ValueError as error:
+        console.print(str(error), markup=False)
+        raise typer.Exit(code=2)
+    settings = config_manager.system_config
+    if not (allow_external_ai or settings.allow_external_ai):
+        console.print("Revise sends this SOP's text to Anthropic. Use --allow-external-ai after confirming "
+                      "permission for this document.", markup=False)
+        raise typer.Exit(code=2)
+    if not settings.anthropic_api_key:
+        console.print("ANTHROPIC_API_KEY is needed for a revision.", markup=False)
+        raise typer.Exit(code=1)
+    leader = LeaderAgent(api_key="")
+    leader.register_worker("ContentAgent", ContentAgent())
+    leader.register_worker("ReviewAgent", ReviewAgent())
+    previous_output = settings.output_dir
+    try:
+        if output_dir is not None:
+            settings.output_dir = output_dir.expanduser().resolve()
+        _warn_if_output_unignored(settings.output_dir)
+        outputs = asyncio.run(_close_after(leader, leader.revise_existing(
+            source, findings, allow_external_ai=allow_external_ai, origin=origin)))
+    except (ValueError, OSError, PermissionError, RuntimeError) as error:
+        console.print(str(error), markup=False)
+        raise typer.Exit(code=1)
+    finally:
+        settings.output_dir = previous_output
+    titles = sorted({f["section_id"] for f in findings})
+    console.print(f"Revised {len(titles)} section(s); the original file was not changed.", markup=False)
+    for fmt, path in outputs.items():
+        console.print(f"{fmt}: {path}", markup=False)
+    record = leader.context["delivery"]["approval_record"]
+    console.print(f"Changes: {Path(record).parent / 'changes.md'}", markup=False)
+    console.print(f"Awaiting human approval: {record}", markup=False)
+    console.print(f'After reading it, approve with: reema approve "{record}" --reviewer "<your name>"', markup=False)
 
 
 async def _close_after(leader, job):

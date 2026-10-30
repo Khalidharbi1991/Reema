@@ -12,6 +12,7 @@ Pipeline Phases:
 """
 
 import asyncio
+import hashlib
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from copy import deepcopy
@@ -1035,7 +1036,6 @@ class LeaderAgent:
                             "section_locations": review["section_locations"], "verification": "unverified"}
                 store.save("findings", findings)
                 (run_dir / "findings.md").write_text(findings_markdown(findings), encoding="utf-8")
-            source.verify_unchanged()
             self._finish_workflow("review_complete")
             store.finish("review_complete", summary())
             self.context["findings"] = findings
@@ -1044,6 +1044,94 @@ class LeaderAgent:
             self._finish_workflow("cancelled" if isinstance(e, asyncio.CancelledError) else "failed")
             if store:
                 store.finish("cancelled" if isinstance(e, asyncio.CancelledError) else "failed", summary(), type(e).__name__)
+            raise
+        finally:
+            if store:
+                store.close()
+            current_runtime.reset(token)
+            self._task_store = None
+
+    async def revise_existing(self, source, findings, *, allow_external_ai=False, origin=None) -> Dict[str, str]:
+        """Targeted revision of a finished SOP into a NEW run, ending at awaiting_human_approval.
+
+        Only the sections named by the findings may change; the source file is never written.
+        """
+        from ..utils.existing_sops import require_unique_sections, splice_docx, load_sop, changes_markdown
+        from ..utils.validation import missing_sections, safe_filename
+        if self.workflow_status == "running":
+            raise RuntimeError("This leader already has a running workflow; use a separate instance")
+        if not (allow_external_ai or config_manager.system_config.allow_external_ai):
+            raise PermissionError("Authorize sending this SOP to Anthropic with --allow-external-ai")
+        missing = {"ContentAgent", "ReviewAgent"} - self.worker_agents.keys()
+        if missing:
+            raise ValueError(f"Required agents missing: {', '.join(sorted(missing))}")
+        profile = config_manager.document_profile
+        content = source.content
+        require_unique_sections(content, profile)
+        # A conforming SOP keeps the full 11-section checks used by generate.
+        complete = not missing_sections(content, profile)
+        targets = {f["section_id"] for f in findings}
+        run_dir = config_manager.system_config.output_dir / "runs" / uuid4().hex
+        self.context = {"run_dir": str(run_dir), "job": "revise", "source_path": str(source.path)}
+        self._begin_workflow(source.path.name, ["revision", "recheck", "formatting", "human_review_record"])
+        runtime = RunRuntime(config_manager.system_config.model_copy(update={"allow_external_ai": True}))
+        token = current_runtime.set(runtime)
+        store = None
+        try:
+            formats = ["markdown", "docx"] if source.kind == "docx" else ["markdown"]
+            store = RunStore(run_dir, source.path.name, formats)
+            self._task_store = store
+            store.state.update(job="revise", origin=origin or {}, full_profile_checks=complete)
+            store.save("source", source.record())
+            async with self._phase("revision"):
+                revised = await self._invoke("revise_sections", {"content": content, "findings": findings,
+                                                                 "require_complete": complete})
+                assert_only_targets_changed(content, revised, targets, profile, require_complete=complete)
+            async with self._phase("recheck"):
+                recheck = await self._invoke("recheck", {"content": revised, "findings": findings,
+                                                         "require_complete": complete})
+                checked = CorrectionAssessment.model_validate({"corrections": recheck.get("corrections")}).validate_against(
+                    revised, findings, profile, complete)
+                if recheck.get("document_sha256") != sha(revised):
+                    raise ValueError("Correction recheck does not bind the revised document")
+                blocking = {f["finding_id"] for f in findings if f.get("blocking")}
+                if any(c.status != "resolved" and c.finding_id in blocking for c in checked.corrections):
+                    raise ValueError("Blocking findings remain open after revision; nothing was delivered")
+                resolved = sum(c.status == "resolved" for c in checked.corrections)
+                store.save("revised", {"content": revised, "before_sha256": sha(content), "after_sha256": sha(revised),
+                                       "target_sections": sorted(targets), "findings": findings, "recheck": recheck})
+            async with self._phase("formatting"):
+                stem = safe_filename(source.path.stem) + "_revised"
+                outputs = {"markdown": str(run_dir / f"{stem}.md")}
+                Path(outputs["markdown"]).write_text(revised, encoding="utf-8")
+                if source.kind == "docx":
+                    new = section_map(revised, profile)
+                    bodies = {key: revised[new[key]["body_start"]:new[key]["end"]].strip() for key in targets}
+                    outputs["docx"] = str(splice_docx(source, bodies, profile, run_dir / f"{stem}.docx"))
+                    # Re-read the spliced file: every other Word section must still read the same.
+                    assert_only_targets_changed(content, load_sop(outputs["docx"]).content, targets, profile,
+                                                require_complete=complete)
+                validate_output_files(outputs, formats)
+                (run_dir / "changes.md").write_text(changes_markdown(content, revised, source.path.name), encoding="utf-8")
+            async with self._phase("human_review_record"):
+                record_path = run_dir / "approval.json"
+                # The record's score field holds the share of findings the model recheck marked resolved.
+                score = round(100 * resolved / len(checked.corrections))
+                store.state["quality_score_basis"] = "percentage of findings the model recheck marked resolved"
+                create_pending_record(record_path, source.path.name, outputs, score,
+                                      supporting_records={"revised": str(run_dir / "revised.json"),
+                                                          "changes": str(run_dir / "changes.md")})
+                self.context["delivery"] = {"output_files": outputs, "approval_record": str(record_path),
+                                            "delivery_status": "awaiting_human_approval", "quality_score": score}
+            self._finish_workflow("awaiting_human_approval")
+            store.finish("awaiting_human_approval", runtime.summary())
+            if source.sha256 != hashlib.sha256(source.path.read_bytes()).hexdigest():
+                logger.warning("The original SOP changed on disk during the revision", agent=self.name)
+            return outputs
+        except BaseException as e:
+            self._finish_workflow("cancelled" if isinstance(e, asyncio.CancelledError) else "failed")
+            if store:
+                store.finish("cancelled" if isinstance(e, asyncio.CancelledError) else "failed", runtime.summary(), type(e).__name__)
             raise
         finally:
             if store:
