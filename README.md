@@ -220,7 +220,7 @@ python3 scripts/dev.py run review output/SOP_User_Incident_Management_V2.docx --
 # Change only the named section, from your own words...
 python3 scripts/dev.py run revise output/SOP_User_Incident_Management_V2.docx \
   --instruction "Escalate P1 incidents to the Incident Manager within 15 minutes" \
-  --section "Detailed Procedures" --allow-external-ai
+  --section "Escalation Paths" --allow-external-ai
 # ...or from a review run's findings
 python3 scripts/dev.py run revise output/SOP_User_Incident_Management_V2.docx \
   --from-review output/runs/<review-run-id> --finding F-<id> --allow-external-ai
