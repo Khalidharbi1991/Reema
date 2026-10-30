@@ -134,6 +134,18 @@ Khalid's yes is still required before the session reads the SOP. The run ends at
 `awaiting_human_approval`; `.claude/settings.json` denies `approve`/`reject`. The
 `reema revise` API path is unchanged.
 
+### Claude Code review (experimental)
+
+The `reema-review` skill does the same for `reema review`. `reema-reviewer` writes
+one assessment per excerpt (`excerpts.json`); when the SOP has several excerpts, a
+fresh `reema-consistency-reviewer` writes the cross-section pass
+(`consistency.json`, bound to the excerpts' SHA-256). `scripts/claude_code_review.py`
+(prepare/check/finish/compare) runs them through `FileReviewWorker` and the
+unchanged `ReviewAgent.review_existing` checks into `LeaderAgent.review_existing`
+(`local_author=True`). Both paths share `ReviewAgent.EXISTING_SOP_INSTRUCTIONS`.
+The source file is only read (finish compares its byte SHA-256 before and after),
+and no `approval.json` is written. The `reema review` API path is unchanged.
+
 Specialist handoffs preserve full payloads and use strict internal contracts in
 `src/utils/handoffs.py`; public agent strings/dictionaries remain compatible.
 Optional findings/provenance/assumptions metadata remains unverified. Review and
