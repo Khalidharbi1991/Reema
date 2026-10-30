@@ -54,5 +54,6 @@ def test_org_chart_members_exist():
 
 def test_settings_deny_approval_push_and_the_assistant_stores():
     deny = json.loads((CLAUDE / "settings.json").read_text())["permissions"]["deny"]
-    assert {"Bash(reema approve:*)", "Bash(reema reject:*)", "Bash(git push:*)",
+    assert {"Bash(reema approve:*)", "Bash(reema reject:*)", "Bash(reema publish:*)",
+            "Bash(python3 scripts/dev.py run publish:*)", "Bash(git push:*)",
             "Read(./output/assistant/**)"} <= set(deny)

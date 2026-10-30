@@ -369,3 +369,21 @@ def test_drafts_take_version_numbers_and_major_is_kept_from_prepare(tmp_path, ou
     outputs = ccr.finish(work_id)
     assert {Path(p).name for p in outputs.values()} == {"incident_V2.0.md", "incident_V2.0.docx"}
     assert "incident_V2.0.docx" in ccr._run_facts(Path(outputs["docx"]).parent)["outputs"]
+
+
+def test_approved_claude_code_revision_publishes_like_the_api_path(tmp_path, output_root, no_provider):
+    from src.utils.publish import publish, read_publish
+    _, work_id, work, request = prepared(tmp_path)
+    write_patch(work, request)
+    ccr.check(work_id)
+    write_recheck(work, request)
+    draft = Path(ccr.finish(work_id)["docx"])
+    assert draft.name == "incident_V1.1.docx"
+    (output_root / "incident.docx").write_bytes(b"previous version")
+    record = draft.parent / "approval.json"
+    record_decision(record, "approved", "Synthetic Reviewer")
+    publish(record, output_root)
+    assert (output_root / "incident_V1.1.docx").read_bytes() == draft.read_bytes()
+    assert (output_root / "incident_V1.1.md").is_file()
+    assert (output_root / "archive" / draft.parent.name / "incident.docx").read_bytes() == b"previous version"
+    assert read_publish(record)["status"] == "published"

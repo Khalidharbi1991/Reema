@@ -247,6 +247,25 @@ incident SOP". He lists matching files in `output/` for you to choose, names the
 section, and asks for your yes before anything is sent to Anthropic (the chat must
 also be started with `--allow-external-ai`). He cannot approve the result.
 
+#### Publishing an approved revision
+
+`reema approve` on a revise run (API or Claude Code) also publishes it: the approved
+`.md`/`.docx` drafts are copied to the top of `output/`, and every older version of the
+same SOP there (same name, lower version, same format) moves to
+`output/archive/<run-id>/`. Before you confirm, the command shows what it will copy and
+archive, or warns that publishing will be refused. It never overwrites a file and checks
+each copy and move by SHA-256; the result is in the run's `publish.json`. If publishing
+is refused or stops halfway, the approval stays recorded, the command exits 1 with
+"approved, not published", and you can retry:
+
+```bash
+reema publish output/runs/RUN_ID/approval.json
+```
+
+`reema approve --no-publish` records the approval only; `reema publish` can publish it
+later. Generate runs, old `_revised` drafts and runs approved before this feature are
+not published.
+
 #### Claude Code revise (experimental)
 
 Inside a Claude Code session in this repository you can revise one section of a

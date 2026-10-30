@@ -30,6 +30,7 @@ from .utils.config import config_manager
 from .utils.validation import validate_formats
 from .utils.output_safety import unignored_output
 from .utils.approvals import read_record, record_decision
+from .utils.publish import NotPublishable, PublishError, plan_publish, publish as publish_run, record_skipped
 from .utils.tasks import AREAS
 from .utils.specialists import SpecialistInputs
 
@@ -602,7 +603,9 @@ async def _close_after(leader, job):
         await leader.close()
 
 
-def _human_decision(record: Path, reviewer: str, decision: str, notes: str):
+def _human_decision(record: Path, reviewer: str, decision: str, notes: str, publish: bool = False):
+    output_root = config_manager.system_config.output_dir
+    publishable = False
     try:
         pending = read_record(record)
         if pending.status != "awaiting_human_approval":
@@ -612,6 +615,18 @@ def _human_decision(record: Path, reviewer: str, decision: str, notes: str):
             console.print(f"{fmt}: {artifact.path}", markup=False)
         for label, artifact in pending.supporting_records.items():
             console.print(f"Review/evidence record ({label}): {artifact.path}", markup=False)
+        if publish:
+            # Preview the publish before the decision, so a refusal is known while it can still be weighed.
+            try:
+                steps = plan_publish(record, output_root, pending_ok=True)
+                publishable = True
+                for step in steps:
+                    console.print(f"Will {step['action']}: {step['from']} -> {step['to']}", markup=False)
+            except NotPublishable as note:
+                console.print(str(note), markup=False)
+            except (OSError, PublishError) as error:
+                publishable = True
+                console.print(f"Warning: publishing will be refused after approval: {error}", markup=False)
         # Deliberately no --yes switch: the local CLI user must confirm.
         typer.confirm(f"Have you reviewed these drafts and want to record '{decision}' as {reviewer}?", abort=True)
         result = record_decision(record, decision, reviewer, notes)
@@ -619,6 +634,29 @@ def _human_decision(record: Path, reviewer: str, decision: str, notes: str):
     except (OSError, ValueError) as error:
         console.print(str(error), markup=False)
         raise typer.Exit(code=1)
+    if result.status == "approved" and publishable:
+        _publish(record, output_root)
+    elif result.status == "approved" and not publish:
+        try:
+            plan_publish(record, output_root)
+        except NotPublishable:
+            return
+        except PublishError:
+            pass
+        record_skipped(record, "approve --no-publish")
+        console.print(f'Not published (--no-publish). Publish later with: reema publish "{record}"', markup=False)
+
+
+def _publish(record: Path, output_root: Path):
+    try:
+        state = publish_run(record, output_root)
+    except (OSError, PublishError) as error:
+        console.print(f"Approved, not published: {error}", markup=False)
+        console.print(f'The approval stays recorded. Retry with: reema publish "{record}"', markup=False)
+        raise typer.Exit(code=1)
+    for step in state["attempts"][-1]["steps"]:
+        verb = "Published" if step["action"] == "copy" else "Archived"
+        console.print(f"{verb}: {step['to']}", markup=False)
 
 
 @app.command()
@@ -626,9 +664,11 @@ def approve(
     record: Path = typer.Argument(..., exists=True, dir_okay=False),
     reviewer: str = typer.Option(..., "--reviewer", help="Human reviewer's name"),
     notes: str = typer.Option("", "--notes"),
+    publish: bool = typer.Option(True, "--publish/--no-publish",
+                                 help="Copy an approved revision into output/ and archive older versions"),
 ):
-    """Record explicit human approval of an unchanged set of draft outputs."""
-    _human_decision(record, reviewer, "approved", notes)
+    """Record explicit human approval of an unchanged set of draft outputs, then publish a revision."""
+    _human_decision(record, reviewer, "approved", notes, publish=publish)
 
 
 @app.command()
@@ -639,6 +679,24 @@ def reject(
 ):
     """Record a human rejection; a revision requires a new generation run."""
     _human_decision(record, reviewer, "rejected", notes)
+
+
+@app.command("publish")
+def publish_command(record: Path = typer.Argument(..., exists=True, dir_okay=False)):
+    """Publish an approved revision, or finish one that failed or was skipped with --no-publish."""
+    from .utils.publish import read_publish
+    try:
+        if read_record(record).status != "approved":
+            raise ValueError("Only approved runs are published.")
+        if read_publish(record) is None:
+            raise ValueError("This run was approved before automatic publishing (or is not a revision); "
+                             "it is left as it is.")
+        if read_publish(record).get("status") == "published":
+            raise ValueError("This run is already published.")
+    except (OSError, ValueError) as error:
+        console.print(str(error), markup=False)
+        raise typer.Exit(code=1)
+    _publish(record, config_manager.system_config.output_dir)
 
 
 @app.command()

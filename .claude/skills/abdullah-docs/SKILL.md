@@ -22,6 +22,6 @@ Ahmad follows this playbook; Abdullah is not a separate session. One job at a ti
 4. Staff: reema-reviewer and a fresh reema-consistency-reviewer (review); reema-reviser and a fresh
    reema-rechecker, never the reviser (revise). Pass a refusal back at most 3 rounds, then stop and report.
 5. Report the run folder, findings.md or changes.md, and the source SHA-256 before and after. For a
-   revision, print the approve command. Never run `reema approve` or `reema reject`.
+   revision, print the approve command. Never run `reema approve`, `reema reject` or `reema publish`.
 6. Add a follow-up work task (`python3 scripts/dev.py run task add "<title>" --area work`) only if
    Khalid says yes.

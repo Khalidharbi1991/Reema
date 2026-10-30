@@ -26,4 +26,4 @@ gate, edit the script, or hand-write files under output/runs/ to get past a refu
 6. `python3 scripts/dev.py python scripts/claude_code_revise.py finish <id>`
 7. Report the run folder, the new file name and version, that Document Control inside the document
    was not changed (Khalid updates it), changes.md, the recheck result, and print the approve command for Khalid
-   to run himself. Never run `reema approve` or `reema reject`, and never supply a reviewer name.
+   to run himself. Never run `reema approve`, `reema reject` or `reema publish`, and never supply a reviewer name.
