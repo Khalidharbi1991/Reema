@@ -48,17 +48,17 @@ commands. Change history is in `docs/reports/CHANGELOG.md`.
 ## Current team
 
 There are twelve active agent roles. The user speaks to **Ahmad**, the personal
-coordinator, who consults chat specialists directly and frames advice in the
-former owner agent's strategy, governance, quality, and business-value terms.
-**Abdullah** leads the SOP pipeline and runs SOP jobs, including review and
-revise jobs that Ahmad triggers from chat after Khalid confirms them; he is not
-consulted in chat. His strategic guidance still feeds pipeline planning. The former owner agent has
-been removed.
+coordinator, who is the main Claude Code session (see "REEMA company in Claude
+Code") and frames advice in the former owner agent's strategy, governance, quality,
+and business-value terms. `reema chat` is retired: it only says Ahmad now works in
+Claude Code. **Abdullah** leads the SOP pipeline and the Documentation section's
+Claude Code review and revise jobs. His strategic guidance still feeds pipeline
+planning. The former owner agent has been removed.
 
 | Agent | Responsibility |
 | --- | --- |
-| Ahmad | Task management, planning, communication, direct specialist consultation, strategy/governance framing in chat |
-| Abdullah | SOP pipeline leader: planning, specialist orchestration, document workflow, recovery; runs SOP review/revise jobs, including chat-triggered ones (not consulted in chat) |
+| Ahmad | Task management, planning, communication, strategy/governance framing (main Claude Code session) |
+| Abdullah | SOP pipeline leader: planning, specialist orchestration, document workflow, recovery; leads the Claude Code SOP review/revise jobs |
 | Agent 1 | Research and IT service practices |
 | Agent 2 | Standards and control alignment |
 | Agent 3 | Writing and SOP content |
@@ -68,26 +68,18 @@ been removed.
 | Agent 7 | Problem management and root-cause analysis |
 | Agent 8 | Metrics and analytics design |
 | Agent 9 | Building-design advice, local DWG intake, and bounded DXF-to-OBJ concept meshes |
-| Agent 10 | End-user computing and endpoint management (patching, imaging, packaging, Intune/MECM, change records); chat advice and endpoint SOP appendices |
+| Agent 10 | End-user computing and endpoint management (patching, imaging, packaging, Intune/MECM, change records); endpoint SOP appendices |
 
-Ahmad's bounded request planner is configured in `config/assistant_routes.yaml`.
-Ahmad consults positive capability matches directly
-(`AssistantSession._consult_specialists`); common clause negation and
-ambiguous/overbroad requests are handled deterministically. Unmatched advice,
-including strategy, roadmap, budget and prioritization, stays with Ahmad.
-`leader_agent` is not a chat capability: configuration loading fails with the
-file path if `assistant_routes.yaml` names it. Explicit task context and exact
-user turns survive the recent response window within a bounded session, without
-becoming permanent memory. The old agent knowledge files remain source material;
-historical references to the prior hierarchy inside them do not grant authority.
+The old agent knowledge files remain source material; historical references to the
+prior hierarchy inside them do not grant authority.
 
-Conversations require an API key and explicit external-AI authorization. Work and
-personal task lists are stored separately under `output/assistant/` by default.
-Explicit preferences, profile facts, project context, correction lessons and short
-examples persist in those area-specific databases. Advisory chat shares area-wide
-and exact selected-project context with Ahmad and specialists; examples use
-bounded lexical retrieval. Memory is editable/deletable and never saved by model
-inference. Conversation transcripts remain session-only.
+Work and personal task lists are stored separately under `output/assistant/` by
+default and are used only through the local `task` and `memory` commands, which
+make no model call. Explicit preferences, profile facts, project context,
+correction lessons and short examples persist in those area-specific databases.
+Memory is editable/deletable and never saved by model inference. `reema find-sop
+WORDS` lists finished SOPs in `output/` by file-name words, newest first, without
+reading them.
 
 ## Documentation pipeline
 
@@ -132,9 +124,8 @@ existed are not published; `approve --no-publish` skips it. Ahmad's file search 
 draft only as its `output/` copy. Non-template SOPs use relaxed section checks; generate keeps the
 full profile. DOCX revisions splice only the target sections into a copy of the
 original; sections with images, tracked changes, fields or content controls are
-refused. In `reema chat`, Ahmad matches the request to files in `output/` by file-name
-words, lists several matches for Khalid to choose, and on his yes runs only the local
-template check; review and revise requests are pointed to Claude Code. He never approves.
+refused. Ahmad finds the file with `find-sop`, lists several matches for Khalid to
+choose, and never approves.
 
 Both Claude Code prepare steps (`src/utils/read_gate.py`) refuse until given
 `--confirm-read` with the token they print for that exact file (the start of its
@@ -193,8 +184,7 @@ Details: `docs/guides/AGENT_HANDOFFS_AND_STATUS.md`,
 ## REEMA company in Claude Code
 
 These rules apply only in a Claude Code session in this repository; other coding
-agents skip this section. The API path (`reema chat`,
-`generate`) is unchanged.
+agents skip this section. The API path (`generate`) is unchanged.
 
 ### Ahmad (the main session)
 
@@ -204,10 +194,11 @@ or maintenance of REEMA, work as the coding agent under the rules above; otherwi
 act as Ahmad.
 
 - Talk with Khalid, plan, and route: finished-SOP review or revision goes to the
-  `abdullah-docs` skill; tasks and memory go to the local commands below. Work with
-  no Claude Code job yet (new SOP generation, Agent 9 building design, Agent 10
-  endpoint advice) is API-only: say so and print the exact `reema` command for
-  Khalid to run himself.
+  `abdullah-docs` skill; tasks and memory go to the local commands below. New SOP
+  generation has no Claude Code job yet and is API-only: say so and print the exact
+  `reema generate` command for Khalid to run himself. Agent 9 (building design) and
+  Agent 10 (endpoint) advice has no job yet either; say so (the local `drawing`
+  commands still run offline).
 - Answer strategy, prioritization, governance and business-value questions
   yourself; that advice is unverified and Khalid decides.
 - **Work area only.** Never read or change personal tasks or personal memory.
@@ -235,16 +226,16 @@ Roles are described under "Current team" above; this shows what runs in Claude C
 | Coordination | Ahmad (main session) | Work tasks and memory through the CLI | Working |
 | Documentation | Abdullah (`abdullah-docs` skill) | `reema-reviewer`, `reema-consistency-reviewer`, `reema-reviser`, `reema-rechecker` | Working |
 | Documentation: generation pipeline | Abdullah (API) | Agents 1, 2, 5, 6, 7, 8 | API-only |
-| Building Design | Agent 9 | — | API-only (local `drawing` commands run offline) |
-| End-User Computing / Patch | Agent 10 | — | API-only |
+| Building Design | Agent 9 | — | Advice not built yet (local `drawing` commands run offline) |
+| End-User Computing / Patch | Agent 10 | — | Advice not built yet; endpoint SOP appendix on the API path |
 | Development | — | — | Planned, not built |
 
 ## Boundaries
 
-The CLI has local tasks and a chat entry point. It has no connected mailbox,
-calendar, task cloud, background notification process, or deployed chat UI.
-Chat can help plan, research, and draft, and can start a confirmed review or
-revision of a local SOP; it cannot send communications or alter external accounts. Ahmad's legacy communication helper records locally and
+The CLI has local tasks and memory; conversation happens in Claude Code. It has no
+connected mailbox, calendar, task cloud, background notification process, or
+deployed chat UI, and it cannot send communications or alter external accounts.
+Ahmad's legacy communication helper records locally and
 reports `not_dispatched`. Actual account integration requires the user's chosen
 provider and authorization. Agent 9 can produce a limited, editable OBJ concept
 mesh and PNG preview from a selected DXF area, but not a verified full-building
@@ -261,7 +252,6 @@ external requirements are tracked in `docs/reports/PENDING_LEDGER.md`.
 ## Engineering map
 
 - `src/main.py`: CLI commands.
-- `src/assistant.py`: Ahmad's conversation and specialist routing.
 - `src/utils/tasks.py`: separate local work and personal task stores.
 - `src/utils/existing_sops.py`: finished-SOP intake (Markdown/DOCX), template
   gaps, section resolution, review-run findings, file search and DOCX splicing.

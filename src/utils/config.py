@@ -48,36 +48,6 @@ class ProcessConfig(BaseModel):
     acceptance_criteria: List[str] = Field(default_factory=list)
 
 
-class AssistantRoute(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True)
-    agent: str = Field(min_length=1)
-    keywords: List[str] = Field(min_length=1)
-    exclude_phrases: List[str] = Field(default_factory=list)
-
-
-class SopMaintenanceTerms(BaseModel):
-    """Words that let Ahmad recognise a review/revise request for an existing SOP, locally."""
-    model_config = ConfigDict(extra="forbid", strict=True)
-    review_terms: List[str] = Field(min_length=1)
-    revise_terms: List[str] = Field(min_length=1)
-    document_terms: List[str] = Field(min_length=1)
-    confirm_terms: List[str] = Field(min_length=1)
-    cancel_terms: List[str] = Field(min_length=1)
-    max_choices: int = Field(default=8, ge=2, le=20)
-
-
-class AssistantRouting(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True)
-    sop_maintenance: Optional[SopMaintenanceTerms] = None
-    default_agent: str = Field(min_length=1)
-    routes: List[AssistantRoute]
-    memory_example_limit: int = Field(default=3, ge=0, le=10)
-    max_specialists: int = Field(default=6, ge=1, le=9)
-    context_max_chars: int = Field(default=16000, ge=1000, le=100000)
-    semantic_resolution: bool = False
-    negation_terms: List[str] = Field(default_factory=lambda: ["no", "not", "without", "exclude", "skip", "avoid", "don't", "do not"])
-
-
 class SystemConfig(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
     anthropic_api_key: str = Field(default="", repr=False)
@@ -172,24 +142,8 @@ class ConfigManager:
         agents = self._read("agent_config.yaml", Dict[str, AgentConfig])
         processes = self._read("process_definitions.yaml", Dict[str, ProcessConfig])
         standards = self._read("standards_mapping.yaml", Dict[str, List[str]])
-        routing = self._read("assistant_routes.yaml", AssistantRouting)
         profile = self._read("document_profile.yaml", DocumentProfile)
         specialist_policy = self._read("specialist_policy.yaml", SpecialistPolicy)
-        routes_path = self.system_config.config_dir / "assistant_routes.yaml"
-        leader_entries = (["default_agent"] if routing.default_agent == "leader_agent" else []) + [
-            f"routes[{index}]" for index, rule in enumerate(routing.routes) if rule.agent == "leader_agent"]
-        if leader_entries:
-            raise ValueError(f"{routes_path} still names leader_agent in {', '.join(leader_entries)}. Abdullah now leads only "
-                             "the SOP pipeline and Ahmad consults specialists directly; remove that leader_agent "
-                             "entry from the file.")
-        routable = {"secretary_agent", "research_agent", "standards_agent",
-                    "content_agent", "review_agent", "access_agent",
-                    "problem_agent", "data_agent", "building_design_agent", "euc_agent"}
-        if routing.default_agent not in routable or any(
-            rule.agent not in routable or any(not word.strip() for word in rule.keywords)
-            for rule in routing.routes
-        ):
-            raise ValueError("Assistant routes must refer to configured conversational agents")
         retired = sorted(key for key, process in processes.items() if process.standards)
         if retired:
             raise ValueError("Process standards are read only from standards_mapping.yaml; remove 'standards' "
@@ -211,7 +165,6 @@ class ConfigManager:
         self.agents_config = {key: value.model_dump() for key, value in agents.items()}
         self.process_definitions = {key: value.model_dump(exclude={"standards"}) for key, value in processes.items()}
         self.standards_mapping = standards
-        self.assistant_routing = routing
         self.document_profile = profile
         self.specialist_policy = specialist_policy
 

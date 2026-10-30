@@ -9,34 +9,12 @@ from unittest.mock import AsyncMock
 import pytest
 
 from src.agents import AccessAgent, ContentAgent, DataAgent, ProblemAgent, ReviewAgent, SecretaryAgent
-from src.assistant import AssistantSession
 from src.utils.handoffs import (
     AgentHandoff, ComplianceResult, EvidenceReference,
     ReviewResult, adapt_handoff, payload_json,
 )
 from src.utils.provider import RunRuntime, current_runtime
 from tests.test_phase01 import catalog, pipeline
-
-
-@pytest.mark.parametrize("message,expected", [
-    ("Plan my day", "secretary_agent"),
-    ("Compare our strategy and budget", "secretary_agent"),
-    ("Research the service practice", "research_agent"),
-    ("Assess ISO 27001 compliance", "standards_agent"),
-    ("Draft an SOP", "content_agent"),
-    ("Configure MFA for the support team", "access_agent"),
-    ("Investigate recurring incident patterns", "problem_agent"),
-    ("Define a KPI dashboard", "data_agent"),
-    ("Inspect an AutoCAD building model", "building_design_agent"),
-    ("Plan the Patch Tuesday deployment rings", "euc_agent"),
-    # Primary-route compatibility adapter; execution now uses all positive matches.
-    ("Draft an SOP with an MFA KPI dashboard", "access_agent"),
-    ("No security advice; prepare an agenda", "content_agent"),
-    ("Explain accessibility", "secretary_agent"),
-    ("خطط لمهامي اليومية", "secretary_agent"),
-])
-def test_current_routing_baseline(message, expected):
-    assert AssistantSession("work").route(message) == expected
 
 
 @pytest.mark.parametrize("kind", ["access_analysis", "access_content", "problem_content", "analytics"])

@@ -47,7 +47,6 @@ def execution_identity(config, request, source_index):
                                     for name in ("requirements.lock", "requirements-dev.lock", "uv.lock", "pyproject.toml")}),
         "configuration": digest({"agents": config.agents_config, "processes": config.process_definitions,
                                   "standards": config.standards_mapping,
-                                  "routing": config.assistant_routing.model_dump(),
                                   "document_profile": config.document_profile.model_dump(),
                                   "specialist_policy": config.specialist_policy.model_dump(),
                                   "runtime": {key: getattr(settings, key) for key in runtime_fields}}),
