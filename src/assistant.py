@@ -454,6 +454,27 @@ class AssistantSession:
             f"words: \"{instruction}\". Its full text will be sent to Anthropic (Claude) and the result saved as a new "
             "draft for your approval; the original file stays as it is. Reply yes to go ahead, or no to cancel.")
 
+    def sop_commands(self):
+        """Commands that finish a waiting SOP request when the chat cannot ask a follow-up question."""
+        from .utils.existing_sops import load_sop
+        from .utils.documents import section_map
+        pending = self.pending_sop
+        if not pending:
+            return None
+        paths = pending["choices"] if pending["stage"] == "choose" else [pending["path"]]
+        commands = []
+        for path in paths:
+            command = f"reema {pending['action']} {shlex.quote(str(path))}"
+            if pending["action"] == "revise":
+                command += f" --instruction {shlex.quote(pending['instruction'])}"
+                if pending.get("targets"):
+                    titles = section_map(load_sop(path).content, config_manager.document_profile)
+                    command += "".join(f" --section {shlex.quote(titles[t]['title'])}" for t in pending["targets"])
+            commands.append(command + " --allow-external-ai")
+        return (f"This one-message chat can't wait for your answer. Continue interactively with:\n"
+                f"reema chat --area {self.area} --allow-external-ai\n"
+                "or run the job directly:\n" + "\n".join(commands))
+
     def _sop_leader(self, action, local_only):
         from .agents.leader_agent import LeaderAgent
         leader = LeaderAgent(api_key="")

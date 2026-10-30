@@ -180,3 +180,22 @@ def test_advice_and_other_requests_are_not_intercepted(session, message):
 async def test_unknown_file_asks_for_a_name(session):
     reply = await session.reply("review my payroll SOP")
     assert "could not find" in reply["reply"]
+
+
+def test_one_message_chat_prints_commands_instead_of_asking(library):
+    from typer.testing import CliRunner
+    from src.main import app
+    runner = CliRunner()
+    choose = runner.invoke(app, ["chat", "check my incident SOP", "--area", "work"])
+    assert choose.exit_code == 0, choose.output
+    assert "Reply with its number" not in choose.output
+    assert "reema chat --area work --allow-external-ai" in choose.output.splitlines()
+    for name in ("SOP_User_Incident_Management_V2.md", "SOP_User_Incident_Management_V1.md"):
+        assert f"reema review {library / name} --allow-external-ai" in choose.output.splitlines()
+    revise = runner.invoke(app, ["chat", "revise my change management SOP: escalation paths must name the duty manager",
+                                 "--area", "work"])
+    assert revise.exit_code == 0, revise.output
+    assert "Reply yes" not in revise.output
+    command = next(line for line in revise.output.splitlines() if line.startswith("reema revise"))
+    assert str(library / "SOP_Change_Management_V1.md") in command and "--instruction 'revise my change management" in command
+    assert "--section '5. Detailed Procedures'" in command and command.endswith("--allow-external-ai")

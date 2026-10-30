@@ -273,7 +273,10 @@ def chat(
         try:
             if message is not None:
                 result = await session.reply(message, allow_external_ai=allow_external_ai)
-                console.print(result["reply"], markup=False)
+                # A file choice or a yes can't be answered here, so print the commands instead of the question.
+                commands = session.sop_commands()
+                # soft_wrap keeps each command on one line so it can be copied.
+                console.print(commands or result["reply"], markup=False, soft_wrap=commands is not None)
                 return
             console.print("Ahmad is ready. Use /task help, /remember [--kind KIND] KEY VALUE, /memory, /project NAME, or /exit.", markup=False)
             while True:
