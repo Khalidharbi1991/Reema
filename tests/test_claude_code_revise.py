@@ -65,7 +65,7 @@ def write_recheck(work, request, revised_sha256=None):
          "section_id": f["section_id"], "quote": "within 15 minutes"} for f in request["findings"]]}))
 
 
-def test_full_flow_ends_awaiting_approval_without_a_provider_call(tmp_path, output_root, no_provider):
+def test_full_flow_ends_awaiting_approval_without_a_provider_call(tmp_path, output_root, no_provider, capsys):
     path, work_id, work, request = prepared(tmp_path)
     before = digest(path)
     assert [v["title"] for v in request["target_sections"].values()] == ["2. Escalation"]
@@ -86,6 +86,9 @@ def test_full_flow_ends_awaiting_approval_without_a_provider_call(tmp_path, outp
     reread = load_sop(outputs["docx"]).content
     assert "Escalate P1 incidents within 15 minutes." in reread and "Version 1.0." in reread
     assert digest(path) == before
+    printed = capsys.readouterr().out
+    assert f'reema approve "{run_dir / "approval.json"}" --reviewer "Khalid Alharbi"' in printed
+    assert "<" not in printed
 
 
 def test_patch_touching_another_section_is_refused(tmp_path, output_root):

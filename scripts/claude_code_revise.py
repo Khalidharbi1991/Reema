@@ -36,6 +36,8 @@ from src.utils.validation import missing_sections  # noqa: E402
 from src.agents.content_agent import ContentAgent  # noqa: E402
 
 PROFILE = config_manager.document_profile
+# Named by Khalid for the printed approve command; this script never runs approve itself.
+REVIEWER = "Khalid Alharbi"
 
 
 def work_root():
@@ -146,7 +148,8 @@ def finish(work_id):
         print(f"{fmt}: {output}")
     print(f"Changes: {Path(record).parent / 'changes.md'}")
     print(f"Awaiting human approval: {record}")
-    print(f'After reading it, approve with: reema approve "{record}" --reviewer "<your name>"')
+    print("After reading it, approve with:")
+    print(f'reema approve "{record}" --reviewer "{REVIEWER}"')
     return outputs
 
 
