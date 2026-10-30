@@ -248,8 +248,9 @@ finished SOP with no Anthropic API call from REEMA: ask Claude Code to use the
 subagent) and the recheck (`reema-rechecker` subagent); `scripts/claude_code_revise.py`
 runs the same gates, Word splice, export and pending approval record as
 `reema revise`. The SOP is still sent to Anthropic through the Claude Code session,
-so you are asked for your yes first. It covers `--instruction` only, and it never
-approves: run the printed `reema approve` command yourself. The `reema revise`
+so you are asked for your yes first. It takes either `--instruction` or 1–5
+findings from a review run of the same SOP (`--from-review RUN --finding ID`), and it
+never approves: run the printed `reema approve` command yourself. The `reema revise`
 API path above is unchanged.
 
 The `reema-review` skill reviews a finished SOP the same way, read-only: Claude Code

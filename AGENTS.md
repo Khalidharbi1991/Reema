@@ -127,7 +127,11 @@ explicit yes plus chat consent before any external call. He never approves.
 ### Claude Code revise (experimental)
 
 The `reema-revise` skill (`.claude/skills/reema-revise/`) lets a Claude Code session
-author an `--instruction` revision with no REEMA API call. The `reema-reviser` and
+author a revision with no REEMA API call, from an `--instruction` or from 1–5 findings
+of a review run of the same SOP (`--from-review RUN --finding ID`). Review mode
+re-runs the `--from-review` checks (findings checksum, same source and document
+SHA-256) at prepare, check and finish, and refuses if the review run's findings
+checkpoint or `request.json` changed since prepare. The `reema-reviser` and
 `reema-rechecker` subagents write `patch.json` and `recheck.json` under
 `output/claude_code/<id>/`; `scripts/claude_code_revise.py` (prepare/check/finish/
 compare) feeds them through `src/agents/file_workers.py` into the unchanged

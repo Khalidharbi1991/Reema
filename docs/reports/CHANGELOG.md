@@ -5,6 +5,10 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md); open external requirements live in the
 [finite ledger](PENDING_LEDGER.md).
 
+## 2026-10-30 — Claude Code revise from review findings
+
+`scripts/claude_code_revise.py prepare` takes `--from-review RUN --finding ID` (1–5 findings) as well as `--instruction`; the review checks rerun at prepare, check and finish, and a review run or `request.json` changed since prepare is refused. The `abdullah-docs` and `reema-revise` skills use it. Suite: 769 before, 786 after.
+
 ## 2026-10-30 — Review and revise finished SOPs
 
 Added `reema review` (with `--local-only`), `reema revise` (instruction or review findings; DOCX splice) and Ahmad chat access through Abdullah, all ending without AI approval. Suite: 673 before, 714 after.

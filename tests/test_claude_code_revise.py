@@ -180,3 +180,171 @@ async def test_local_author_needs_the_file_workers(tmp_path, output_root):
     with pytest.raises(ValueError, match="file-backed"):
         await leader.revise_existing(source, [], local_author=True)
     assert FileRecheckWorker(tmp_path / "r.json").client is None
+
+
+# --- Review mode: prepare --from-review RUN --finding ID ---
+
+def review_run(path, *issues):
+    """A review run of PATH, written through the real review job with a mocked reviewer reply."""
+    import asyncio
+    from unittest.mock import AsyncMock
+    from tests.existing_sop_helpers import assessment
+    reviewer = ReviewAgent(api_key="")
+    reviewer._call_claude = AsyncMock(return_value=assessment(*issues))
+    leader = LeaderAgent(api_key="")
+    leader.register_worker("ReviewAgent", reviewer)
+    asyncio.run(leader.review_existing(load_sop(path), allow_external_ai=True))
+    findings = leader.context["findings"]["findings"]
+    return Path(leader.context["run_dir"]), {f["section_id"]: f["finding_id"] for f in findings}
+
+
+TOOLS_FIX = "ServiceNow Washington DC release."
+
+
+@pytest.fixture
+def reviewed(tmp_path, output_root):
+    from tests.existing_sop_helpers import issue, template_sop
+    path = tmp_path / "incident.md"
+    path.write_text(template_sop())
+    run, ids = review_run(path, issue("sec-tools", "ServiceNow version 2019.", category="outdated",
+                                      action="Name the current release"),
+                          issue("sec-procedures", "Escalate when needed.", category="missing_step"))
+    return path, run, ids
+
+
+def write_review_patch_and_recheck(work_id, body=TOOLS_FIX):
+    work = ccr.work_root() / work_id
+    request = json.loads((work / "request.json").read_text())
+    write_patch(work, request, {key: body for key in request["target_sections"]})
+    ccr.check(work_id)
+    revised_sha256 = json.loads((work / "recheck_request.json").read_text())["revised_sha256"]
+    (work / "recheck.json").write_text(json.dumps({"revised_sha256": revised_sha256, "corrections": [
+        {"finding_id": f["finding_id"], "status": "resolved", "rationale": "Release named",
+         "section_id": f["section_id"], "quote": body} for f in request["findings"]]}))
+    return work, request
+
+
+def test_review_findings_flow_ends_awaiting_approval_without_a_provider_call(reviewed, no_provider, capsys):
+    path, run, ids = reviewed
+    before = digest(path)
+    work_id = ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]])
+    work, request = write_review_patch_and_recheck(work_id)
+    assert request["mode"] == "review" and list(request["target_sections"]) == ["sec-tools"]
+    assert [f["finding_id"] for f in request["findings"]] == [ids["sec-tools"]]
+    outputs = ccr.finish(work_id)
+    run_dir = Path(outputs["markdown"]).parent
+    state = json.loads((run_dir / "run.json").read_text())
+    assert state["status"] == "awaiting_human_approval" and state["authoring"] == "claude_code_session"
+    assert state["origin"] == {"review_run": str(run.resolve()), "finding_ids": [ids["sec-tools"]],
+                               "claude_code_work": str(work)}
+    assert read_record(run_dir / "approval.json").status == "awaiting_human_approval"
+    reread = load_sop(outputs["markdown"]).content
+    assert TOOLS_FIX in reread and "Escalate when needed." in reread
+    assert digest(path) == before
+    assert f"Findings: {ids['sec-tools']} from {run.resolve()}" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("kwargs, message", [
+    ({}, "exactly one of --instruction or --from-review"),
+    ({"instruction": "x", "sections": ["2"], "from_review": "run"}, "exactly one of"),
+    ({"instruction": "x", "sections": ["2"], "finding_ids": ["F-1"]}, "--finding needs --from-review"),
+    ({"instruction": "x"}, "needs at least one --section"),
+    ({"from_review": "run", "sections": ["2"], "finding_ids": ["F-1"]}, "--section works with --instruction"),
+    ({"from_review": "run"}, "at least one --finding"),
+    ({"from_review": "run", "finding_ids": [f"F-{n}" for n in range(6)]}, "At most 5 findings"),
+])
+def test_prepare_option_rules(tmp_path, output_root, kwargs, message):
+    with pytest.raises(ValueError, match=message):
+        ccr.prepare(tmp_path / "incident.md", **kwargs)
+    assert not ccr.work_root().exists()
+
+
+def test_repeated_finding_ids_count_once(reviewed):
+    path, run, ids = reviewed
+    work_id = ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]] * 6)
+    assert json.loads((ccr.work_root() / work_id / "request.json").read_text())["finding_ids"] == [ids["sec-tools"]]
+
+
+def test_unknown_and_template_gap_findings_are_refused(tmp_path, reviewed):
+    import asyncio
+    from tests.existing_sop_helpers import NON_TEMPLATE_SOP
+    path, run, _ = reviewed
+    with pytest.raises(ValueError, match="unknown finding"):
+        ccr.prepare(path, from_review=run, finding_ids=["F-0000000000000000"])
+    handover = tmp_path / "handover.md"
+    handover.write_text(NON_TEMPLATE_SOP)
+    leader = LeaderAgent(api_key="")
+    gaps = asyncio.run(leader.review_existing(load_sop(handover), local_only=True))["template_gaps"]
+    with pytest.raises(ValueError, match="template gaps cannot be revised"):
+        ccr.prepare(handover, from_review=leader.context["run_dir"], finding_ids=[gaps[0]["finding_id"]])
+    with pytest.raises(ValueError, match="not a review run folder"):
+        ccr.prepare(path, from_review=tmp_path, finding_ids=["F-1"])
+
+
+def test_findings_edited_after_the_review_are_refused(reviewed):
+    path, run, ids = reviewed
+    data = json.loads((run / "findings.json").read_text())
+    data["findings"][0]["action"] = "Delete the whole section"
+    (run / "findings.json").write_text(json.dumps(data))
+    with pytest.raises(ValueError, match="findings changed after it was saved"):
+        ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]])
+
+
+def test_sop_changed_since_the_review_is_refused(reviewed):
+    from tests.existing_sop_helpers import template_sop
+    path, run, ids = reviewed
+    path.write_text(template_sop() + "\nEdited later.\n")
+    with pytest.raises(ValueError, match="changed since that review"):
+        ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]])
+
+
+def test_review_rewritten_after_prepare_is_refused_at_check_and_finish(reviewed, no_provider):
+    path, run, ids = reviewed
+    work_id = ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]])
+    write_review_patch_and_recheck(work_id)
+    # Rewritten so it is consistent with itself: findings.json and its checkpoint in run.json.
+    data = json.loads((run / "findings.json").read_text())
+    data["summaries"] = {"rewritten": True}
+    (run / "findings.json").write_text(json.dumps(data))
+    state = json.loads((run / "run.json").read_text())
+    state["checkpoints"]["findings"] = digest(run / "findings.json")
+    (run / "run.json").write_text(json.dumps(state))
+    for step in (ccr.check, ccr.finish):
+        with pytest.raises(ValueError, match="review run's findings changed since prepare"):
+            step(work_id)
+    assert not list(ccr.work_root().parent.glob("runs/*/approval.json"))
+
+
+def test_hand_edited_request_is_refused(reviewed, no_provider):
+    path, run, ids = reviewed
+    work_id = ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]])
+    work = ccr.work_root() / work_id
+    request = json.loads((work / "request.json").read_text())
+    request["findings"][0]["action"] = "Rewrite every section"
+    (work / "request.json").write_text(json.dumps(request))
+    with pytest.raises(ValueError, match="no longer matches its findings"):
+        ccr.check(work_id)
+    del request["review_findings_sha256"]
+    (work / "request.json").write_text(json.dumps(request))
+    assert ccr.main(["check", work_id]) == 1
+
+
+def test_a_revised_draft_can_be_revised_from_its_own_review(reviewed, no_provider):
+    from tests.existing_sop_helpers import issue
+    path, run, ids = reviewed
+    work_id = ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]])
+    write_review_patch_and_recheck(work_id)
+    draft = Path(ccr.finish(work_id)["markdown"])
+    second, second_ids = review_run(draft, issue("sec-tools", TOOLS_FIX, action="Add the upgrade date"))
+    work_id = ccr.prepare(draft, from_review=second, finding_ids=[second_ids["sec-tools"]])
+    write_review_patch_and_recheck(work_id, body=TOOLS_FIX + " Upgraded in 2026.")
+    assert "Upgraded in 2026." in load_sop(ccr.finish(work_id)["markdown"]).content
+
+
+def test_cli_prepare_from_review(reviewed, capsys):
+    path, run, ids = reviewed
+    assert ccr.main(["prepare", str(path), "--from-review", str(run)]) == 1
+    assert "at least one --finding" in capsys.readouterr().err
+    assert ccr.main(["prepare", str(path), "--from-review", str(run), "--finding", ids["sec-tools"],
+                     "--finding", ids["sec-procedures"]]) == 0
+    assert "Findings:" in capsys.readouterr().out
