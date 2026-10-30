@@ -28,7 +28,7 @@ from ..utils.quality import validate_quality
 from ..knowledge.retrieval import ReferenceIndex
 from ..utils.handoffs import adapt_handoff, ReviewResult, ComplianceResult
 from ..utils.documents import (ControlRegister, legacy_register, control_coverage, section_map,
-                               validate_located_review, CorrectionAssessment, sha)
+                               validate_located_review, CorrectionAssessment, sha, assert_only_targets_changed)
 from ..utils.diagrams import extract_flows
 from ..utils.specialists import SpecialistInputs, validate_analytics_result
 from ..utils.ownership import RunLease
@@ -877,13 +877,8 @@ class LeaderAgent:
                     before = current_content
                     current_content = await self._invoke("revise_sections", {"content": before, "findings": findings})
                     # Enforce preservation even for a custom registered content worker.
-                    old = section_map(before, config_manager.document_profile, require_complete=True)
-                    new = section_map(current_content, config_manager.document_profile, require_complete=True)
                     targets = {f["section_id"] for f in findings}
-                    if (list(old) != list(new) or before[:next(iter(old.values()))["start"]] != current_content[:next(iter(new.values()))["start"]]
-                            or any(before[old[k]["start"]:old[k]["body_start"]] != current_content[new[k]["start"]:new[k]["body_start"]] for k in old)
-                            or any(old[k]["sha256"] != new[k]["sha256"] for k in old if k not in targets)):
-                        raise ValueError("Targeted revision changed an unaffected section")
+                    assert_only_targets_changed(before, current_content, targets, config_manager.document_profile)
                     recheck = await self._invoke("recheck", {"content": current_content, "findings": findings})
                     checked = CorrectionAssessment.model_validate({"corrections": recheck.get("corrections")}).validate_against(
                         current_content, findings, config_manager.document_profile)
@@ -998,6 +993,63 @@ class LeaderAgent:
             "quality_score": record.quality_score,
             "approval_record": str(record_path),
         }
+
+    async def review_existing(self, source, *, local_only=False, allow_external_ai=False) -> Dict:
+        """Read-only review of a finished SOP into a NEW run folder; the source file is never written."""
+        from ..utils.existing_sops import template_gaps, findings_markdown, require_unique_sections, duplicate_sections
+        if self.workflow_status == "running":
+            raise RuntimeError("This leader already has a running workflow; use a separate instance")
+        profile = config_manager.document_profile
+        if not local_only:
+            if not (allow_external_ai or config_manager.system_config.allow_external_ai):
+                raise PermissionError("Authorize sending this SOP to Anthropic with --allow-external-ai, or use --local-only")
+            if "ReviewAgent" not in self.worker_agents:
+                raise ValueError("Required agents missing: ReviewAgent")
+            require_unique_sections(source.content, profile)
+        run_dir = config_manager.system_config.output_dir / "runs" / uuid4().hex
+        self.context = {"run_dir": str(run_dir), "job": "review", "source_path": str(source.path)}
+        self._begin_workflow(source.path.name, ["template_check", *([] if local_only else ["review"]), "findings_record"])
+        runtime = None if local_only else RunRuntime(config_manager.system_config.model_copy(update={"allow_external_ai": True}))
+        token = current_runtime.set(runtime)
+        store = None
+        summary = lambda: runtime.summary() if runtime else {"calls": [], "accounted_tokens": 0}
+        try:
+            store = RunStore(run_dir, source.path.name, [])
+            self._task_store = store
+            store.state.update(job="review", mode="local_only" if local_only else "model")
+            store.save("source", source.record())
+            async with self._phase("template_check"):
+                gaps = template_gaps(source.content, profile)
+            review = {"issues": [], "summaries": [],
+                      "section_locations": {} if duplicate_sections(source.content, profile) else section_map(source.content, profile)}
+            if not local_only:
+                async with self._phase("review"):
+                    review = await self._invoke("review_existing", {"content": source.content})
+                    if review.get("document_sha256") != sha(source.content):
+                        raise ValueError("Review does not bind the SOP that was read")
+            async with self._phase("findings_record"):
+                findings = {"job": "review", "mode": store.state["mode"], "source_path": str(source.path),
+                            "source_kind": source.kind, "source_sha256": source.sha256,
+                            "document_sha256": sha(source.content), "template_gaps": gaps,
+                            "findings": review["issues"], "summaries": review["summaries"],
+                            "section_locations": review["section_locations"], "verification": "unverified"}
+                store.save("findings", findings)
+                (run_dir / "findings.md").write_text(findings_markdown(findings), encoding="utf-8")
+            source.verify_unchanged()
+            self._finish_workflow("review_complete")
+            store.finish("review_complete", summary())
+            self.context["findings"] = findings
+            return findings
+        except BaseException as e:
+            self._finish_workflow("cancelled" if isinstance(e, asyncio.CancelledError) else "failed")
+            if store:
+                store.finish("cancelled" if isinstance(e, asyncio.CancelledError) else "failed", summary(), type(e).__name__)
+            raise
+        finally:
+            if store:
+                store.close()
+            current_runtime.reset(token)
+            self._task_store = None
 
     def get_status(self) -> Dict:
         """Actual phase counters for the latest started workflow on this instance."""

@@ -139,13 +139,13 @@ class SectionPatch(Contract):
     base_document_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     patches: list[Patch] = Field(min_length=1)
 
-    def apply(self, content, targets, profile):
+    def apply(self, content, targets, profile, require_complete=True):
         if self.base_document_sha256 != sha(content):
             raise ValueError("Revision refers to a stale document")
         ids = [p.section_id for p in self.patches]
         if len(set(ids)) != len(ids) or set(ids) != set(targets):
             raise ValueError("Revision must replace exactly the requested sections")
-        locations = section_map(content, profile, require_complete=True)
+        locations = section_map(content, profile, require_complete=require_complete)
         replacements = []
         for patch in self.patches:
             location = locations.get(patch.section_id)
@@ -155,8 +155,18 @@ class SectionPatch(Contract):
             replacements.append((location["body_start"], location["end"], "\n\n" + patch.body.strip() + "\n\n"))
         for start, end, body in sorted(replacements, reverse=True):
             content = content[:start] + body + content[end:]
-        section_map(content, profile, require_complete=True)
+        section_map(content, profile, require_complete=require_complete)
         return content
+
+
+def assert_only_targets_changed(before, after, targets, profile, require_complete=True):
+    """Same sections, headings and preamble; only target section bodies may differ."""
+    old = section_map(before, profile, require_complete=require_complete)
+    new = section_map(after, profile, require_complete=require_complete)
+    if (not old or list(old) != list(new) or before[:next(iter(old.values()))["start"]] != after[:next(iter(new.values()))["start"]]
+            or any(before[old[k]["start"]:old[k]["body_start"]] != after[new[k]["start"]:new[k]["body_start"]] for k in old)
+            or any(old[k]["sha256"] != new[k]["sha256"] for k in old if k not in targets)):
+        raise ValueError("Targeted revision changed an unaffected section")
 
 
 class ControlEvidence(Contract):
@@ -243,6 +253,16 @@ class LocatedFinding(Contract):
     action: str = Field(min_length=1)
 
 
+class ExistingFinding(LocatedFinding):
+    """A located finding on a finished SOP; the category is not part of its identity."""
+    category: Literal["outdated", "missing_step", "vague", "template_gap", "other"]
+
+
+class ExistingSopAssessment(Contract):
+    issues: list[ExistingFinding]
+    summary: str = Field(min_length=1, max_length=2000)
+
+
 class LocatedAssessment(Contract):
     quality_score: int = Field(ge=0, le=100)
     decision: Literal["acceptable", "revise"]
@@ -303,11 +323,11 @@ class Correction(Contract):
 class CorrectionAssessment(Contract):
     corrections: list[Correction]
 
-    def validate_against(self, content, findings, profile):
+    def validate_against(self, content, findings, profile, require_complete=True):
         expected = {f["finding_id"]: f for f in findings}
         if len({c.finding_id for c in self.corrections}) != len(self.corrections) or {c.finding_id for c in self.corrections} != set(expected):
             raise ValueError("Correction recheck must cover every original finding exactly once")
-        locations = section_map(content, profile, require_complete=True)
+        locations = section_map(content, profile, require_complete=require_complete)
         for correction in self.corrections:
             if correction.section_id != expected[correction.finding_id]["section_id"]:
                 raise ValueError("Correction recheck changed the finding location")

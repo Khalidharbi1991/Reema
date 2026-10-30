@@ -63,6 +63,8 @@ class RefineInputs(ReviewInputs):
 
 class LocatedRevisionInputs(ReviewInputs):
     findings: list[dict[str, JsonValue]] = Field(min_length=1)
+    # Omitted (None) keeps the positional call and full-profile check used by generate.
+    require_complete: bool | None = None
 
 
 class AccessComplianceInputs(ReviewInputs):
@@ -92,6 +94,7 @@ PIPELINE_CAPABILITIES = {
     "euc_content": ("EUCAgent", "generate_endpoint_content", EndpointInputs),
     "dashboard": ("DataAgent", "create_dashboard_design", DashboardInputs),
     "review": ("ReviewAgent", "review_content", ReviewInputs),
+    "review_existing": ("ReviewAgent", "review_existing", ReviewInputs),
     "refine": ("ContentAgent", "refine_content", RefineInputs),
     "revise_sections": ("ContentAgent", "revise_sections", LocatedRevisionInputs),
     "recheck": ("ReviewAgent", "recheck_corrections", LocatedRevisionInputs),

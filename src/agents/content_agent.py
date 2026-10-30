@@ -233,10 +233,13 @@ Please provide the complete refined document addressing all feedback points."""
             logger.agent_error(self.name, str(e))
             raise
 
-    async def revise_sections(self, content: str, findings: List[Dict]) -> str:
-        """Apply an exact, digest-bound section patch; all other bytes survive."""
+    async def revise_sections(self, content: str, findings: List[Dict], require_complete: bool = True) -> str:
+        """Apply an exact, digest-bound section patch; all other bytes survive.
+
+        require_complete=False revises a finished SOP that does not follow the 11-section profile.
+        """
         profile = config_manager.document_profile
-        locations = section_map(content, profile, require_complete=True)
+        locations = section_map(content, profile, require_complete=require_complete)
         targets = {finding["section_id"] for finding in findings}
         if not targets or not targets <= set(locations):
             raise ValueError("Targeted revision needs valid located findings")
@@ -247,7 +250,7 @@ Please provide the complete refined document addressing all feedback points."""
                   "Do not add top-level headings or claim approvals. Return JSON matching:\n"
                   + json.dumps(SectionPatch.model_json_schema()) + "\nREVISION DATA:\n" + payload_json(data))
         response = await self._call_claude([{"role": "user", "content": prompt}], system=self._build_system_prompt())
-        return parse_json_response(response, SectionPatch).apply(content, targets, profile)
+        return parse_json_response(response, SectionPatch).apply(content, targets, profile, require_complete)
 
     def _build_system_prompt(self) -> str:
         """Build system prompt for content generation."""

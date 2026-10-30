@@ -6,7 +6,8 @@ from ..utils.logger import logger
 from ..utils.config import config_manager
 from ..utils.quality import Assessment, assess_all
 from ..utils.quality import parse_json_response
-from ..utils.documents import LocatedAssessment, CorrectionAssessment, section_map, locate_findings, sha
+from ..utils.documents import (LocatedAssessment, CorrectionAssessment, ExistingSopAssessment, LocatedFinding,
+                               section_map, locate_findings, sha)
 import json
 
 
@@ -93,9 +94,41 @@ class ReviewAgent(BaseAgent):
             logger.agent_error(self.name, str(e))
             raise
 
-    async def recheck_corrections(self, content: str, findings: List[Dict]) -> Dict:
+    async def review_existing(self, content: str) -> Dict:
+        """Read-only review of a finished SOP: located, categorized findings; no score or rewrite."""
+        logger.agent_start(self.name, "Reviewing a finished SOP")
         profile = config_manager.document_profile
-        locations = section_map(content, profile, require_complete=True)
+        locations = section_map(content, profile)
+        if not locations:
+            raise ValueError("This SOP has no top-level sections (## headings or Word Heading 1) to review")
+
+        def located(result):
+            # The category is advisory metadata; identity and location use the shared contract.
+            return [{**finding, "category": item.category}
+                    for item in result.issues
+                    for finding in locate_findings(content, [item.model_dump(include=set(LocatedFinding.model_fields))], profile)]
+
+        def validate_excerpt(result, offset, part):
+            if offset is not None and any(not offset <= i["start"] < i["end"] <= offset + len(part) for i in located(result)):
+                raise ValueError("Review finding is outside its assessed excerpt")
+        results, coverage = await assess_all(self, content, ExistingSopAssessment,
+            "This is a finished SOP already in use. Find only real problems, each tied to one section: "
+            "outdated content (superseded tools, versions, standards or practices), missing steps in a procedure, "
+            "vague sections (no owner, timing, threshold or verifiable action), and template gaps inside a section "
+            "(for example a RACI table or KPI target that is absent). Use category outdated, missing_step, vague, "
+            "template_gap or other. Every issue needs a unique exact quote within its section body; omit start/end "
+            "unless the quote repeats. Give an actionable correction. Critical and major issues block use. "
+            "Never invent a location or claim compliance. Section locations:\n" + json.dumps(locations),
+            result_validator=validate_excerpt)
+        issues = list({item["finding_id"]: item for result in results for item in located(result)}.values())
+        logger.agent_complete(self.name, f"Finished-SOP review - {len(issues)} findings")
+        return {"review_contract": "existing_v1", "document_sha256": sha(content), "issues": issues,
+                "summaries": [result.summary for result in results], "coverage": coverage,
+                "section_locations": locations, "verification": "unverified"}
+
+    async def recheck_corrections(self, content: str, findings: List[Dict], require_complete: bool = True) -> Dict:
+        profile = config_manager.document_profile
+        locations = section_map(content, profile, require_complete=require_complete)
         targets = {f["section_id"] for f in findings}
         if not targets <= set(locations):
             raise ValueError("Correction recheck refers to a missing section")
@@ -106,7 +139,7 @@ class ReviewAgent(BaseAgent):
                   "Return JSON matching:\n" + json.dumps(CorrectionAssessment.model_json_schema())
                   + "\nCORRECTION DATA:\n" + json.dumps(data))
         response = await self._call_claude([{"role": "user", "content": prompt}], system=self._build_system_prompt())
-        result = parse_json_response(response, CorrectionAssessment).validate_against(content, findings, profile)
+        result = parse_json_response(response, CorrectionAssessment).validate_against(content, findings, profile, require_complete)
         return {**result.model_dump(), "document_sha256": sha(content), "verification": "model_assessed"}
 
     def _build_system_prompt(self) -> str:

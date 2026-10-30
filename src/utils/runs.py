@@ -46,7 +46,8 @@ class RunStore:
             self.journal.snapshot()
 
     def save(self, phase, payload):
-        if phase not in {"planned", "researched", "generated", "drafted", "reviewed", "ready", "exported"}:
+        if phase not in {"planned", "researched", "generated", "drafted", "reviewed", "ready", "exported",
+                         "source", "findings", "revised"}:
             raise ValueError("Unknown checkpoint phase")
         path = self.directory / f"{phase}.json"
         atomic_json(path, payload)

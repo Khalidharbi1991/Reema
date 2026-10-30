@@ -37,6 +37,13 @@ def _heading_key(value):
 def validate_sop(content: str, profile=None):
     if not isinstance(content, str) or not content.strip():
         raise ValueError("Generated SOP is empty")
+    missing = missing_sections(content, profile)
+    if missing:
+        raise ValueError("SOP required sections missing or empty: " + ", ".join(missing))
+
+
+def missing_sections(content: str, profile=None) -> list:
+    """Required section titles that are absent, or present with no text (marked " (empty)")."""
     # Valid sequence diagrams count as section content; other fenced examples
     # must not create real sections or satisfy an otherwise empty section.
     from .diagrams import extract_flows
@@ -60,8 +67,7 @@ def validate_sop(content: str, profile=None):
         bodies = [visible[headings[i].end():headings[i + 1].start() if i + 1 < len(headings) else len(visible)] for i in matches]
         if not any(re.search(r"\w", re.sub(r"(?m)^#+.*$", "", body)) for body in bodies):
             missing.append(title + " (empty)")
-    if missing:
-        raise ValueError("SOP required sections missing or empty: " + ", ".join(missing))
+    return missing
 
 
 def validate_output_files(output_files: dict, formats: list):

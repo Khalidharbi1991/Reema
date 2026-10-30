@@ -479,6 +479,58 @@ def resume(
         config_manager.system_config.output_dir = previous_output
 
 
+@app.command()
+def review(
+    file: Path = typer.Argument(..., help="Finished SOP (.md or .docx); it is only read, never changed"),
+    allow_external_ai: bool = typer.Option(False, "--allow-external-ai", help="Authorize sending this SOP's text to Anthropic"),
+    local_only: bool = typer.Option(False, "--local-only", help="Template-gap check only: no model call, no consent needed"),
+    output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Output root (default: ./output)"),
+):
+    """Review a finished SOP and save located findings to a NEW run folder."""
+    from .utils.existing_sops import load_sop
+    try:
+        source = load_sop(file)
+    except ValueError as error:
+        console.print(str(error), markup=False)
+        raise typer.Exit(code=2)
+    settings = config_manager.system_config
+    if not local_only:
+        if not (allow_external_ai or settings.allow_external_ai):
+            console.print("Review sends this SOP's text to Anthropic. Use --allow-external-ai after confirming "
+                          "permission for this document, or --local-only for the template check.", markup=False)
+            raise typer.Exit(code=2)
+        if not settings.anthropic_api_key:
+            console.print("ANTHROPIC_API_KEY is needed for a model review; --local-only needs no key.", markup=False)
+            raise typer.Exit(code=1)
+    leader = LeaderAgent(api_key="")
+    if not local_only:
+        leader.register_worker("ReviewAgent", ReviewAgent())
+    previous_output = settings.output_dir
+    try:
+        if output_dir is not None:
+            settings.output_dir = output_dir.expanduser().resolve()
+        _warn_if_output_unignored(settings.output_dir)
+        findings = asyncio.run(_close_after(leader, leader.review_existing(
+            source, local_only=local_only, allow_external_ai=allow_external_ai)))
+    except (ValueError, OSError, PermissionError, RuntimeError) as error:
+        console.print(str(error), markup=False)
+        raise typer.Exit(code=1)
+    finally:
+        settings.output_dir = previous_output
+    run_dir = Path(leader.context["run_dir"])
+    console.print(f"{len(findings['template_gaps'])} template gap(s), {len(findings['findings'])} model finding(s). "
+                  "The SOP was not changed.", markup=False)
+    console.print(f"Run folder: {run_dir}", markup=False)
+    console.print(f"Findings: {run_dir / 'findings.md'}", markup=False)
+
+
+async def _close_after(leader, job):
+    try:
+        return await job
+    finally:
+        await leader.close()
+
+
 def _human_decision(record: Path, reviewer: str, decision: str, notes: str):
     try:
         pending = read_record(record)
