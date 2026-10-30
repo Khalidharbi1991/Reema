@@ -1,3 +1,5 @@
+> Outdated — see [AGENTS.md](../../AGENTS.md) and [README.md](../../README.md).
+
 # REEMA Quick Start Guide
 
 Get started with REEMA (Regulatory & Enterprise Management Automation).

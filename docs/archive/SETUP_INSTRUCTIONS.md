@@ -1,3 +1,5 @@
+> Outdated — see [AGENTS.md](../../AGENTS.md) and [README.md](../../README.md).
+
 # Setup Instructions for Workstation Security Patches SOP Generation
 
 ## Prerequisites

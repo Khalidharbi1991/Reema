@@ -1,3 +1,5 @@
+> Outdated — see [AGENTS.md](../../AGENTS.md) and [README.md](../../README.md).
+
 # Quick Start Guide - Workstation Security Patches SOP
 
 ## What You Need

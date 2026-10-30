@@ -1,3 +1,5 @@
+> Outdated — see [AGENTS.md](../../AGENTS.md) and [README.md](../../README.md).
+
 # Workstation Security Patches SOP - Generation Summary
 
 ## 📋 Project Status

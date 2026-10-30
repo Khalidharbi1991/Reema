@@ -65,7 +65,7 @@ Coding-agent repository instructions and an application LLM provider solve diffe
 problems. `AGENTS.md` guides future maintenance work; Codex reads it directly and
 `CLAUDE.md` imports it. The provider
 abstraction prevents a future API migration from requiring invasive edits across
-all eleven agents.
+all twelve agent roles.
 
 ## Reference
 

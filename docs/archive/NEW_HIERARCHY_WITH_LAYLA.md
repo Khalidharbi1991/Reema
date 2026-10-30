@@ -1,3 +1,5 @@
+> Outdated — see [AGENTS.md](../../AGENTS.md) and [README.md](../../README.md).
+
 # REEMA System - Updated Hierarchy with Layla (Data & Power BI Agent)
 
 ## Complete 9-Agent Structure

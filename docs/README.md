@@ -1,7 +1,9 @@
 # Project Documentation
 
-- `architecture/` contains the current system architecture and agent hierarchy.
-- `guides/` contains setup, quick-start, and task-specific user instructions.
+- `architecture/` contains the system architecture; parts of it are legacy, and
+  `AGENTS.md` wins where they conflict.
+- `guides/` contains the current user and developer guides.
+- `archive/` keeps outdated setup guides and hierarchies for reference only.
 - `project/` contains scope and project-definition material.
 - `reports/` contains implementation and knowledge enhancement reports.
 - `migration/` contains provider and Codex adoption plans.

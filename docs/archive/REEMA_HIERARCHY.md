@@ -1,3 +1,5 @@
+> Outdated — see [AGENTS.md](../../AGENTS.md) and [README.md](../../README.md).
+
 # REEMA Multi-Agent System Hierarchy
 
 ## Updated Organizational Structure (9 Agents)

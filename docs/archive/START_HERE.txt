@@ -1,3 +1,5 @@
+OUTDATED — see AGENTS.md and README.md in the repository root.
+
 ================================================================================
   WORKSTATION SECURITY PATCHES SOP - START HERE
 ================================================================================

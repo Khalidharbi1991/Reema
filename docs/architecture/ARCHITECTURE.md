@@ -1,5 +1,9 @@
 # System Architecture
 
+> Names (2026-10-30): older diagrams below use retired persona names. Taif is
+> Agent 1, Mohammad Agent 2, Saad Agent 3, Faisal Agent 4 and Bee Agent 5;
+> setup now uses `python3 scripts/dev.py` (see [README](../../README.md)).
+
 > Update (2026-10-29): Abdullah is no longer in the chat path. Ahmad consults the
 > selected specialists directly and answers strategy, budget and prioritization
 > requests himself; Abdullah leads only the SOP pipeline below. Where older notes
@@ -96,7 +100,7 @@
 ┌────────────────────────────────────────────────────┐
 │              KNOWLEDGE BASE & RESOURCES             │
 ├────────────────────────────────────────────────────┤
-│ • ITOM.pdf (parsed)                                │
+│ • Manifest-authorized references                   │
 │ • ITIL v4 knowledge                                │
 │ • Standards mapping                                │
 │ • SOP templates                                    │
@@ -149,8 +153,8 @@ START
         │             │             │
         ▼             ▼             ▼
    ┌─────────┐  ┌─────────┐  ┌─────────┐
-   │  Taif   │  │ Mohammad│  │ ITOM.pdf│
-   │(Research)│ │(Standards)│ │ Parser  │
+   │  Taif   │  │ Mohammad│  │ Manifest│
+   │(Research)│ │(Standards)│ │ sources │
    │         │  │         │  │         │
    │ Gathers │  │ Analyzes│  │ Extracts│
    │ ITIL    │  │Compliance│  │Knowledge│
@@ -535,7 +539,7 @@ utils/
 │          Local Development               │
 ├──────────────────────────────────────────┤
 │ Windows/Linux/Mac                        │
-│ Python 3.9+                              │
+│ Python 3.11–3.14                         │
 │ Virtual Environment (venv)               │
 │ ANTHROPIC_API_KEY (env var)              │
 └──────────────────────────────────────────┘
@@ -583,7 +587,7 @@ utils/
 ┌──────────────────────────────────────────┐
 │         Local Data Handling              │
 ├──────────────────────────────────────────┤
-│ • ITOM.pdf stays local                   │
+│ • References stay local                  │
 │ • Generated docs stay local              │
 │ • Logs stored locally                    │
 │ • No external data transmission          │
