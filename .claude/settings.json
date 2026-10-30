@@ -6,7 +6,9 @@
       "Bash(python3 -m src.main approve:*)",
       "Bash(python3 -m src.main reject:*)",
       "Bash(python3 scripts/dev.py run approve:*)",
-      "Bash(python3 scripts/dev.py run reject:*)"
+      "Bash(python3 scripts/dev.py run reject:*)",
+      "Bash(git push:*)",
+      "Read(./output/assistant/**)"
     ]
   }
 }
