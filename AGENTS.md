@@ -6,8 +6,9 @@ REEMA is Khalid's IT company. Ahmad, the coordinator, talks with Khalid and rout
 work to sections. The main section is Documentation, led by Abdullah: writing,
 reviewing and revising SOPs, and later reports and presentations, starting with a
 patch report PowerPoint from SCCM and Intune data. Agent 9 supports home design as
-a side service. A Development section is planned. Review, revise and coordination
-run inside Claude Code; the API path remains as a backup.
+a side service. A Development section is planned. Generate, review, revise and
+coordination run inside Claude Code; REEMA's own commands make no model call (the
+no-API migration finishes removing the remaining API plumbing).
 
 Not yet built: patch report PowerPoint (PPTX export) and SCCM/Intune export intake.
 
@@ -84,20 +85,19 @@ reading them.
 ## Documentation pipeline
 
 The existing 16-process catalog is configured in `config/process_definitions.yaml`.
-Abdullah runs planning, research and standards analysis, content generation,
-selected specialist enrichment, full-document review, selected compliance
-checks, formatting, and local delivery. Core workers are Agents 1–5. Agents
-6–8 and Agent 10 join when selected by a process or explicit CLI option
-(`--specialist euc` for Agent 10). Workstation Security Patches and Devices
-Batch Management select Agent 10, which adds an endpoint research handoff and an
-"Endpoint Deployment & Rollback Plan" appendix; it has no compliance gate.
-Ahmad's local task interface is separate from this pipeline.
+A new SOP is written in Claude Code ("Claude Code generate" below): `reema generate`
+only prepares the request and prints the next step. Abdullah's local job plans,
+checks, formats and records it; no model researches, reviews or checks compliance.
+Agents 1, 2, 6, 7 and 8 have no class any more: they remain roles in the roster, and
+their knowledge files remain source material. Workstation Security Patches and
+Devices Batch Management select Agent 10, who writes an "Endpoint Deployment &
+Rollback Plan" appendix. Ahmad's local task interface is separate from this job.
 
 SOPs have 11 required sections and can be exported as Markdown, HTML, DOCX,
 and PDF. The 15–30 rendered PDF page target warns by default and can be enforced
-by configuration. Model quality scores, standards names, and source citations do
-not certify factual or regulatory compliance; applicability and model correction
-judgments remain unverified. Successful generation produces drafts in
+by configuration. Standards names and source citations do not certify factual or
+regulatory compliance; control applicability stays undetermined for a human to
+judge. Successful generation produces drafts in
 `output/runs/<run-id>/` and ends at `awaiting_human_approval`. No agent can
 approve a document as a human reviewer.
 
@@ -147,13 +147,12 @@ for that set of files. The `reema-writer` subagent writes one Markdown file per 
 and `finish` run `LeaderAgent.check_draft` (template, RACI, standards named, known citations, flows,
 control coverage). `finish` runs `LeaderAgent.generate_local`: export and a pending approval record
 with `quality_score` null (no model review; Khalid can run `reema-review` on the draft) and
-`authoring: claude_code_session`. When the `euc` specialist is selected (Workstation Security
+`authoring: claude_code_session`. `reema generate` runs the same prepare. When the `euc` specialist is selected (Workstation Security
 Patches, Devices Batch Management, or `--specialist euc`), the `reema-agent10-euc` subagent writes
 the patch appendix file to the request's outline (`EUCAgent.APPENDIX_SECTIONS`, checked by
 `EUCAgent.check_appendix`). The access, problem and data specialists add no appendix; local checks
 on a `--specialist-input` file (`specialist_checks`: IAM, problem case, metrics) go into the request
-and the plan checkpoint as data, and the file needs the same confirm-read token. The API `reema
-generate` path is still present.
+and the plan checkpoint as data, and the file needs the same confirm-read token.
 
 ### Claude Code revise (experimental)
 
@@ -183,19 +182,9 @@ unchanged `ReviewAgent.review_existing` checks into `LeaderAgent.review_existing
 carries `ReviewAgent.EXISTING_SOP_INSTRUCTIONS`. The source file is only read (finish
 compares its byte SHA-256 before and after), and no `approval.json` is written.
 
-Specialist handoffs preserve full payloads and use strict internal contracts in
-`src/utils/handoffs.py`; public agent strings/dictionaries remain compatible.
-Optional findings/provenance/assumptions metadata remains unverified. Review and
-compliance decisions are validated before gates, including offline export recovery.
-Leader status counts actual coordination phases, with persisted failure/cancellation
-and skipped states in `run.json`.
-
-Failed/cancelled new runs can resume completed research, generation and
-enrichment with fresh consent and verified input/config/source/code identity.
-Version 2 also recovers locally abandoned running owners after an OS lease check
-and reuses separately validated review/compliance chunks. Uncertain in-flight requests stay
-charged; exactly-once provider execution is not claimed. Ready-only recovery
-remains offline. Reused work and inherited usage are reported separately.
+Leader status counts actual job phases, with persisted failure/cancellation and
+skipped states in `run.json`. Model-phase recovery is gone with the API generate
+path; `reema resume RUN` only re-exports a run's checked ready checkpoint offline.
 
 Details: `docs/guides/AGENT_HANDOFFS_AND_STATUS.md`,
 `docs/guides/COORDINATION_AND_RECOVERY.md`, `docs/guides/DOCUMENT_QUALITY.md`,
@@ -248,7 +237,6 @@ Roles are described under "Current team" above; this shows what runs in Claude C
 | --- | --- | --- | --- |
 | Coordination | Ahmad (main session) | Work tasks and memory through the CLI | Working |
 | Documentation | Abdullah (`abdullah-docs` skill) | `reema-writer`, `reema-reviewer`, `reema-consistency-reviewer`, `reema-reviser`, `reema-rechecker` | Working |
-| Documentation: generation pipeline | Abdullah (API) | Agents 1, 2, 5, 6, 7, 8 | Replaced by the reema-generate skill; removed in step 4c |
 | Building Design | Agent 9 | `reema-agent9-design` | Working (advice; local `drawing` commands run offline) |
 | End-User Computing / Patch | Agent 10 | `reema-agent10-euc` | Working (advice and the patch appendix in reema-generate) |
 | Development | — | — | Planned, not built |

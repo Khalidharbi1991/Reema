@@ -13,25 +13,14 @@ from rich.console import Console
 from rich.table import Table
 
 from .agents.leader_agent import LeaderAgent
-from .agents.research_agent import ResearchAgent
-from .agents.standards_agent import StandardsAgent
-from .agents.content_agent import ContentAgent
-from .agents.review_agent import ReviewAgent
 from .agents.format_agent import FormatAgent
-from .agents.data_agent import DataAgent
-from .agents.access_agent import AccessAgent
-from .agents.problem_agent import ProblemAgent
 from .agents.secretary_agent import SecretaryAgent
 from .agents.building_design_agent import BuildingDesignAgent
-from .agents.euc_agent import EUCAgent
-from .utils.logger import logger
 from .utils.config import config_manager
-from .utils.validation import validate_formats
 from .utils.output_safety import unignored_output
 from .utils.approvals import read_record, record_decision
 from .utils.publish import NotPublishable, PublishError, plan_publish, publish as publish_run, record_skipped
 from .utils.tasks import AREAS
-from .utils.specialists import SpecialistInputs
 
 app = typer.Typer(
     name="REEMA",
@@ -287,23 +276,6 @@ def find_sop(
                       markup=False, soft_wrap=True)
 
 
-def initialize_system(specialists: Optional[List[str]] = None) -> dict:
-    """Initialize the multi-agent system.
-
-    Returns:
-        Dictionary with the leader and its registered, process-selected workers.
-    """
-    leader = LeaderAgent()
-    for cls in (ResearchAgent, StandardsAgent, ContentAgent, ReviewAgent, FormatAgent):
-        leader.register_worker(cls.__name__, cls())
-    optional = {"access": AccessAgent, "problem": ProblemAgent, "data": DataAgent, "euc": EUCAgent}
-    for name in sorted(set(specialists or [])):
-        cls = optional[name]
-        leader.register_worker(cls.__name__, cls())
-    console.print(f"Initialized {len(leader.worker_agents)} workers; final approval requires a human decision.")
-    return {"leader": leader}
-
-
 def _warn_if_output_unignored(directory: Path):
     """Drafts and checkpoints can hold customer content; flag folders Git would not ignore."""
     root = unignored_output(directory)
@@ -313,142 +285,60 @@ def _warn_if_output_unignored(directory: Path):
                       "committed. Use a folder under output/ or add it to .gitignore.", markup=False)
 
 
-async def _generate_and_close(leader, *args, **kwargs):
-    try:
-        return await leader.generate_documentation(*args, **kwargs)
-    finally:
-        if hasattr(leader, "close"):
-            await leader.close()
-
-
 @app.command()
 def generate(
     process: str = typer.Argument(..., help="Name of the IT process to document"),
-    formats: Optional[List[str]] = typer.Option(
-        None,
-        "--format", "-f",
-        help="Output formats (pdf, docx, markdown, html)"
-    ),
-    output_dir: Optional[str] = typer.Option(
-        None,
-        "--output", "-o",
-        help="Output directory (default: ./output)"
-    ),
+    formats: Optional[List[str]] = typer.Option(None, "--format", "-f", help="Output formats (pdf, docx, markdown, html)"),
+    output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Output root (default: ./output)"),
     custom: bool = typer.Option(False, "--custom", help="Allow a process outside the configured catalog"),
-    specialists: Optional[List[str]] = typer.Option(None, "--specialist", help="Additional specialist: access, problem, data, euc (repeatable)"),
-    allow_external_ai: bool = typer.Option(False, "--allow-external-ai", help="Authorize sending this run's input and reference excerpts to Anthropic"),
+    specialists: Optional[List[str]] = typer.Option(None, "--specialist", help="Additional specialist: access, problem, data, euc (repeatable); euc adds Agent 10's patch appendix"),
     objective: Optional[str] = typer.Option(None, "--objective", help="Specific objective for this SOP"),
     constraints: Optional[List[str]] = typer.Option(None, "--constraint", help="Explicit constraint; repeatable"),
     acceptance_criteria: Optional[List[str]] = typer.Option(None, "--acceptance", help="Additional human acceptance criterion; repeatable"),
-    specialist_input: Optional[Path] = typer.Option(None, "--specialist-input", help="Explicit JSON input for IAM snapshot, incident observations or metric data; included in authorized model context"),
+    specialist_input: Optional[Path] = typer.Option(None, "--specialist-input", help="Local JSON input: IAM snapshot, incident observations or metric data"),
+    confirm_read: Optional[str] = typer.Option(None, "--confirm-read", help="Token printed for the reference or input files; give it only after Khalid's yes"),
 ):
+    """Prepare a new SOP for Claude Code to write; REEMA makes no model call.
+
+    The section text is written in a Claude Code session (reema-generate skill); REEMA then checks,
+    exports and records it for human approval.
     """
-    Generate IT process documentation.
-
-    Examples:
-        python -m src.main generate "Incident Management" --allow-external-ai
-        python -m src.main generate "Change Management" --format docx --allow-external-ai
-    """
-    console.print(f"\n[bold cyan]📝 Generating documentation for: {process}[/bold cyan]\n")
-
-    # Reject invalid requests before initializing agents or reading references.
-    try:
-        specialist_data = None
-        if specialist_input is not None:
-            if specialist_input.is_symlink() or not specialist_input.is_file() or specialist_input.stat().st_size > 2000000:
-                raise ValueError("Specialist input must be a regular local JSON file no larger than 2 MB")
-            try:
-                specialist_data = SpecialistInputs.model_validate_json(specialist_input.read_text(encoding="utf-8")).validate_limits(config_manager.specialist_policy).model_dump()
-            except ValueError:
-                raise ValueError("Invalid specialist input; check the documented schema and field types") from None
-        _, definition = config_manager.resolve_process(process, custom=custom)
-        selected = sorted(set(definition.get("specialists", [])) | set(specialists or []))
-        if specialist_data:
-            selected = sorted(set(selected) | SpecialistInputs.model_validate(specialist_data).required_specialists())
-        if set(selected) - {"access", "problem", "data", "euc"}:
-            raise ValueError("Specialists must be access, problem, data, or euc")
-        formats = validate_formats(config_manager.system_config.default_formats if formats is None else formats)
-    except ValueError as error:
-        console.print(str(error), markup=False)
-        raise typer.Exit(code=2)
-
+    from .generate_job import prepare
     settings = config_manager.system_config
-    _warn_if_output_unignored(Path(output_dir).expanduser().resolve() if output_dir else settings.output_dir)
-    if not (allow_external_ai or settings.allow_external_ai):
-        console.print("This run sends input and reference excerpts to Anthropic. Use --allow-external-ai after confirming permission for those documents.")
-        raise typer.Exit(code=2)
-
-    # Check for API key
-    if not config_manager.system_config.anthropic_api_key:
-        console.print("[bold red]❌ Error: ANTHROPIC_API_KEY environment variable not set![/bold red]")
-        console.print("\nPlease set your API key:")
-        console.print("  export ANTHROPIC_API_KEY='your-api-key-here'\n")
-        raise typer.Exit(code=1)
-
-    previous_output_dir = settings.output_dir
-    previous_authorization = settings.allow_external_ai
+    previous_output = settings.output_dir
     try:
-        settings.allow_external_ai = True
-        if output_dir:
-            settings.output_dir = Path(output_dir).expanduser().resolve()
-        agents = initialize_system(selected)
-        leader = agents["leader"]
-        with console.status(f"[bold green]Generating {process} documentation..."):
-            output_files = asyncio.run(
-                _generate_and_close(leader, process, formats, custom=custom, specialists=selected,
-                                    objective=objective, constraints=constraints, acceptance_criteria=acceptance_criteria,
-                                    specialist_inputs=specialist_data)
-            )
-
-        # Display results
-        console.print("\nDrafts generated; awaiting human approval.\n")
-
-        table = Table(title="Generated Documents", show_header=True)
-        table.add_column("Format", style="cyan")
-        table.add_column("File Path", style="green")
-
-        for fmt, file_path in output_files.items():
-            table.add_row(fmt.upper(), str(file_path))
-
-        console.print(table)
-        console.print("Approval record: " + leader.context["delivery"]["approval_record"], markup=False)
-        for warning in leader.context.get("quality", {}).get("warnings", []):
-            console.print("Review note: " + warning, markup=False)
-        console.print()
-
-    except Exception as e:
-        console.print(f"\n[bold red]❌ Error: {str(e)}[/bold red]\n")
-        logger.error(f"Generation failed: {e}")
+        if output_dir is not None:
+            settings.output_dir = output_dir.expanduser().resolve()
+        _warn_if_output_unignored(settings.output_dir)
+        work_id = prepare(process, formats, custom=custom, objective=objective, constraints=constraints or (),
+                          acceptance=acceptance_criteria or (), specialists=specialists or (),
+                          specialist_input=specialist_input, confirm_read=confirm_read)
+        root = "" if output_dir is None else f" with output root {settings.output_dir}"
+    except ValueError as error:
+        console.print(str(error), markup=False, soft_wrap=True)
+        raise typer.Exit(code=2)
+    except (OSError, RuntimeError) as error:
+        console.print(str(error), markup=False)
         raise typer.Exit(code=1)
     finally:
-        settings.output_dir = previous_output_dir
-        settings.allow_external_ai = previous_authorization
+        settings.output_dir = previous_output
+    console.print(f"Next, in a Claude Code session in this folder, ask Ahmad to write SOP work {work_id}{root} "
+                  "(reema-generate skill). REEMA checks it, exports it and records it for your approval.",
+                  markup=False, soft_wrap=True)
 
 
 @app.command()
 def resume(
     run: Path = typer.Argument(..., exists=True, file_okay=False, help="Run directory containing verified checkpoints"),
     formats: Optional[List[str]] = typer.Option(None, "--format", "-f"),
-    model_phases: bool = typer.Option(False, "--model-phases", help="Recover interrupted model phases instead of offline export"),
-    allow_external_ai: bool = typer.Option(False, "--allow-external-ai", help="Fresh authorization for model-phase recovery"),
-    output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Original output root for model recovery"),
+    output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Output root (default: ./output)"),
 ):
-    """Resume into a NEW run; default is offline export, model recovery is explicit."""
+    """Export a run's checked draft again into a NEW run, with no model call."""
     async def execute():
-        if model_phases:
-            if not allow_external_ai:
-                raise PermissionError("Model-phase recovery requires fresh --allow-external-ai")
-            if not config_manager.system_config.anthropic_api_key:
-                raise ValueError("ANTHROPIC_API_KEY is needed for model-phase recovery")
-            from .utils.execution import load_execution
-            record, _ = load_execution(run, config_manager)
-            leader = initialize_system(record.request.specialists)["leader"]
-        else:
-            leader = LeaderAgent(api_key="")
-            leader.register_worker("FormatAgent", FormatAgent())
+        leader = LeaderAgent(api_key="")
+        leader.register_worker("FormatAgent", FormatAgent())
         try:
-            outputs = (await leader.resume_execution(run, formats, allow_external_ai=allow_external_ai)
-                       if model_phases else await leader.resume_formatting(run, formats))
+            outputs = await leader.resume_formatting(run, formats)
             for fmt, path in outputs.items():
                 console.print(f"{fmt}: {path}", markup=False)
             console.print("Awaiting human approval: " + leader.context["delivery"]["approval_record"], markup=False)

@@ -7,60 +7,18 @@ class Inputs(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
 
-class ResearchInputs(Inputs):
-    process_name: str = Field(min_length=1)
-    standards: list[str]
-
-
-class EvidenceResearchInputs(ResearchInputs):
-    research_context: dict[str, JsonValue] | None = None
-
-
-class AccessResearchInputs(ResearchInputs):
-    research_data: dict[str, JsonValue] | None = None
-
-
-class ProblemResearchInputs(ResearchInputs):
-    incident_data: dict[str, JsonValue] | None = None
-
-
-class AnalyticsInputs(Inputs):
-    process_name: str = Field(min_length=1)
-    kpis: list[str]
-    research_data: dict[str, JsonValue] | None = None
-
-
 class ContentInputs(Inputs):
     process_name: str = Field(min_length=1)
     research_data: dict[str, JsonValue]
-
-
-class AccessInputs(Inputs):
-    process_name: str = Field(min_length=1)
-    access_requirements: dict[str, JsonValue]
-
-
-class EndpointInputs(Inputs):
-    process_name: str = Field(min_length=1)
-    endpoint_requirements: dict[str, JsonValue]
-
-
-class DashboardInputs(Inputs):
-    process_name: str = Field(min_length=1)
-    metrics: list[dict[str, JsonValue]]
 
 
 class ReviewInputs(Inputs):
     content: str = Field(min_length=1)
 
 
-class RefineInputs(ReviewInputs):
-    feedback: list[str]
-
-
 class LocatedRevisionInputs(ReviewInputs):
     findings: list[dict[str, JsonValue]] = Field(min_length=1)
-    # Omitted (None) keeps the positional call and full-profile check used by generate.
+    # Omitted (None) keeps the positional call and full-profile check.
     require_complete: bool | None = None
 
 
@@ -70,41 +28,16 @@ class FinishedRevisionInputs(LocatedRevisionInputs):
     finished_sop: bool
 
 
-class AccessComplianceInputs(ReviewInputs):
-    regulations: list[str]
-
-
-class ProblemComplianceInputs(Inputs):
-    process_name: str = Field(min_length=1)
-    content: str = Field(min_length=1)
-
-
 class FormatInputs(ReviewInputs):
     output_formats: list[str]
     process_name: str = Field(min_length=1)
 
 
 PIPELINE_CAPABILITIES = {
-    "research": ("ResearchAgent", "research_process", EvidenceResearchInputs),
-    "standards": ("StandardsAgent", "analyze_compliance", ResearchInputs),
-    "data": ("DataAgent", "design_analytics_framework", AnalyticsInputs),
-    "access": ("AccessAgent", "analyze_access_requirements", AccessResearchInputs),
-    "problem": ("ProblemAgent", "research_problem_management", ProblemResearchInputs),
-    "euc": ("EUCAgent", "analyze_endpoint_requirements", ResearchInputs),
     "content": ("ContentAgent", "generate_sop", ContentInputs),
-    "access_content": ("AccessAgent", "generate_access_content", AccessInputs),
-    "problem_content": ("ProblemAgent", "generate_problem_content", ContentInputs),
-    "euc_content": ("EUCAgent", "generate_endpoint_content", EndpointInputs),
-    "dashboard": ("DataAgent", "create_dashboard_design", DashboardInputs),
-    "review": ("ReviewAgent", "review_content", ReviewInputs),
     "review_existing": ("ReviewAgent", "review_existing", ReviewInputs),
-    "refine": ("ContentAgent", "refine_content", RefineInputs),
-    "revise_sections": ("ContentAgent", "revise_sections", LocatedRevisionInputs),
     "revise_finished": ("ContentAgent", "revise_sections", FinishedRevisionInputs),
-    "recheck": ("ReviewAgent", "recheck_corrections", LocatedRevisionInputs),
     "recheck_finished": ("ReviewAgent", "recheck_corrections", FinishedRevisionInputs),
-    "access_compliance": ("AccessAgent", "validate_access_compliance", AccessComplianceInputs),
-    "problem_compliance": ("ProblemAgent", "validate_problem_compliance", ProblemComplianceInputs),
     "format": ("FormatAgent", "convert_to_formats", FormatInputs),
 }
 

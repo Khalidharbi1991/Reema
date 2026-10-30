@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from src.agents import ContentAgent, ResearchAgent
+from src.agents import ContentAgent
 from src.utils.config import SystemConfig, config_manager
 from src.utils.documents import SectionSpec, section_map
 from src.utils.provider import Completion, RunRuntime, current_runtime
@@ -143,9 +143,8 @@ async def test_interrupted_generation_reuses_finished_sections():
 
 
 def test_agent_three_has_its_own_section_budget_and_timeout():
-    content, research = ContentAgent(api_key=""), ResearchAgent(api_key="")
+    content = ContentAgent(api_key="")
     assert (content.max_tokens, content.timeout_seconds) == (16000, 480)
-    assert research.timeout_seconds is None
 
 
 @pytest.mark.asyncio

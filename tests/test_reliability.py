@@ -136,9 +136,9 @@ async def test_base_agent_sends_temperature_only_when_overridden_and_separates_e
 
 
 def test_shipped_roles_omit_temperature_and_explicit_overrides_apply(monkeypatch):
-    from src.agents import ResearchAgent
+    from src.agents import ReviewAgent
     from src.utils.config import config_manager
     assert all(role["temperature"] is None for role in config_manager.agents_config.values())
-    assert ResearchAgent(api_key="").temperature is None
-    monkeypatch.setitem(config_manager.agents_config["research_agent"], "temperature", 0.3)
-    assert ResearchAgent(api_key="").temperature == 0.3
+    assert ReviewAgent(api_key="").temperature is None
+    monkeypatch.setitem(config_manager.agents_config["review_agent"], "temperature", 0.3)
+    assert ReviewAgent(api_key="").temperature == 0.3

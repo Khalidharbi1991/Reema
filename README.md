@@ -154,42 +154,35 @@ The system provides a user-friendly CLI powered by Typer and Rich.
 
 #### Generate Documentation
 
-Generate documentation for a specific IT process:
+A new SOP is written in a Claude Code session (see "Claude Code generate" below).
+`generate` prepares it and prints the work id to hand to Ahmad; it makes no model call:
 
 ```bash
-python3 scripts/dev.py run generate "Incident Management" -f markdown --allow-external-ai
+python3 scripts/dev.py run generate "Incident Management" -f markdown
 ```
 
 Specify output formats:
 
 ```bash
-python3 scripts/dev.py run generate "Change Management" --format pdf --format docx --allow-external-ai
-```
-
-All formats:
-
-```bash
-python3 scripts/dev.py run generate "Problem Management" -f pdf -f docx -f markdown -f html --allow-external-ai
+python3 scripts/dev.py run generate "Change Management" --format pdf --format docx
 ```
 
 Custom output directory:
 
 ```bash
-python3 scripts/dev.py run generate "Service Request Management" --output ./output/my-docs --allow-external-ai
+python3 scripts/dev.py run generate "Service Request Management" --output ./output/my-docs
 ```
 
 Keep custom output folders under `output/` or another Git-ignored path. Drafts,
 run checkpoints and source excerpts are written there; `generate` and `resume`
 print a warning when the folder is inside the repository but not ignored.
 
-`--allow-external-ai` explicitly authorizes sending this run's inputs, selected
-reference excerpts, and agent knowledge to Anthropic. Review the material first;
-see [Data handling](docs/guides/DATA_HANDLING.md). It is disabled by default.
-`ALLOW_EXTERNAL_AI=true` is a persistent alternative only for a pre-authorized
-environment. Unknown process names fail unless `--custom` is supplied. Additional
-specialists can be selected with `--specialist access`, `problem`, `data`, or `euc`.
-Workstation Security Patches and Devices Batch Management include Agent 10 (`euc`)
-by default; it adds an Endpoint Deployment & Rollback Plan appendix.
+Unknown process names fail unless `--custom` is supplied. Additional specialists can be
+selected with `--specialist access`, `problem`, `data`, or `euc`. Workstation Security
+Patches and Devices Batch Management include Agent 10 (`euc`) by default; it adds an
+Endpoint Deployment & Rollback Plan appendix. If reference excerpts or a
+`--specialist-input` file would be read, `generate` prints a `--confirm-read` token
+instead; run it again with the token only after deciding the session may read them.
 Missing PDF dependencies fail a PDF request explicitly; select `-f markdown`
 when PDF is not needed.
 
@@ -321,192 +314,25 @@ run reached `ready.json` but export failed, regenerate the exports offline:
 python3 scripts/dev.py run resume output/runs/<run-id> -f markdown -f docx
 ```
 
-This validates the checkpoint hash and current quality threshold, creates a new
-run, and requires a fresh human decision. It needs no API key or external-AI
-consent. Failed/cancelled new runs with completed research or generation can use
-verified model-phase recovery, with fresh explicit authorization:
-
-```bash
-python3 scripts/dev.py run resume output/runs/<run-id> --model-phases --allow-external-ai
-```
-
-This preserves original inputs/formats, rechecks configuration and source
-permissions, carries prior usage into the budget, and creates a new pending human
-record. See [Coordination and recovery](docs/guides/COORDINATION_AND_RECOVERY.md)
-for the supported checkpoints, private recovery key and practical limits.
-
-#### List Available Processes
-
-View all IT processes that can be documented:
-
-```bash
-python3 scripts/dev.py run list-processes
-```
-
-Available processes include:
-- **ITIL Core**: Incident, Change, Problem, Service Request Management
-- **ITOM**: Event Management, Infrastructure Operations, Monitoring & Control
-- **ITAM**: Hardware, Software, License Management
-- **Security & Compliance**: Security Operations, Compliance Audits, Risk Management
-- **Custom**: Devices Batch Management
-
-#### Check System Status
-
-View system configuration and status:
-
-```bash
-python3 scripts/dev.py run status
-```
-
-#### Version Information
-
-```bash
-python3 scripts/dev.py run version
-```
-
-## Project Structure
-
-```
-IT-Consultant/
-├── AGENTS.md                      # Project context and agent working rules (source of truth)
-├── CLAUDE.md                      # Imports AGENTS.md
-├── README.md                      # This file
-├── pyproject.toml                 # Package and test configuration
-├── requirements.txt               # Convenience alias for .[dev]; the lock files are the install source
-├── config/                        # Agent, process, and standards YAML
-├── src/                           # Main REEMA application
-│   ├── agents/                    # Management and worker agents
-│   ├── formatters/                # PDF, DOCX, Markdown, and HTML output
-│   ├── knowledge/                 # Curated agent knowledge and parsers
-│   ├── templates/                 # Application templates
-│   └── utils/                     # Configuration and logging
-├── tests/                         # Automated tests
-├── docs/                          # Architecture, guides, reports, migration
-├── scripts/                       # Generation, conversion, and transformation tools
-├── references/                    # Local source documents (Git ignored; manifest-authorized)
-├── diagrams/                      # Draw.io source diagrams
-├── output/                        # Generated documents (Git ignored)
-└── logs/                          # Runtime logs (Git ignored)
-```
-
-## Configuration
-
-### Agent Configuration
-
-Edit `config/agent_config.yaml` to customize agent behavior:
-
-```yaml
-research_agent:
-  model: "claude-sonnet-4-6"
-  max_tokens: 4096
-  # temperature: 0.5   # optional override; omitted by default
-```
-
-Shipped roles send no `temperature`, so the model's default sampling applies.
-A per-role `temperature` (0–1) is sent only when set explicitly; API version
-2026-10-21 and Claude 4.7+ models reject non-default values.
-
-Shipped roles inherit `LEADER_MODEL` or `WORKER_MODEL`, defaulting to
-`claude-sonnet-4-6`. An explicit per-role `model` takes precedence. Existing user
-overrides are preserved; a retired override needs a deliberate replacement.
-The benchmark and runtime use the same selection rule. See the
-[current guide](docs/guides/COMPLETION_AND_EVALUATION.md) for lifecycle/pricing
-sources and the exact synthetic live-evaluation authorization gate.
-
-### Process Definitions
-
-Add or modify IT processes in `config/process_definitions.yaml`:
-
-```yaml
-custom_process:
-  name: "My Custom Process"
-  category: "Custom"
-  description: "What the process achieves"
-  complexity: "medium"
-  estimated_pages: 20
-```
-
-### Standards Mapping
-
-`config/standards_mapping.yaml` is the only source of a process's standards. The
-pipeline and `list-processes` both read it, and every process ID needs an entry.
-A `standards` list in `process_definitions.yaml` is rejected with an error.
-
-Map processes to standards in `config/standards_mapping.yaml`:
-
-```yaml
-custom_process:
-  - "ITIL v4 Practice Name"
-  - "ISO Standard"
-```
-
-## Output Formats
-
-### PDF
-- Professional, print-ready documents
-- Headers, footers, page numbers
-- Preserves supplied document headings
-- Professional styling
-
-### Microsoft Word (DOCX)
-- Editable documents
-- Professional formatting
-- Tables and lists
-- Ready for customization
-
-### Markdown
-- Version control friendly
-- Plain text format
-- Easy to edit and share
-- Compatible with Git
-
-### HTML
-- Web publishing ready
-- Responsive design
-- Professional styling
-- Can be hosted online
-
-## Document Structure
-
-Each generated SOP includes 11 comprehensive sections:
-
-1. **Introduction**: Purpose, scope, objectives
-2. **Definitions & Acronyms**: Complete glossary
-3. **Roles & Responsibilities**: RACI matrix and role descriptions
-4. **Process Overview**: High-level description
-5. **Detailed Procedures**: Step-by-step instructions
-6. **Process Flow Diagrams**: Visual workflow descriptions
-7. **Key Performance Indicators**: Metrics and KPIs
-8. **Tools & Systems**: Required technology
-9. **Compliance & Standards**: Framework alignment
-10. **Appendices**: Templates, forms, checklists
-11. **Document Control**: Version history, approvals
+This validates the checkpoint hash, creates a new run, and requires a fresh human
+decision. It makes no model call.
 
 ## Examples
 
-### Example 1: Generate Incident Management SOP
+### Example 1: Prepare an Incident Management SOP
 
 ```bash
-python3 scripts/dev.py run generate "Incident Management" -f pdf -f docx --allow-external-ai
+python3 scripts/dev.py run generate "Incident Management" -f pdf -f docx
 ```
 
-Output:
+Then, in Claude Code, ask Ahmad to write the printed work id. Output after finish:
 - `output/runs/<run-id>/pdf/Incident_Management_SOP.pdf`
 - `output/runs/<run-id>/docx/Incident_Management_SOP.docx`
 
-### Example 2: Generate All ITIL Core Processes
+### Example 2: Custom Device Management Process
 
 ```bash
-python3 scripts/dev.py run generate "Incident Management" --allow-external-ai
-python3 scripts/dev.py run generate "Change Management" --allow-external-ai
-python3 scripts/dev.py run generate "Problem Management" --allow-external-ai
-python3 scripts/dev.py run generate "Service Request Management" --allow-external-ai
-```
-
-### Example 3: Custom Device Management Process
-
-```bash
-python3 scripts/dev.py run generate "Devices Batch Management" -f pdf -f html --allow-external-ai
+python3 scripts/dev.py run generate "Devices Batch Management" -f pdf -f html
 ```
 
 ## Troubleshooting
