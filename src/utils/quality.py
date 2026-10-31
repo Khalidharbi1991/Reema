@@ -84,7 +84,7 @@ def is_structured_response(text):
 async def structured_call(agent, prompt, schema, validator=None):
     """One structured reply from the agent, parsed against schema and then checked by validator."""
     result = parse_json_response(
-        await agent._call_claude([{"role": "user", "content": prompt}], system=agent._build_system_prompt()), schema)
+        await agent._reply([{"role": "user", "content": prompt}], system=agent._build_system_prompt()), schema)
     if validator:
         validator(result)
     return result

@@ -89,13 +89,13 @@ def requested_section(messages):
 
 
 async def test_actual_content_assembles_in_config_order_and_preserves_payload_tail():
-    agent = ContentAgent(api_key="")
+    agent = ContentAgent()
     async def reply(messages, system=""):
         return json.dumps({"section_id": requested_section(messages), "body": "Content for " + requested_section(messages)})
-    agent._call_claude = AsyncMock(side_effect=reply)
+    agent._reply = AsyncMock(side_effect=reply)
     document = await agent.generate_sop("Example", {"research": {"raw_research": "x" * 15000 + "UNIQUE_TAIL"}})
     assert list(section_map(document, config_manager.document_profile, require_complete=True)) == [s.id for s in config_manager.document_profile.sections]
-    prompts = [call.args[0][0]["content"] for call in agent._call_claude.await_args_list]
+    prompts = [call.args[0][0]["content"] for call in agent._reply.await_args_list]
     assert len(prompts) == len(config_manager.document_profile.sections)
     assert all("UNIQUE_TAIL" in prompt for prompt in prompts)
 
@@ -115,8 +115,8 @@ def test_section_assembly_rejects_incomplete_or_structurally_unsafe_data(change)
 async def test_targeted_revision_keeps_every_unaffected_byte_and_specialist_tail(sample_sop_content):
     content = sample_sop_content + "\n\n## Specialist material\n" + "Evidence " * 1500 + "FINAL_SPECIALIST_TAIL\n"
     data = patch_data(content)
-    agent = ContentAgent(api_key="")
-    agent._call_claude = AsyncMock(return_value=json.dumps(data))
+    agent = ContentAgent()
+    agent._reply = AsyncMock(return_value=json.dumps(data))
     result = await agent.revise_sections(content, locate_findings(content, [finding(content)], config_manager.document_profile))
     old = section_map(content, config_manager.document_profile)
     target = old["sec-procedures"]

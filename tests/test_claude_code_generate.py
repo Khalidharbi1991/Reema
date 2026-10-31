@@ -1,4 +1,4 @@
-"""New SOP written in a Claude Code session (scripts/claude_code_generate.py). No provider calls."""
+"""New SOP written in a Claude Code session (scripts/claude_code_generate.py). No model calls."""
 
 import asyncio
 import hashlib
@@ -14,7 +14,7 @@ from src.agents.format_agent import FormatAgent
 from src.agents.leader_agent import LeaderAgent
 from src.utils.approvals import ApprovalRecord, read_record, record_decision
 from src.utils.config import config_manager
-from src.utils.provider import RunRuntime
+from src.agents.base_agent import BaseAgent
 from src.utils.read_gate import ReadNotConfirmed
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "claude_code_generate.py"
@@ -35,10 +35,10 @@ def output_root(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def no_provider(monkeypatch):
+def no_model_call(monkeypatch):
     async def refuse(*args, **kwargs):
-        raise AssertionError("A provider call was attempted")
-    monkeypatch.setattr(RunRuntime, "call", refuse)
+        raise AssertionError("A step asked for text that no Claude Code file supplied")
+    monkeypatch.setattr(BaseAgent, "_reply", refuse)
 
 
 def prepared(process=PROCESS, **kwargs):
@@ -100,7 +100,7 @@ def test_check_refuses_drafts_that_fail_a_local_check(output_root, section, body
         ccg.check(work_id)
 
 
-def test_full_flow_ends_awaiting_approval_without_a_provider_call(output_root, no_provider, capsys):
+def test_full_flow_ends_awaiting_approval_without_a_model_call(output_root, no_model_call, capsys):
     work_id, work, request = prepared()
     write_sections(work, request)
     assert ccg.main(["check", work_id]) == 0
@@ -114,7 +114,7 @@ def test_full_flow_ends_awaiting_approval_without_a_provider_call(output_root, n
     run = draft.parent.parent
     state = json.loads((run / "run.json").read_text())
     assert (state["job"], state["status"], state["authoring"]) == ("generate", "awaiting_human_approval", "claude_code_session")
-    assert state["usage"]["calls"] == [] and [t["phase"] for t in state["tasks"]] == [
+    assert "usage" not in state and [t["phase"] for t in state["tasks"]] == [
         "planning", "content", "checks", "formatting", "human_review_record"]
     assert json.loads((run / "generated.json").read_text())["content"] == preview
     assert not (run / "execution.json").exists() and not (output_root / ".recovery-key").exists()
@@ -124,7 +124,7 @@ def test_full_flow_ends_awaiting_approval_without_a_provider_call(output_root, n
     assert read_record(run / "approval.json").quality_score is None
 
 
-def test_a_section_changed_between_check_and_finish_is_checked_again(output_root, no_provider):
+def test_a_section_changed_between_check_and_finish_is_checked_again(output_root, no_model_call):
     work_id, work, request = prepared()
     write_sections(work, request)
     ccg.check(work_id)
@@ -140,7 +140,7 @@ def manifest(root, path, digest=None):
         f"    external_ai_allowed: true\n    sha256: \"{digest or hashlib.sha256(path.read_bytes()).hexdigest()}\"\n")
 
 
-def test_reference_excerpts_need_the_token_and_can_be_cited(output_root, no_provider, capsys):
+def test_reference_excerpts_need_the_token_and_can_be_cited(output_root, no_model_call, capsys):
     root = config_manager.system_config.references_dir
     root.mkdir()
     policy = root / "change_policy.md"
@@ -178,9 +178,9 @@ def test_wrong_token_and_disallowed_references_are_refused(output_root):
 
 @pytest.mark.asyncio
 async def test_leader_refuses_a_local_generate_without_the_file_writer(output_root):
-    leader = LeaderAgent(api_key="")
-    leader.register_worker("ContentAgent", ContentAgent(api_key=""))
-    leader.register_worker("FormatAgent", FormatAgent(api_key=""))
+    leader = LeaderAgent()
+    leader.register_worker("ContentAgent", ContentAgent())
+    leader.register_worker("FormatAgent", FormatAgent())
     with pytest.raises(ValueError, match="file-backed ContentAgent"):
         await leader.generate_local(PROCESS, ["markdown"])
     assert not (output_root / "runs").exists()
@@ -189,7 +189,7 @@ async def test_leader_refuses_a_local_generate_without_the_file_writer(output_ro
 def test_file_writer_refuses_an_unknown_section(tmp_path):
     writer = FileSectionWriter(tmp_path)
     with pytest.raises(ValueError, match="does not know"):
-        asyncio.run(writer._call_claude([{"role": "user", "content": 'Set section_id to "sec-unknown".'}]))
+        asyncio.run(writer._reply([{"role": "user", "content": 'Set section_id to "sec-unknown".'}]))
     assert list(section_files(tmp_path)) == [s.id for s in config_manager.document_profile.sections]
 
 
@@ -211,7 +211,7 @@ def appendix(missing=None, extra=""):
                         for title, _ in EUCAgent.APPENDIX_SECTIONS if title != missing) + extra
 
 
-def test_patch_processes_take_agent_10s_appendix(output_root, no_provider, capsys):
+def test_patch_processes_take_agent_10s_appendix(output_root, no_model_call, capsys):
     work_id, work, request = prepared(PATCHES)
     spec = request["endpoint_appendix"]
     assert request["specialists"] == ["euc"] and spec["file"] == "appendices/endpoint.md"
@@ -239,7 +239,7 @@ def test_euc_can_be_added_to_another_process(output_root):
     assert request["specialists"] == ["euc"] and request["endpoint_appendix"]
 
 
-def test_access_problem_and_data_add_no_appendix(output_root, no_provider, capsys):
+def test_access_problem_and_data_add_no_appendix(output_root, no_model_call, capsys):
     work_id, work, request = prepared("Incident Management", specialists=["data"])
     assert request["specialists"] == ["data", "problem"] and request["endpoint_appendix"] is None
     assert "No appendix for: data, problem." in capsys.readouterr().out
@@ -249,7 +249,7 @@ def test_access_problem_and_data_add_no_appendix(output_root, no_provider, capsy
     assert json.loads((run / "run.json").read_text())["status"] == "awaiting_human_approval"
 
 
-def test_specialist_input_needs_the_token_and_its_checks_are_data(output_root, no_provider, tmp_path, capsys):
+def test_specialist_input_needs_the_token_and_its_checks_are_data(output_root, no_model_call, tmp_path, capsys):
     data = tmp_path / "case.json"
     data.write_text(json.dumps({"problem_case": {"case_id": "synthetic-case", "observations": [
         {"id": "OBS-start", "observed_at": "2026-10-15T07:00:00Z", "description": "Incident recorded", "evidence": []}]}}))
@@ -272,9 +272,9 @@ def test_specialist_input_needs_the_token_and_its_checks_are_data(output_root, n
 @pytest.mark.asyncio
 async def test_leader_ties_the_appendix_to_the_euc_specialist(output_root):
     for process, text in ((PATCHES, None), (PROCESS, appendix())):
-        leader = LeaderAgent(api_key="")
+        leader = LeaderAgent()
         leader.register_worker("ContentAgent", FileSectionWriter(output_root))
-        leader.register_worker("FormatAgent", FormatAgent(api_key=""))
+        leader.register_worker("FormatAgent", FormatAgent())
         with pytest.raises(ValueError, match="patch appendix"):
             await leader.generate_local(process, ["markdown"], endpoint_appendix=text)
     assert not (output_root / "runs").exists()

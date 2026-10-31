@@ -1,8 +1,0 @@
-{
-  "verified_on": "2026-10-16",
-  "pricing_source": "https://platform.claude.com/docs/en/about-claude/pricing",
-  "lifecycle_source": "https://platform.claude.com/docs/en/about-claude/model-deprecations",
-  "reference_base_usd_per_million": {"claude-sonnet-4-6": [3.0, 15.0]},
-  "planning_usd_per_million": {"claude-sonnet-4-6": [30.0, 150.0]},
-  "basis": "Ten times the documented base rates for conservative planning. Not an invoice guarantee. Recheck rates and availability before an authorized run."
-}

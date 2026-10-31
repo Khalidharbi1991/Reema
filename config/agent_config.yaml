@@ -1,18 +1,13 @@
 # Agent Configuration
 # Defines settings for each agent in the REEMA multi-agent system
 # Agent roles. Human approval is recorded separately; AI roles cannot approve.
-# Model fields are optional overrides. Omitted roles use LEADER_MODEL/WORKER_MODEL
-# (default claude-sonnet-4-6). Explicit role overrides are preserved.
-# temperature is an optional per-role override (0-1). When omitted, no temperature
-# is sent and the model's default sampling applies. API version 2026-10-21 and
-# Claude 4.7+ models reject non-default values, so leave it unset unless needed.
+# REEMA makes no model call: Claude Code writes the text, so roles carry no model settings.
 
 # --- Personal coordination ---
 
 secretary_agent:
   name: "Ahmad"
   role: "Coordinator & Work Routing Agent"
-  max_tokens: 4096
   specialization:
     - "Project coordination"
     - "Executive communication"
@@ -50,7 +45,6 @@ leader_agent:
 research_agent:
   name: "Agent 1"
   role: "Gathers ITIL and IT standards information"
-  max_tokens: 4096
   specialization:
     - "ITIL v4 framework"
     - "IT Service Management"
@@ -60,7 +54,6 @@ research_agent:
 standards_agent:
   name: "Agent 2"
   role: "Ensures regulatory and framework alignment"
-  max_tokens: 4096
   specialization:
     - "ITIL v4"
     - "ISO 20000"
@@ -72,7 +65,6 @@ standards_agent:
 access_agent:
   name: "Agent 6"
   role: "Access Management & IAM Compliance Specialist"
-  max_tokens: 4096
   specialization:
     - "Identity & Access Management (IAM)"
     - "Privileged Access Management (PAM)"
@@ -88,7 +80,6 @@ access_agent:
 problem_agent:
   name: "Agent 7"
   role: "Problem Management & RCA Specialist"
-  max_tokens: 8192
   specialization:
     - "ITIL v4 Problem Management"
     - "Root Cause Analysis (RCA)"
@@ -102,7 +93,6 @@ problem_agent:
 data_agent:
   name: "Agent 8"
   role: "Data Analytics & Power BI Specialist"
-  max_tokens: 4096
   specialization:
     - "Data analytics frameworks"
     - "Power BI dashboard design"
@@ -116,8 +106,6 @@ content_agent:
   # Agent 3 writes one section per request, so this caps a section, not the SOP.
   # 16,000 tokens at ~40 tokens/s plus latency fits 480 s, below the SDK's
   # 10-minute non-streaming limit. Other roles keep API_TIMEOUT_SECONDS.
-  max_tokens: 16000
-  timeout_seconds: 480
   specialization:
     - "Technical writing"
     - "SOP creation"
@@ -131,7 +119,6 @@ content_agent:
 review_agent:
   name: "Agent 4"
   role: "Validates and ensures content quality"
-  max_tokens: 4096
   quality_threshold: 85
   specialization:
     - "Quality assurance"
@@ -146,7 +133,6 @@ format_agent:
 building_design_agent:
   name: "Agent 9"
   role: "Building 3D Modeling & Interior/Exterior Design Specialist"
-  max_tokens: 4096
   specialization:
     - "Architectural drawing interpretation and modeling briefs"
     - "Building massing, spatial layout, and room planning"
@@ -157,7 +143,6 @@ building_design_agent:
 euc_agent:
   name: "Agent 10"
   role: "End-User Computing & Endpoint Management Specialist"
-  max_tokens: 4096
   specialization:
     - "Patch management, deployment rings, and out-of-band response"
     - "Intune, MECM/SCCM co-management, Autopilot, and Windows Update for Business"

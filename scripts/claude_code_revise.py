@@ -193,9 +193,7 @@ def finish(work_id):
     # Checked before the run starts, so a missing file leaves no failed run folder behind.
     _require(path / "patch.json", "reema-reviser")
     _require(path / "recheck.json", "reema-rechecker")
-    settings = config_manager.system_config
-    saved = settings.anthropic_api_key, settings.allow_external_ai
-    leader = LeaderAgent(api_key="")
+    leader = LeaderAgent()
     leader.register_worker("ContentAgent", FilePatchWorker(path / "patch.json"))
     leader.register_worker("ReviewAgent", FileRecheckWorker(path / "recheck.json"))
 
@@ -206,12 +204,7 @@ def finish(work_id):
         finally:
             await leader.close()
 
-    # Belt and braces: no key and no consent while it runs, so a provider call could not be made.
-    settings.anthropic_api_key, settings.allow_external_ai = "", False
-    try:
-        outputs = asyncio.run(run())
-    finally:
-        settings.anthropic_api_key, settings.allow_external_ai = saved
+    outputs = asyncio.run(run())
     record = leader.context["delivery"]["approval_record"]
     print(f"Revised {len({f['section_id'] for f in findings})} section(s); the original file was not changed.")
     for fmt, output in outputs.items():

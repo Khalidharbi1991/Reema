@@ -27,7 +27,7 @@ def test_numbered_specialists_keep_configured_roles():
 def test_agent_9_inspects_dwg_without_claiming_a_model(tmp_path):
     drawing = tmp_path / "sample.dwg"
     drawing.write_bytes(b"AC1024" + b"\0" * 40)
-    report = BuildingDesignAgent(api_key="").inspect_drawing(drawing)
+    report = BuildingDesignAgent().inspect_drawing(drawing)
     assert report["filename"] == "sample.dwg"
     assert report["dwg_version_code"] == "AC1024"
     assert report["geometry_extracted"] is False
@@ -38,7 +38,7 @@ def test_agent_9_inspects_dwg_without_claiming_a_model(tmp_path):
 
 
 def test_agent_9_rejects_unsupported_or_fake_drawings(tmp_path):
-    agent = BuildingDesignAgent(api_key="")
+    agent = BuildingDesignAgent()
     fake = tmp_path / "fake.dwg"
     fake.write_bytes(b"not a dwg")
     with pytest.raises(ValueError, match="recognized AutoCAD"):
@@ -64,7 +64,7 @@ def test_agent_9_generates_a_labeled_local_concept_mesh(tmp_path):
     source = tmp_path / "plan.dxf"
     drawing.saveas(source)
 
-    result = BuildingDesignAgent(api_key="").create_concept_model(
+    result = BuildingDesignAgent().create_concept_model(
         source, tmp_path / "model", (-1, -1, 10, 8))
     assert result["wall_segments"] == 2
     assert result["furniture_proxies"] == 1
@@ -79,7 +79,7 @@ def test_agent_9_generates_a_labeled_local_concept_mesh(tmp_path):
     assert max(int(index) for face in faces for index in face.split()[1:]) == 32
     assert "Not a BIM" in " ".join(result["assumptions"])
     with pytest.raises(FileExistsError):
-        BuildingDesignAgent(api_key="").create_concept_model(
+        BuildingDesignAgent().create_concept_model(
             source, tmp_path / "model", (-1, -1, 10, 8))
 
     design_spec = tmp_path / "design.json"
@@ -87,7 +87,7 @@ def test_agent_9_generates_a_labeled_local_concept_mesh(tmp_path):
         {"kind": "bed", "x": 3, "y": 2, "rotation_deg": 30},
         {"kind": "planter", "x": 6, "y": 3},
     ]}), encoding="utf-8")
-    furnished = BuildingDesignAgent(api_key="").create_concept_model(
+    furnished = BuildingDesignAgent().create_concept_model(
         source, tmp_path / "furnished", (-1, -1, 10, 8), design_spec=design_spec)
     assert [item["kind"] for item in furnished["design_suggestions"]] == ["bed", "planter"]
     furnished_obj = furnished["obj_path"].read_text(encoding="utf-8")
@@ -98,7 +98,7 @@ def test_agent_9_generates_a_labeled_local_concept_mesh(tmp_path):
         {"kind": "bed", "x": 100, "y": 2},
     ]}), encoding="utf-8")
     with pytest.raises(ValueError, match="outside"):
-        BuildingDesignAgent(api_key="").create_concept_model(
+        BuildingDesignAgent().create_concept_model(
             source, tmp_path / "invalid", (-1, -1, 10, 8), design_spec=design_spec)
 
 

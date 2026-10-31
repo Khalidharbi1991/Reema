@@ -1,4 +1,4 @@
-"""Finished-SOP revision authored in a Claude Code session (scripts/claude_code_revise.py). No provider calls."""
+"""Finished-SOP revision authored in a Claude Code session (scripts/claude_code_revise.py). No model calls."""
 
 import hashlib
 import importlib.util
@@ -14,7 +14,7 @@ from src.agents.review_agent import ReviewAgent
 from src.utils.approvals import read_record, record_decision
 from src.utils.config import config_manager
 from src.utils.existing_sops import load_sop
-from src.utils.provider import RunRuntime
+from src.agents.base_agent import BaseAgent
 from tests.existing_sop_helpers import build_docx, confirm, DOCX_SECTIONS, stand_in_review
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "claude_code_revise.py"
@@ -33,10 +33,10 @@ def output_root(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def no_provider(monkeypatch):
+def no_model_call(monkeypatch):
     async def refuse(*args, **kwargs):
-        raise AssertionError("A provider call was attempted")
-    monkeypatch.setattr(RunRuntime, "call", refuse)
+        raise AssertionError("A step asked for text that no Claude Code file supplied")
+    monkeypatch.setattr(BaseAgent, "_reply", refuse)
 
 
 def digest(path):
@@ -65,7 +65,7 @@ def write_recheck(work, request, revised_sha256=None):
          "section_id": f["section_id"], "quote": "within 15 minutes"} for f in request["findings"]]}))
 
 
-def test_full_flow_ends_awaiting_approval_without_a_provider_call(tmp_path, output_root, no_provider, capsys):
+def test_full_flow_ends_awaiting_approval_without_a_model_call(tmp_path, output_root, no_model_call, capsys):
     path, work_id, work, request = prepared(tmp_path)
     before = digest(path)
     assert [v["title"] for v in request["target_sections"].values()] == ["2. Escalation"]
@@ -73,9 +73,7 @@ def test_full_flow_ends_awaiting_approval_without_a_provider_call(tmp_path, outp
     ccr.check(work_id)
     assert (work / "check_preview.docx").is_file() and (work / "changes_preview.md").is_file()
     write_recheck(work, request)
-    key, consent = config_manager.system_config.anthropic_api_key, config_manager.system_config.allow_external_ai
     outputs = ccr.finish(work_id)
-    assert (config_manager.system_config.anthropic_api_key, config_manager.system_config.allow_external_ai) == (key, consent)
     run_dir = Path(outputs["docx"]).parent
     state = json.loads((run_dir / "run.json").read_text())
     assert state["status"] == "awaiting_human_approval" and state["authoring"] == "claude_code_session"
@@ -103,7 +101,7 @@ def test_patch_touching_another_section_is_refused(tmp_path, output_root):
     assert not (work / "recheck_request.json").exists()
 
 
-def test_new_control_id_is_refused_at_check_and_finish(tmp_path, output_root, no_provider):
+def test_new_control_id_is_refused_at_check_and_finish(tmp_path, output_root, no_model_call):
     _, work_id, work, request = prepared(tmp_path)
     write_patch(work, request, {key: NEW_BODY + "\n\nSee CTRL-NEW-1." for key in request["target_sections"]})
     with pytest.raises(ValueError, match="source or control IDs"):
@@ -114,7 +112,7 @@ def test_new_control_id_is_refused_at_check_and_finish(tmp_path, output_root, no
     assert not list((output_root / "runs").glob("*/approval.json"))
 
 
-def test_recheck_of_other_text_is_refused(tmp_path, output_root, no_provider):
+def test_recheck_of_other_text_is_refused(tmp_path, output_root, no_model_call):
     _, work_id, work, request = prepared(tmp_path)
     write_patch(work, request)
     ccr.check(work_id)
@@ -124,7 +122,7 @@ def test_recheck_of_other_text_is_refused(tmp_path, output_root, no_provider):
     assert not list((output_root / "runs").glob("*/approval.json"))
 
 
-def test_missing_files_name_the_step_to_run(tmp_path, output_root, no_provider, capsys):
+def test_missing_files_name_the_step_to_run(tmp_path, output_root, no_model_call, capsys):
     _, work_id, work, request = prepared(tmp_path)
     assert ccr.main(["check", work_id]) == 1
     assert f"No patch.json yet: ask Claude Code to run reema-reviser on this work id ({work_id})." in capsys.readouterr().err
@@ -145,7 +143,7 @@ def test_source_changed_after_prepare_is_refused(tmp_path, output_root):
         ccr.check(work_id)
 
 
-def test_cli_reports_refusals_and_compare_reads_both_runs(tmp_path, output_root, no_provider, capsys):
+def test_cli_reports_refusals_and_compare_reads_both_runs(tmp_path, output_root, no_model_call, capsys):
     assert ccr.main(["check", "missing0"]) == 1
     assert "Refused" in capsys.readouterr().err
     runs = []
@@ -169,17 +167,17 @@ def test_cli_reports_refusals_and_compare_reads_both_runs(tmp_path, output_root,
 @pytest.mark.asyncio
 async def test_local_author_needs_the_file_workers(tmp_path, output_root):
     source = load_sop(build_docx(tmp_path / "incident.docx", DOCX_SECTIONS))
-    leader = LeaderAgent(api_key="")
-    leader.register_worker("ContentAgent", ContentAgent(api_key=""))
-    leader.register_worker("ReviewAgent", ReviewAgent(api_key=""))
+    leader = LeaderAgent()
+    leader.register_worker("ContentAgent", ContentAgent())
+    leader.register_worker("ReviewAgent", ReviewAgent())
     with pytest.raises(ValueError, match="file-backed"):
         await leader.revise_existing(source, [], local_author=True)
-    leader = LeaderAgent(api_key="")
+    leader = LeaderAgent()
     leader.register_worker("ContentAgent", FilePatchWorker(tmp_path / "patch.json"))
-    leader.register_worker("ReviewAgent", ReviewAgent(api_key=""))
+    leader.register_worker("ReviewAgent", ReviewAgent())
     with pytest.raises(ValueError, match="file-backed"):
         await leader.revise_existing(source, [], local_author=True)
-    assert FileRecheckWorker(tmp_path / "r.json").client is None
+    assert not hasattr(FileRecheckWorker(tmp_path / "r.json"), "client")
 
 
 # --- Review mode: prepare --from-review RUN --finding ID ---
@@ -188,7 +186,7 @@ def review_run(path, *issues):
     """A review run of PATH, written through the real review job with a stand-in reviewer reply."""
     import asyncio
     from tests.existing_sop_helpers import assessment
-    leader = LeaderAgent(api_key="")
+    leader = LeaderAgent()
     leader.register_worker("ReviewAgent", stand_in_review(assessment(*issues)))
     asyncio.run(leader.review_existing(load_sop(path), local_author=True))
     findings = leader.context["findings"]["findings"]
@@ -221,7 +219,7 @@ def write_review_patch_and_recheck(work_id, body=TOOLS_FIX):
     return work, request
 
 
-def test_review_findings_flow_ends_awaiting_approval_without_a_provider_call(reviewed, no_provider, capsys):
+def test_review_findings_flow_ends_awaiting_approval_without_a_model_call(reviewed, no_model_call, capsys):
     path, run, ids = reviewed
     before = digest(path)
     work_id = ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]], confirm_read=confirm(path))
@@ -270,7 +268,7 @@ def test_unknown_and_template_gap_findings_are_refused(tmp_path, reviewed):
         ccr.prepare(path, from_review=run, finding_ids=["F-0000000000000000"], confirm_read=confirm(path))
     handover = tmp_path / "handover.md"
     handover.write_text(NON_TEMPLATE_SOP)
-    leader = LeaderAgent(api_key="")
+    leader = LeaderAgent()
     gaps = asyncio.run(leader.review_existing(load_sop(handover), local_only=True))["template_gaps"]
     with pytest.raises(ValueError, match="template gaps cannot be revised"):
         ccr.prepare(handover, from_review=leader.context["run_dir"], finding_ids=[gaps[0]["finding_id"]],
@@ -296,7 +294,7 @@ def test_sop_changed_since_the_review_is_refused(reviewed):
         ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]], confirm_read=confirm(path))
 
 
-def test_review_rewritten_after_prepare_is_refused_at_check_and_finish(reviewed, no_provider):
+def test_review_rewritten_after_prepare_is_refused_at_check_and_finish(reviewed, no_model_call):
     path, run, ids = reviewed
     work_id = ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]], confirm_read=confirm(path))
     write_review_patch_and_recheck(work_id)
@@ -313,7 +311,7 @@ def test_review_rewritten_after_prepare_is_refused_at_check_and_finish(reviewed,
     assert not list(ccr.work_root().parent.glob("runs/*/approval.json"))
 
 
-def test_hand_edited_request_is_refused(reviewed, no_provider):
+def test_hand_edited_request_is_refused(reviewed, no_model_call):
     path, run, ids = reviewed
     work_id = ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]], confirm_read=confirm(path))
     work = ccr.work_root() / work_id
@@ -327,7 +325,7 @@ def test_hand_edited_request_is_refused(reviewed, no_provider):
     assert ccr.main(["check", work_id]) == 1
 
 
-def test_a_revised_draft_can_be_revised_from_its_own_review(reviewed, no_provider):
+def test_a_revised_draft_can_be_revised_from_its_own_review(reviewed, no_model_call):
     from tests.existing_sop_helpers import issue
     path, run, ids = reviewed
     work_id = ccr.prepare(path, from_review=run, finding_ids=[ids["sec-tools"]], confirm_read=confirm(path))
@@ -351,7 +349,7 @@ def test_cli_prepare_from_review(reviewed, capsys):
     assert "Findings:" in capsys.readouterr().out
 
 
-def test_drafts_take_version_numbers_and_major_is_kept_from_prepare(tmp_path, output_root, no_provider, capsys):
+def test_drafts_take_version_numbers_and_major_is_kept_from_prepare(tmp_path, output_root, no_model_call, capsys):
     _, work_id, work, request = prepared(tmp_path)
     write_patch(work, request)
     ccr.check(work_id)
@@ -373,7 +371,7 @@ def test_drafts_take_version_numbers_and_major_is_kept_from_prepare(tmp_path, ou
     assert "incident_V2.0.docx" in ccr._run_facts(Path(outputs["docx"]).parent)["outputs"]
 
 
-def test_approved_claude_code_revision_publishes_like_the_api_path(tmp_path, output_root, no_provider):
+def test_approved_claude_code_revision_publishes_like_the_api_path(tmp_path, output_root, no_model_call):
     from src.utils.publish import publish, read_publish
     _, work_id, work, request = prepared(tmp_path)
     write_patch(work, request)

@@ -18,7 +18,7 @@ def test_agent_10_is_a_configured_role():
 
 
 def test_agent_10_subagent_keeps_the_pipeline_protocol_and_adds_the_closing():
-    system = EUCAgent(api_key="")._build_system_prompt()
+    system = EUCAgent()._build_system_prompt()
     subagent = (Path(__file__).resolve().parents[1] / ".claude" / "agents" / "reema-agent10-euc.md").read_text(encoding="utf-8")
     assert system in subagent
     for guard in ("Frame before advising", "Reversibility first", "kill switch", "irreversible",

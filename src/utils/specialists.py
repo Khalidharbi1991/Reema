@@ -53,23 +53,6 @@ def check_evidence(evidence, sources):
             raise ValueError("Specialist evidence must match an authorized located source excerpt")
 
 
-def available_sources(agent, *, recorded_only=True):
-    from .provider import current_runtime
-    records = {r["id"]: r for r in [*agent.source_records, *agent.knowledge_records]}
-    runtime = current_runtime.get()
-    return {k: v for k, v in records.items() if not recorded_only or not runtime or k in runtime.sources}
-
-
-def retain_evidence(evidence, sources):
-    from .provider import current_runtime
-    check_evidence(evidence, sources)
-    runtime = current_runtime.get()
-    if runtime:
-        for item in evidence:
-            source_id = item.source_id
-            runtime.sources[source_id] = dict(sources[source_id])
-
-
 class ResearchClaim(Contract):
     id: str = Field(pattern=r"^CLM-[A-Za-z0-9_-]+$")
     text: str = Field(min_length=1)

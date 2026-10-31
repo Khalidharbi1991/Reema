@@ -1,12 +1,9 @@
 """BaseAgent - Shared base class for all REEMA agents."""
 
-from typing import Dict, List, Optional
-from pathlib import Path
-from anthropic import AsyncAnthropic as Anthropic
-from ..utils.provider import AnthropicProvider, RunRuntime, current_runtime
-from ..knowledge.retrieval import EVIDENCE_POLICY, evidence_block, make_chunks, retrieve
+from typing import Dict, List
+from ..knowledge.retrieval import EVIDENCE_POLICY
 from ..utils.logger import logger
-from ..utils.config import config_manager, selected_model
+from ..utils.config import config_manager
 
 
 class BaseAgent:
@@ -14,14 +11,14 @@ class BaseAgent:
     Base class for all REEMA agents.
 
     Provides shared functionality:
-    - Anthropic client initialization
     - Knowledge base loading
-    - Claude API calls
+    - The reply hook that the file-backed Claude Code workers fill in
     - Section extraction from responses
     - Timestamp generation
     - Config-driven settings
 
-    The numbered specialist agents and coordinator Ahmad inherit from this class.
+    REEMA makes no model call: the text comes from files a Claude Code session wrote
+    (src/agents/file_workers.py).
     """
 
     # Subclasses should override these
@@ -29,13 +26,9 @@ class BaseAgent:
     AGENT_ROLE: str = "Base Agent"
     CONFIG_KEY: str = ""  # Key in agent_config.yaml
     KNOWLEDGE_FILE: str = ""  # Filename in knowledge_dir
-    DEFAULT_MAX_TOKENS: int = 4096
-    # None omits temperature so the model's default sampling applies.
-    DEFAULT_TEMPERATURE: Optional[float] = None
 
-    def __init__(self, api_key: Optional[str] = None):
-        """Initialize the agent with API key and configuration."""
-        self.api_key = api_key if api_key is not None else config_manager.system_config.anthropic_api_key
+    def __init__(self):
+        """Initialize the agent from its configuration."""
         self.name = self.AGENT_NAME
 
         # Load config from agent_config.yaml if available
@@ -43,30 +36,8 @@ class BaseAgent:
         if self.CONFIG_KEY:
             self._agent_config = config_manager.get_agent_config(self.CONFIG_KEY)
 
-        # Set model from config or system defaults
-        self.model = selected_model(config_manager.system_config, self._agent_config)
-        self.max_tokens = self._agent_config.get(
-            "max_tokens",
-            self.DEFAULT_MAX_TOKENS
-        )
-        # Only an explicit role override is sent; newer API versions reject sampling fields.
-        configured_temperature = self._agent_config.get("temperature")
-        self.temperature = self.DEFAULT_TEMPERATURE if configured_temperature is None else configured_temperature
-        # None uses API_TIMEOUT_SECONDS; long-output roles configure their own deadline.
-        self.timeout_seconds = self._agent_config.get("timeout_seconds")
-
-        # Initialize Anthropic client (skip for agents that don't need it, like Bee)
-        self.client = None
-        if self.api_key:
-            try:
-                self.client = Anthropic(api_key=self.api_key, max_retries=0)
-            except Exception:
-                pass  # Some agents (FormatAgent) don't need API client
-
         # Knowledge base
         self.knowledge_base = ""
-        self.knowledge_records = []
-        self.source_records = []
         if self.KNOWLEDGE_FILE:
             self._load_knowledge_base()
 
@@ -79,7 +50,6 @@ class BaseAgent:
             if knowledge_path.exists():
                 with open(knowledge_path, 'r', encoding='utf-8') as f:
                     self.knowledge_base = f.read()
-                self.knowledge_records = make_chunks(knowledge_path, self.KNOWLEDGE_FILE, "internal")
                 logger.info(f"{self.name}'s knowledge base loaded", agent=self.name)
             else:
                 self.knowledge_base = ""
@@ -102,49 +72,16 @@ class BaseAgent:
         # Selection occurs at call time using the actual task, not the agent title.
         return system_prompt + "\n\n" + EVIDENCE_POLICY
 
-    async def _call_claude(self, messages: List[Dict], system: str = "", max_tokens: int = None) -> str:
-        """Make a call to Claude API.
+    async def _reply(self, messages: List[Dict], system: str = "") -> str:
+        """The text written for this request in a Claude Code session.
 
-        Args:
-            messages: Conversation messages
-            system: System prompt
-            max_tokens: Override default max_tokens
-
-        Returns:
-            Response text from Claude
+        Only the file-backed workers (src/agents/file_workers.py) supply it; REEMA itself
+        never calls a model.
         """
-        active_runtime = current_runtime.get()
-        if not (active_runtime and active_runtime.settings.allow_external_ai) and not config_manager.system_config.allow_external_ai:
-            raise PermissionError("External AI is disabled. Authorize this input with --allow-external-ai or ALLOW_EXTERNAL_AI=true.")
-        if not self.client:
-            raise RuntimeError(f"{self.name} has no Anthropic client configured")
-
-        try:
-            runtime = current_runtime.get() or RunRuntime(config_manager.system_config)
-            messages = [dict(message) for message in messages]
-            query = " ".join(str(message["content"]) for message in messages)
-            budget = runtime.settings.knowledge_context_chars
-            records = retrieve(self.source_records, query, budget // 2)
-            records += retrieve(self.knowledge_records, query, budget // 2)
-            if records:
-                messages[-1]["content"] += evidence_block(records)
-                for record in records:
-                    runtime.sources[record["id"]] = {**runtime.sources.get(record["id"], {}), **{key: value for key, value in record.items() if key != "text"}}
-            request = {"max_tokens": max_tokens or self.max_tokens, "messages": messages,
-                       "system": (system + f"\n\nCurrent agent display name: {self.name}. "
-                                  "Historical names in knowledge sources are not current agent names.\n\n"
-                                  + EVIDENCE_POLICY)}
-            if self.temperature is not None:
-                request["temperature"] = self.temperature
-            return await runtime.call(AnthropicProvider(self.client), agent=self.name, model=self.model,
-                                      timeout_seconds=self.timeout_seconds, **request)
-        except Exception as e:
-            logger.error(f"Claude API error: {e}", agent=self.name)
-            raise
+        raise RuntimeError(f"{self.name} has no Claude Code file for this request; REEMA makes no model call")
 
     async def close(self):
-        if self.client is not None:
-            await self.client.close()
+        """Nothing to release; kept so callers can close any worker."""
 
     def _extract_sections(self, response: str) -> Dict[str, str]:
         """Extract sections from a response with markdown headers.

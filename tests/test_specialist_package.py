@@ -217,14 +217,14 @@ def test_cad_rejects_invalid_geometry_before_furnishing_or_any_artifact_write(tm
     path = write_drawing(tmp_path, kind)
     output = tmp_path / "output"
     with pytest.raises(ValueError):
-        BuildingDesignAgent(api_key="").create_concept_model(path, output, (0, -1, 8, 8))
+        BuildingDesignAgent().create_concept_model(path, output, (0, -1, 8, 8))
     assert not output.exists()
 
 
 @pytest.mark.parametrize("kind", ["clip", "duplicate"])
 def test_cad_selection_preserves_provenance_and_clips_actual_endpoints(tmp_path, kind):
     path = write_drawing(tmp_path, kind)
-    result = BuildingDesignAgent(api_key="").create_concept_model(path, tmp_path / "output", (0, -1, 8, 8))
+    result = BuildingDesignAgent().create_concept_model(path, tmp_path / "output", (0, -1, 8, 8))
     checks = result["geometry_checks"]
     assert checks["selected_region_evidence"][0]["selected_start"] == [0.0, 0.0]
     assert checks["clipped_segments"] == 1
@@ -238,7 +238,7 @@ def test_cad_furniture_footprint_must_fit_the_selected_region(tmp_path):
     specification = tmp_path / "design.json"
     specification.write_text(json.dumps({"placements": [{"kind": "bed", "x": 0.1, "y": 2}]}))
     with pytest.raises(ValueError, match="footprint"):
-        BuildingDesignAgent(api_key="").create_concept_model(source_path, tmp_path / "output", (0, -1, 8, 8), design_spec=specification)
+        BuildingDesignAgent().create_concept_model(source_path, tmp_path / "output", (0, -1, 8, 8), design_spec=specification)
     assert not (tmp_path / "output").exists()
 
 
@@ -250,14 +250,14 @@ def test_cad_enforces_configured_resource_bounds(tmp_path, monkeypatch, limit):
     drawing.saveas(path)
     monkeypatch.setattr(config_manager.specialist_policy, limit, 1)
     with pytest.raises(ValueError, match="limit"):
-        BuildingDesignAgent(api_key="").create_concept_model(path, tmp_path / "output", (0, -1, 8, 8))
+        BuildingDesignAgent().create_concept_model(path, tmp_path / "output", (0, -1, 8, 8))
 
 
 def test_dwg_intake_rejects_unknown_version_codes(tmp_path):
     path = tmp_path / "invalid.dwg"
     path.write_bytes(b"AC10zz" + b"0" * 10)
     with pytest.raises(ValueError, match="recognized"):
-        BuildingDesignAgent(api_key="").inspect_drawing(path)
+        BuildingDesignAgent().inspect_drawing(path)
 
 
 def test_cli_rejects_credential_or_malformed_specialist_input_before_generation(tmp_path):

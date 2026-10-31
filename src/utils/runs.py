@@ -53,8 +53,8 @@ class RunStore:
         self.state["phase"] = phase
         self.flush()
 
-    def finish(self, status, usage, error_type=None):
-        self.state.update(status=status, usage=usage)
+    def finish(self, status, error_type=None):
+        self.state["status"] = status
         if error_type:
             self.state["error_type"] = error_type
         try: self.flush()

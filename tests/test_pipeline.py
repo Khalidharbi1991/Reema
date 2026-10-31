@@ -39,6 +39,6 @@ class TestAllAgentsImportable:
 
 def test_abdullah_keeps_pipeline_strategy_guidance():
     from src.agents.leader_agent import LeaderAgent
-    leader = LeaderAgent(api_key="")
+    leader = LeaderAgent()
     assert leader.name == "Abdullah"
     assert "IT strategy and roadmap development" in leader.strategic_guidance

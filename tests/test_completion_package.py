@@ -4,8 +4,6 @@ import json
 from pathlib import Path
 import subprocess
 import sys
-from types import SimpleNamespace
-from unittest.mock import AsyncMock
 
 import ezdxf
 import pytest
@@ -13,7 +11,6 @@ import pytest
 from src.utils.config import config_manager
 from src.utils.diagrams import parse_flow, png_flow, svg_flow
 from src.utils.ownership import RunLease
-from src.utils.provider import RunRuntime, current_runtime
 from src.utils.specialists import (SpecialistPolicy, IAMSnapshot, check_iam, ProblemCase, Hypothesis, assess_problem, MetricSpec, calculate_metric)
 from src.utils.domain_depth import iam_drift
 from tests.test_phase01 import catalog
@@ -42,31 +39,6 @@ def test_ownership_refuses_cross_host_and_symlink(tmp_path):
     (tmp_path/'.owner.lock').unlink()
     (tmp_path/'.owner.lock').symlink_to(tmp_path/'other')
     with pytest.raises(ValueError,match='symlink'): RunLease(tmp_path).__enter__()
-
-
-@pytest.mark.asyncio
-async def test_provider_reservation_is_durable_before_transmission_and_unknown_usage_remains_charged(catalog):
-    runtime=RunRuntime(catalog.system_config)
-    saved=[]; runtime.on_event=lambda summary:saved.append(json.loads(json.dumps(summary)))
-    class Provider:
-        async def complete(self,**request):
-            assert saved[-1]['in_flight'] and saved[-1]['accounted_tokens']>0
-            assert 'private body' not in json.dumps(saved[-1])
-            raise ValueError('Synthetic response loss')
-    with pytest.raises(RuntimeError):
-        await runtime.call(Provider(),agent='Test',model='synthetic',max_tokens=100,messages=[{'role':'user','content':'private body'}])
-    assert not saved[-1]['in_flight'] and saved[-1]['accounted_tokens']>0
-    assert saved[-1]['calls'][0]['unknown_usage_reserved_tokens'] == saved[0]['accounted_tokens']
-
-
-@pytest.mark.asyncio
-async def test_failed_reservation_write_never_transmits(catalog):
-    runtime=RunRuntime(catalog.system_config)
-    def fail(summary): raise OSError('Synthetic disk failure')
-    runtime.on_event=fail
-    provider=SimpleNamespace(complete=AsyncMock())
-    with pytest.raises(OSError): await runtime.call(provider,agent='Test',model='synthetic',max_tokens=100)
-    provider.complete.assert_not_awaited()
 
 
 def graph():
@@ -174,21 +146,6 @@ def test_calendar_rejects_ambiguous_dst_work_boundary():
     cal=BusinessCalendar(timezone='America/New_York',weekdays=[6],start_minute=90,end_minute=180)
     with pytest.raises(ValueError,match='Ambiguous'):
         business_seconds(instant('2026-11-01T00:00:00-04:00'),instant('2026-11-01T04:00:00-05:00'),cal)
-
-
-@pytest.mark.asyncio
-async def test_retrieval_does_not_erase_pinned_excerpt_text(catalog):
-    from src.agents import ContentAgent
-    agent=ContentAgent(api_key='synthetic')
-    agent.source_records=[source()];agent.knowledge_records=[]
-    runtime=RunRuntime(catalog.system_config);runtime.sources={'SRC-fixture':source()}
-    runtime.call=AsyncMock(return_value='Synthetic')
-    token=current_runtime.set(runtime)
-    try:
-        await agent._call_claude([{'role':'user','content':'decision record'}])
-        assert runtime.sources['SRC-fixture']['text']==source()['text']
-    finally:
-        current_runtime.reset(token);await agent.close()
 
 
 def test_explicit_cad_units_layers_and_proxy_rotation_are_retained(tmp_path,monkeypatch):

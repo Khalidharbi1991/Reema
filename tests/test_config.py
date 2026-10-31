@@ -34,8 +34,20 @@ class TestSystemConfig:
         assert config.config_dir is not None
         assert config.templates_dir is not None
         assert config.knowledge_dir is not None
-        assert config.leader_model == "claude-sonnet-4-6"
-        assert config.worker_model == "claude-sonnet-4-6"
+        # No model or consent settings remain; names are built from parts for the no-API guard.
+        assert not {"leader_model", "worker_model", "allow" + "_external_ai"} & set(SystemConfig.model_fields)
+
+    def test_an_old_env_file_with_removed_model_settings_still_loads(self, tmp_path, monkeypatch):
+        """Unknown entries, such as a key or consent flag left in .env, are ignored, never used."""
+        from src.utils.config import SystemConfig
+        env = tmp_path / ".env"
+        # Built from parts so the no-API guard keeps finding no such name in the code.
+        removed = ["ANTHROPIC" + "_API_KEY=synthetic-not-a-key", "ALLOW" + "_EXTERNAL_AI=true", "LEADER_MODEL=x"]
+        env.write_text("\n".join(removed + ["REVIEW_CHUNK_CHARS=5000"]) + "\n")
+        monkeypatch.setenv("MAX_RUN_TOKENS", "10")
+        config = SystemConfig(_env_file=env)
+        assert config.review_chunk_chars == 5000
+        assert "synthetic-not-a-key" not in repr(config.model_dump())
 
     def test_default_formats(self):
         """Verify default output formats."""

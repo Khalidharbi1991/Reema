@@ -50,7 +50,7 @@ async def generate(output):
             content=draft.assemble('إدارة طلبات الخدمة',profile)
             quality=quality_report(content)
             if quality['errors']: raise ValueError(quality['errors'])
-            agent=FormatAgent(api_key='');agent.output_dir=output/template
+            agent=FormatAgent();agent.output_dir=output/template
             files=await agent.convert_to_formats(content,['markdown','html','docx','pdf'],'Synthetic Arabic Service')
             records.append({'template':template,'files':files,'checks':agent.last_export_checks})
             await agent.close()

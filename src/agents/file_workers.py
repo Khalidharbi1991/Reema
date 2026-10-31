@@ -2,8 +2,8 @@
 
 A Claude Code session writes the section files, review, patch and recheck JSON; these workers feed that
 text through the unchanged ContentAgent.generate_sop, ReviewAgent.review_existing,
-ContentAgent.revise_sections and ReviewAgent.recheck_corrections parsing and validation instead of a
-provider reply. They have no client and never call a provider.
+ContentAgent.revise_sections and ReviewAgent.recheck_corrections parsing and validation through the
+BaseAgent._reply hook. REEMA makes no model call.
 """
 
 import json
@@ -37,11 +37,10 @@ class FilePatchWorker(ContentAgent):
     """Agent 3's revise step, with the SectionPatch read from patch.json."""
 
     def __init__(self, patch_path):
-        super().__init__(api_key="")
-        self.client = None
+        super().__init__()
         self.patch_path = Path(patch_path)
 
-    async def _call_claude(self, messages: List[Dict], system: str = "", max_tokens: int = None) -> str:
+    async def _reply(self, messages: List[Dict], system: str = "") -> str:
         return _read(self.patch_path)
 
 
@@ -52,10 +51,9 @@ class FileRecheckWorker(ReviewAgent):
     """
 
     def __init__(self, recheck_path):
-        super().__init__(api_key="")
-        self.client = None
+        super().__init__()
         self.recheck_path = Path(recheck_path)
-        self._reply = None
+        self._recheck_text = None
 
     async def recheck_corrections(self, content: str, findings: List[Dict], require_complete: bool = True,
                                   finished_sop: bool = False) -> Dict:
@@ -65,12 +63,12 @@ class FileRecheckWorker(ReviewAgent):
             raise ValueError(f"{self.recheck_path.name} is not valid JSON") from None
         if not isinstance(data, dict) or data.pop("revised_sha256", None) != sha(content):
             raise ValueError("The recheck does not name the revised document's SHA-256; run check again")
-        self._reply = json.dumps(data)
+        self._recheck_text = json.dumps(data)
         result = await super().recheck_corrections(content, findings, require_complete, finished_sop)
         return {**result, "verification": "claude_code_session_assessed"}
 
-    async def _call_claude(self, messages: List[Dict], system: str = "", max_tokens: int = None) -> str:
-        return self._reply
+    async def _reply(self, messages: List[Dict], system: str = "") -> str:
+        return self._recheck_text
 
 
 class FileReviewWorker(ReviewAgent):
@@ -83,8 +81,7 @@ class FileReviewWorker(ReviewAgent):
     """
 
     def __init__(self, excerpts_path, consistency_path=None, excerpts_only=False):
-        super().__init__(api_key="")
-        self.client = None
+        super().__init__()
         self.excerpts_path = Path(excerpts_path)
         self.consistency_path = Path(consistency_path) if consistency_path else None
         self.excerpts_only = excerpts_only
@@ -114,7 +111,7 @@ class FileReviewWorker(ReviewAgent):
         result = await super().review_existing(content)
         return {**result, "verification": "claude_code_session_assessed"}
 
-    async def _call_claude(self, messages: List[Dict], system: str = "", max_tokens: int = None) -> str:
+    async def _reply(self, messages: List[Dict], system: str = "") -> str:
         if not self._replies:
             raise ValueError("The review asked for more assessments than were written")
         return self._replies.pop(0)
@@ -137,11 +134,10 @@ class FileSectionWriter(ContentAgent):
     SECTION_ID = re.compile(r'Set section_id to "([^"]+)"\.$')
 
     def __init__(self, sections_dir):
-        super().__init__(api_key="")
-        self.client = None
+        super().__init__()
         self.files = section_files(sections_dir)
 
-    async def _call_claude(self, messages: List[Dict], system: str = "", max_tokens: int = None) -> str:
+    async def _reply(self, messages: List[Dict], system: str = "") -> str:
         match = self.SECTION_ID.search(messages[-1]["content"])
         if not match or match.group(1) not in self.files:
             raise ValueError("The generate step asked for a section this writer does not know")

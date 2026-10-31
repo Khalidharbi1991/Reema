@@ -1,4 +1,4 @@
-"""Finished-SOP review authored in a Claude Code session (scripts/claude_code_review.py). No provider calls."""
+"""Finished-SOP review authored in a Claude Code session (scripts/claude_code_review.py). No model calls."""
 
 import asyncio
 import hashlib
@@ -13,7 +13,7 @@ from src.agents.leader_agent import LeaderAgent
 from src.agents.review_agent import ReviewAgent
 from src.utils.config import config_manager
 from src.utils.existing_sops import load_sop, review_findings
-from src.utils.provider import RunRuntime
+from src.agents.base_agent import BaseAgent
 from tests.existing_sop_helpers import BODIES, DOCX_SECTIONS, assessment, build_docx, confirm, issue, template_sop
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "claude_code_review.py"
@@ -32,10 +32,10 @@ def output_root(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def no_provider(monkeypatch):
+def no_model_call(monkeypatch):
     async def refuse(*args, **kwargs):
-        raise AssertionError("A provider call was attempted")
-    monkeypatch.setattr(RunRuntime, "call", refuse)
+        raise AssertionError("A step asked for text that no Claude Code file supplied")
+    monkeypatch.setattr(BaseAgent, "_reply", refuse)
 
 
 @pytest.fixture
@@ -75,19 +75,17 @@ def write_consistency(work, *issues):
         "assessment": json.loads(assessment(*issues))}))
 
 
-def test_full_flow_is_read_only_and_makes_no_provider_call(tmp_path, output_root, no_provider, capsys):
+def test_full_flow_is_read_only_and_makes_no_model_call(tmp_path, output_root, no_model_call, capsys):
     path, work_id, work, request = prepared(tmp_path)
     before = digest(path)
     assert request["consistency_pass"] is False and request["instructions"] == ReviewAgent.EXISTING_SOP_INSTRUCTIONS
     write_excerpts(work, request, {1: [TOOLS]})
     ccr.check(work_id)
     assert not (output_root / "runs").exists() and not (work / "consistency_request.json").exists()
-    key, consent = config_manager.system_config.anthropic_api_key, config_manager.system_config.allow_external_ai
     run_dir = ccr.finish(work_id)
-    assert (config_manager.system_config.anthropic_api_key, config_manager.system_config.allow_external_ai) == (key, consent)
     state = json.loads((run_dir / "run.json").read_text())
     assert (state["job"], state["status"], state["authoring"]) == ("review", "review_complete", "claude_code_session")
-    assert state["usage"]["calls"] == [] and state["usage"]["accounted_tokens"] == 0
+    assert "usage" not in state
     findings = json.loads((run_dir / "findings.json").read_text())
     assert [(f["section_id"], f["category"]) for f in findings["findings"]] == [("sec-tools", "outdated")]
     assert findings["findings"][0]["finding_id"].startswith("F-") and findings["source_sha256"] == before
@@ -97,7 +95,7 @@ def test_full_flow_is_read_only_and_makes_no_provider_call(tmp_path, output_root
     assert f"before: {before}" in out and f"after:  {before} (unchanged)" in out
 
 
-def test_docx_source_bytes_are_unchanged(tmp_path, output_root, no_provider):
+def test_docx_source_bytes_are_unchanged(tmp_path, output_root, no_model_call):
     docx = build_docx(tmp_path / "incident.docx", DOCX_SECTIONS)
     before = digest(docx)
     _, work_id, work, request = prepared(tmp_path, path=docx)
@@ -108,7 +106,7 @@ def test_docx_source_bytes_are_unchanged(tmp_path, output_root, no_provider):
     assert sorted(p.name for p in run_dir.iterdir() if p.suffix in {".md", ".docx"}) == ["findings.md"]
 
 
-def test_several_excerpts_need_a_consistency_pass(tmp_path, output_root, no_provider, small_chunks):
+def test_several_excerpts_need_a_consistency_pass(tmp_path, output_root, no_model_call, small_chunks):
     path, work_id, work, request = prepared(tmp_path, LONG_SOP)
     assert request["consistency_pass"] and len(request["excerpts"]) > 1
     write_excerpts(work, request, {excerpt_of(request, "sec-tools"): [TOOLS]})
@@ -124,7 +122,7 @@ def test_several_excerpts_need_a_consistency_pass(tmp_path, output_root, no_prov
     assert sorted(f["category"] for f in findings["findings"]) == ["other", "outdated"]
 
 
-def test_consistency_written_from_older_excerpts_is_refused(tmp_path, output_root, no_provider, small_chunks):
+def test_consistency_written_from_older_excerpts_is_refused(tmp_path, output_root, no_model_call, small_chunks):
     _, work_id, work, request = prepared(tmp_path, LONG_SOP)
     write_excerpts(work, request)
     ccr.check(work_id)
@@ -136,7 +134,7 @@ def test_consistency_written_from_older_excerpts_is_refused(tmp_path, output_roo
         ccr.finish(work_id)
 
 
-def test_finding_outside_its_excerpt_is_refused(tmp_path, output_root, no_provider, small_chunks):
+def test_finding_outside_its_excerpt_is_refused(tmp_path, output_root, no_model_call, small_chunks):
     _, work_id, work, request = prepared(tmp_path, LONG_SOP)
     wrong = 1 if excerpt_of(request, "sec-tools") != 1 else 2
     write_excerpts(work, request, {wrong: [TOOLS]})
@@ -150,7 +148,7 @@ def test_finding_outside_its_excerpt_is_refused(tmp_path, output_root, no_provid
     ("quote", "exactly one location"),
     ("json", "not valid JSON"),
 ])
-def test_bad_review_files_are_refused(tmp_path, output_root, no_provider, change, reason):
+def test_bad_review_files_are_refused(tmp_path, output_root, no_model_call, change, reason):
     _, work_id, work, request = prepared(tmp_path)
     if change == "hash":
         write_excerpts(work, request, document_sha256="0" * 64)
@@ -165,7 +163,7 @@ def test_bad_review_files_are_refused(tmp_path, output_root, no_provider, change
     assert not (output_root / "runs").exists()
 
 
-def test_missing_excerpts_and_changed_source_are_refused(tmp_path, output_root, no_provider, capsys):
+def test_missing_excerpts_and_changed_source_are_refused(tmp_path, output_root, no_model_call, capsys):
     path, work_id, work, request = prepared(tmp_path)
     assert ccr.main(["check", work_id]) == 1
     assert "ask Claude Code to run reema-reviewer" in capsys.readouterr().err
@@ -180,20 +178,20 @@ def test_missing_excerpts_and_changed_source_are_refused(tmp_path, output_root, 
 async def test_leader_refuses_local_author_without_complete_file_worker(tmp_path, output_root):
     path = tmp_path / "sop.md"
     path.write_text(template_sop())
-    for worker in (ReviewAgent(api_key=""), FileReviewWorker(tmp_path / "x.json", excerpts_only=True)):
-        leader = LeaderAgent(api_key="")
+    for worker in (ReviewAgent(), FileReviewWorker(tmp_path / "x.json", excerpts_only=True)):
+        leader = LeaderAgent()
         leader.register_worker("ReviewAgent", worker)
         with pytest.raises(ValueError, match="file-backed ReviewAgent"):
             await leader.review_existing(load_sop(path), local_author=True)
     assert not (output_root / "runs").exists()
 
 
-def test_revise_accepts_the_findings_and_compare_matches_local_only(tmp_path, output_root, no_provider, capsys):
+def test_revise_accepts_the_findings_and_compare_matches_local_only(tmp_path, output_root, no_model_call, capsys):
     path, work_id, work, request = prepared(tmp_path, template_sop({"Appendices": ""}))
     write_excerpts(work, request, {1: [TOOLS]})
     run_dir = ccr.finish(work_id)
     assert [f["section_id"] for f in review_findings(run_dir, load_sop(path))] == ["sec-tools"]
-    leader = LeaderAgent(api_key="")
+    leader = LeaderAgent()
     asyncio.run(leader.review_existing(load_sop(path), local_only=True))
     capsys.readouterr()
     ccr.compare(leader.context["run_dir"], run_dir)

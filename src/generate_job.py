@@ -81,8 +81,8 @@ def _specialist_input(path):
 def _plan(arguments):
     """The validated request, plan and evidence, re-derived from the prepare arguments; local only."""
     process_id, request = LeaderAgent.documentation_request(**arguments)
-    FormatAgent(api_key="").validate_requested_formats(request.formats)
-    leader = LeaderAgent(api_key="")
+    FormatAgent().validate_requested_formats(request.formats)
+    leader = LeaderAgent()
     leader.context = {"request": request.model_dump()}
     workflow = asyncio.run(leader._plan_workflow(request.process_name))
     evidence = ReferenceIndex(config_manager.system_config).search(request.process_name)
@@ -187,7 +187,7 @@ def _draft(path, prepared):
     content = asyncio.run(writer.generate_sop(process_name, {"standards": {"control_register": prepared["control_register"]}}))
     appendix = _appendix(path, prepared)
     if appendix is not None:
-        content += "\n\n" + LeaderAgent(api_key="")._format_euc_section(appendix, process_name)
+        content += "\n\n" + LeaderAgent()._format_euc_section(appendix, process_name)
     return content, appendix
 
 
@@ -208,9 +208,9 @@ def check(work_id):
 def finish(work_id):
     path, prepared, request, _, evidence = _load(work_id)
     _, appendix = _draft(path, prepared)
-    leader = LeaderAgent(api_key="")
+    leader = LeaderAgent()
     leader.register_worker("ContentAgent", FileSectionWriter(path / "sections"))
-    leader.register_worker("FormatAgent", FormatAgent(api_key=""))
+    leader.register_worker("FormatAgent", FormatAgent())
     arguments = prepared["arguments"]
 
     async def run():
@@ -224,14 +224,7 @@ def finish(work_id):
         finally:
             await leader.close()
 
-    settings = config_manager.system_config
-    saved = settings.anthropic_api_key, settings.allow_external_ai
-    # Belt and braces: no key and no consent while it runs, so a provider call could not be made.
-    settings.anthropic_api_key, settings.allow_external_ai = "", False
-    try:
-        outputs = asyncio.run(run())
-    finally:
-        settings.anthropic_api_key, settings.allow_external_ai = saved
+    outputs = asyncio.run(run())
     record = leader.context["delivery"]["approval_record"]
     print(f"Generated {request.process_name}; no model reviewed it.")
     for fmt, output in outputs.items():
