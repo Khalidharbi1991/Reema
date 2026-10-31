@@ -1,10 +1,10 @@
-# Reliability, sources, and offline recovery
+# Reliability, sources, and offline export
 
-The application remains Anthropic-backed. The asynchronous provider boundary is
-in `src/utils/provider.py`; it is not an OpenAI runtime migration.
-Use [Development setup](DEVELOPMENT_SETUP.md) for the supported project-local
-launch/test path. [Specialist checks](SPECIALIST_EVIDENCE_AND_CHECKS.md) covers
-optional publication metadata, claim freshness and supplied environment/data checks.
+REEMA makes no model call and opens no network connection; a Claude Code session
+writes the text, and REEMA's code checks everything it writes. Use
+[Development setup](DEVELOPMENT_SETUP.md) for the supported project-local launch/test
+path. [Specialist checks](SPECIALIST_EVIDENCE_AND_CHECKS.md) covers publication
+metadata, claim freshness and supplied environment/data checks.
 
 ## Authorize reference files
 
@@ -14,111 +14,90 @@ structure from `config/reference_manifest.example.yaml` into the local, ignored
 
 - `path`: a relative file path inside `REFERENCES_DIR` (no traversal or escaping symlinks).
 - `classification`: `public`, `internal`, `confidential`, or `restricted`.
-- `external_ai_allowed`: explicit boolean permission; default false.
+- `external_ai_allowed`: explicit boolean permission for the file to be read into a
+  Claude Code session; default false. (The name predates the move to Claude Code.)
 - `sha256`: the reviewed file's actual 64-character SHA-256 digest.
 
-Restricted files are never loaded for model context, even if marked allowed.
-Other classifications still require permission. Changed bytes fail validation;
-review the changes before updating the digest. On macOS/Linux use
-`shasum -a 256 references/itom/ITOM.pdf`; on Windows use PowerShell's
-`Get-FileHash references/itom/ITOM.pdf -Algorithm SHA256` (store lowercase).
+Restricted files are never read, even if marked allowed. Other classifications still
+require permission. Changed bytes fail validation; review the changes before updating
+the digest. On macOS/Linux use `shasum -a 256 references/itom/ITOM.pdf`; on Windows
+use PowerShell's `Get-FileHash references/itom/ITOM.pdf -Algorithm SHA256` (store
+lowercase). No manifest means no customer sources.
 
-The separate `--allow-external-ai` flag authorizes the run, not a blanket override
-of source permissions. No manifest means no customer sources. Curated
-`src/knowledge/` material remains eligible under the run's authorization.
+Manifest permission is necessary but not enough: before a generate request includes
+excerpts, `prepare` prints a `--confirm-read` token for exactly those files, and Ahmad
+passes it only after Khalid's yes (see [Data handling](DATA_HANDLING.md)). A finished
+SOP under `references/` needs the same manifest check before review or revision.
 
 PDF, DOCX, Markdown, and plain-text sources are supported. Search uses bounded
-lexical ranking across extracted body content, preserving PDF page or DOCX block
-locations and stable `[SRC-…]` IDs. DOCX tables and repeated headings are retained.
-Files over 25 MB, extraction over two million characters, and unreadable/empty
-PDF pages fail rather than silently providing partial evidence. OCR and vector
-search are not implemented. Treat source files as trusted local files for parser
-security; this is not an isolated sandbox for hostile document formats.
+lexical ranking across extracted body content (`KNOWLEDGE_CONTEXT_CHARS`), preserving
+PDF page or DOCX block locations and stable `[SRC-…]` IDs. DOCX tables and repeated
+headings are retained. Files over 25 MB, extraction over two million characters, and
+unreadable/empty PDF pages fail rather than silently providing partial evidence. OCR
+and vector search are not implemented. Treat source files as trusted local files for
+parser security; this is not an isolated sandbox for hostile document formats.
 
-Only relevant chunks enter prompts. JSON evidence is separate from system
-instructions, which explicitly reject instructions inside source material.
-This is defense in depth, not a guarantee against prompt injection. Source IDs
-prove which chunks were available, not whether every factual claim follows from
-them. A human must check claim-to-source accuracy and applicable standards.
+Only the matching excerpts go into the request, as untrusted evidence data next to
+`EVIDENCE_POLICY`, which rejects instructions inside source material. This is defense
+in depth, not a guarantee against prompt injection. A draft may cite only the
+`[SRC-…]` IDs it was given; the checks refuse any other. Source IDs prove which
+excerpts were available, not whether every factual claim follows from them. A human
+must check claim-to-source accuracy and applicable standards.
 
-## Runtime controls
+## Local settings
 
-All controls are documented in `.env.example`:
+All settings are optional and listed in `.env.example`. Unknown `.env` entries, such
+as a key or model setting left from an earlier version, are ignored and never used.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `API_TIMEOUT_SECONDS` | 120 | Deadline per provider attempt, not the entire run; a role's `timeout_seconds` in `agent_config.yaml` overrides it (Agent 3: 480) |
-| `API_MAX_RETRIES` | 2 | Additional attempts only for connection/timeouts and transient statuses |
-| `MAX_CONCURRENT_AGENTS` | 5 | Simultaneous provider calls per run |
-| `MAX_RUN_TOKENS` | 1000000 | Conservative reservation gate before each request |
-| `MAX_PROMPT_CHARS` | 200000 | Serialized request size limit; oversized prompts fail |
 | `REVIEW_CHUNK_CHARS` | 24000 | Exact, non-truncated review excerpts |
-| `KNOWLEDGE_CONTEXT_CHARS` | 12000 | Retrieval context allowance |
-| `ENFORCE_PAGE_TARGET` | false | Require PDF and configured page range when true |
+| `KNOWLEDGE_CONTEXT_CHARS` | 12000 | Reference excerpt allowance for a generate request |
+| `ENFORCE_PAGE_TARGET` | false | Require PDF and the configured page range when true |
 | `PAGE_TARGET` | [15,30] | Actual PDF page target, including cover |
 
-SDK retries are disabled so retry counts are controlled in one place. Refused,
-empty, or token-truncated responses fail delivery. Cancellation propagates.
-Usage records include model, attempt, prompt hash, request ID, duration, and
-returned token counts. Unknown usage on failed attempts consumes a conservative
-reservation. The budget is a safety gate, not an exact billing limit. Concurrent
-runs have separate budgets; no organization-wide spending limit is implemented.
+## Checks and offline export
 
-`MODEL_PRICES` optionally supplies per-model input/output USD-per-million rates.
-Without configured rates, cost is unknown (`null`), not zero. Estimates do not
-replace provider billing and do not model every possible pricing feature.
+Every check runs locally, on the text the session wrote:
 
-## Review and recovery
+- Review: every excerpt of the SOP gets an assessment, a fresh subagent checks
+  consistency across excerpts, and every quote must be found in its section.
+- Generate: each section goes through Agent 3's per-section checks, then the whole
+  draft needs the eleven sections, a usable RACI table, the configured standards
+  named (a warning if not), only known source IDs, valid diagrams and control
+  coverage. Page targets warn by default. Nothing here certifies compliance.
+- Revise: only the target sections may change, no new source or control IDs may
+  appear, and a separate recheck must resolve every blocking finding.
 
-Every review/compliance pass processes all document characters in excerpts, then
-checks consistency across all excerpt assessments. Responses must match a strict
-JSON schema. Final checks require the eleven SOP sections, usable RACI assignments,
-and known source IDs. Legacy responsibility tables warn rather than break older
-content. Missing standards names warn; naming a standard does not establish
-compliance. Page targets warn by default, and no model review is a certification.
 The [document quality guide](DOCUMENT_QUALITY.md) describes control coverage,
-located findings, section patches and correction rechecks. Control-supporting
-excerpts are retained in private checkpoints for quote checks; protect them like
-the source files.
+located findings, section patches and correction rechecks.
 
-Each `output/runs/<run-id>/` contains `run.json` and completed phase checkpoints:
-`planned`, `researched`, `generated`, `drafted`, `reviewed`, `ready`, and `exported`, as available.
-Run metadata records failed/cancelled status and usage. Checkpoints contain private
-content and need the same protections as source documents.
-
-If `ready.json` exists with a matching checkpoint digest:
+Each `output/runs/<run-id>/` contains `run.json` and its checkpoints (for a generate
+run: `planned`, `generated`, `ready`, `exported`). Checkpoints contain private
+content and need the same protections as source documents. If `ready.json` exists
+with a matching checkpoint digest, re-export it offline:
 
 ```bash
-python -m src.main resume output/runs/<run-id> -f markdown -f docx
+python3 scripts/dev.py run export output/runs/<run-id> -f markdown -f docx
 ```
 
-Default ready-to-export recovery performs no model calls, validates the saved review against the current
-threshold and deterministic checks, and exports into a new run directory.
-It does not restart model phases or grant document approval. For failed/cancelled
-new runs before `ready`, `resume --model-phases --allow-external-ai` supports
-verified completed research/generation reuse with fresh consent. The output root
-contains a private recovery key; input/config/source/code identity, signed execution
-records and phase hashes are checked before reuse. Prior usage remains charged
-against the budget, and a new run needs a new human decision. See
-[Coordination and recovery](COORDINATION_AND_RECOVERY.md) for supported states and limits. Every
-new export run requires a fresh human decision. Keep run directories in place:
-approval records use absolute paths. Local hashes detect accidental changes, not
-malicious edits by someone who can also rewrite the records.
+A Claude Code draft passes every local check again; a run made by the removed API
+path keeps its saved review gate. The export goes into a new run directory and needs
+a fresh human decision. Keep run directories in place: approval records use absolute
+paths. Local hashes detect accidental changes, not malicious edits by someone who can
+also rewrite the records. Model-phase recovery, its signed journal and the
+`.recovery-key` were removed with the API path.
 
 ## Verification without customer data
 
 ```bash
-python -m pip install --require-hashes -r requirements-dev.lock
-python -m pytest --cov=src --cov-report=term -q
-python -m scripts.verify_exports --output output/local-smoke
+python3 scripts/dev.py test -q -rs
+python3 scripts/dev.py python -m scripts.verify_exports --output output/local-smoke
 ```
 
-Tests block HTTP model calls and use deterministic fakes. The smoke script creates
-synthetic Word, PDF, HTML, and Markdown files; it needs native PDF libraries.
-Use a fresh smoke output directory. On this Mac the PDF runtime was verified with
-`DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib`; other machines may need different
-native library setup. Docker supplies its own tested Linux dependencies.
-
-The CI workflow defines Linux Python 3.11–3.14 and Windows/macOS Python 3.12 jobs,
-plus an offline container export check. Adding the workflow does not mean those
-hosted jobs have run. See the checkpoint report for actual local evidence.
+The tests block every network connection and fail if any file references the
+Anthropic API, if the `anthropic` package is declared or installed, or if any REEMA
+module, script or command needs it (`tests/test_no_api_guard.py`). The smoke script
+creates synthetic Word, PDF, HTML, and Markdown files; it needs native PDF libraries.
+Use a fresh smoke output directory. There is no CI workflow or container image; the
+tests run locally.

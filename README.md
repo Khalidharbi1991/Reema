@@ -5,98 +5,69 @@ routes work to sections. The main section is Documentation, led by Abdullah:
 writing, reviewing and revising SOPs, and later reports and presentations. The
 first new feature, not yet built, will turn SCCM and Intune data into a patch
 report PowerPoint. Agent 9 supports home design as a side service. A Development
-section is planned. Review, revise and coordination run inside Claude Code; the
-API path remains as a backup for document generation, which uses Anthropic's
-Claude API only after explicit authorization. `reema chat` is retired: talk to Ahmad
-in a Claude Code session. Local task, memory and `find-sop` commands work without an
-API key.
+section is planned.
 
-Start with the [personal assistant guide](docs/guides/PERSONAL_ASSISTANT.md) for
-the current scope, task commands and connection limits (its chat sections predate
-the move to Claude Code).
-The [implementation checkpoint](docs/reports/PERSONAL_ASSISTANT_CHECKPOINT.md)
-records what was verified and what still needs an account connection.
-The [building-design checkpoint](docs/reports/BUILDING_DESIGN_CHECKPOINT.md)
-records Agent 9's current capability and the CAD-to-3D work still needed.
-The [agent improvements checkpoint](docs/reports/AGENT_IMPROVEMENTS_PACKAGE_1.md)
-records complete specialist handoffs, validated contracts, accurate phase status
-and offline evaluation baselines. See [handoffs and status](docs/guides/AGENT_HANDOFFS_AND_STATUS.md)
-for the intentional legacy status corrections and current limits.
-The [coordination and recovery guide](docs/guides/COORDINATION_AND_RECOVERY.md)
-describes multi-specialist advice, explicit session decisions and verified
-research/generation recovery. See [package 2](docs/reports/AGENT_IMPROVEMENTS_PACKAGE_2.md)
-for verification and remaining work.
-The [document quality guide](docs/guides/DOCUMENT_QUALITY.md) and
-[package 3 checkpoint](docs/reports/AGENT_IMPROVEMENTS_PACKAGE_3.md) cover located
-controls, configured sections, targeted corrections and export verification.
-The [development setup guide](docs/guides/DEVELOPMENT_SETUP.md) removes temporary
-test paths and manual native-library flags from normal local workflows.
-[Specialist evidence and checks](docs/guides/SPECIALIST_EVIDENCE_AND_CHECKS.md) and
-[package 4](docs/reports/AGENT_IMPROVEMENTS_PACKAGE_4.md) cover the next five specialists.
-The [package 5 guide](docs/guides/COMPLETION_AND_EVALUATION.md),
-[completion report](docs/reports/AGENT_IMPROVEMENTS_PACKAGE_5.md) and
-[finite ledger](docs/reports/PENDING_LEDGER.md) cover bilingual intent, hard-crash
-and review-chunk recovery, Arabic/RTL diagrams and layouts, bounded specialist
-depth and the consent-ready synthetic evaluation.
+Everything that needs writing or judgment runs in a Claude Code session: talk to
+Ahmad there. REEMA itself makes no model call and needs no API key: it plans,
+checks, exports and records the work for your approval. `reema chat` is retired.
+
+Start with the [documentation index](docs/README.md) and the
+[personal assistant guide](docs/guides/PERSONAL_ASSISTANT.md). The
+[architecture](docs/architecture/ARCHITECTURE.md) shows the jobs and components, and
+[data handling](docs/guides/DATA_HANDLING.md) explains what a Claude Code session may
+read. Reports under `docs/reports/` describe the system as it was when each was
+written; the [changelog](docs/reports/CHANGELOG.md) lists every change, newest first.
 
 ## Working with coding agents
 
 This repository includes [AGENTS.md](AGENTS.md), which gives any coding agent
 (Claude Code, Codex, or others) focused, project-specific instructions for safe
-maintenance and enhancement. [CLAUDE.md](CLAUDE.md) only imports
-AGENTS.md. Neither file changes the application's current Claude runtime. For
-the staged plan to improve the system or migrate the application to another LLM
-provider, see
-[docs/migration/CODEX_ADOPTION.md](docs/migration/CODEX_ADOPTION.md).
-
-For the latest local verification and remaining requirements, see
-[package 5](docs/reports/AGENT_IMPROVEMENTS_PACKAGE_5.md). Earlier reliability work
-is recorded in the [phase checkpoint](docs/reports/PHASE_2_5_CHECKPOINT.md).
-The [changelog](docs/reports/CHANGELOG.md) lists every package and later change, newest first.
+maintenance and enhancement. [CLAUDE.md](CLAUDE.md) only imports AGENTS.md.
+REEMA has no model runtime; [docs/migration/CODEX_ADOPTION.md](docs/migration/CODEX_ADOPTION.md)
+explains what adding one back would take.
 
 ## Overview
 
-This system provides 12 agent roles. Ahmad coordinates the user's tasks and
-conversations and consults specialists directly; Abdullah leads the SOP generation
-pipeline. Generation runs use a leader, five core workers,
-and only the specialists selected for the process. They produce draft Standard
-Operating Procedures (SOPs) in multiple formats. The 15–30 page target warns by
-default; `ENFORCE_PAGE_TARGET=true` makes it mandatory and requires PDF output.
-Every successful run requires separate human approval.
+REEMA has 12 agent roles. Ahmad coordinates Khalid's tasks and conversations as the
+main Claude Code session; Abdullah heads the Documentation section's jobs. A new SOP
+is prepared by `reema generate`, written section by section in Claude Code, then
+checked, exported and recorded by REEMA. Finished SOPs can be reviewed and revised
+the same way. The 15–30 page target warns by default; `ENFORCE_PAGE_TARGET=true`
+makes it mandatory and requires PDF output. Every draft needs separate human
+approval.
 
 ### Key Features
 
-- **Multi-Agent Architecture**: 12 coordinated roles, including Ahmad and Abdullah
+- **Claude Code company**: Ahmad, Abdullah's Documentation skills, and read/write-only subagents for writing, review, revision, building design and endpoint advice
+- **No model calls in REEMA**: no API key, client or network access; a strict test guards it
 - **Personal Task Lists**: Separate local work and personal tasks, priorities, due dates, and daily views
-- **Persistent Personal Context**: Editable profiles, preferences, project goals, correction lessons, and matching examples shared with Ahmad and specialists
-- **Conversational Coordination**: Ahmad uses bounded request plans and consults multiple specialists directly
+- **Persistent Personal Context**: Editable profiles, preferences, project goals, correction lessons, and examples
+- **Read consent**: a session reads an SOP, reference excerpts or input data only after your yes, given as a token bound to those exact files
 - **Standards Review**: Structured checks and gap findings, not compliance certification
 - **Multi-Format Output**: PDF, Word (DOCX), Markdown, and HTML
-- **Source-Aware**: Retrieves traceable excerpts from explicitly authorized references
-- **Quality Gates**: Required sections, configured review threshold, validated exports, and human approval
+- **Quality Gates**: Required sections, RACI, citations, diagrams, control coverage, validated exports, and human approval
 - **Customizable**: Configurable processes, standards, and output formats
 
 ## Agent Team
 
-Ahmad is the user's main coordinator, as the main Claude Code session.
-Abdullah leads the SOP generation pipeline and the Claude Code review and revise jobs.
-The former Khalid owner agent was removed; Ahmad frames advice in its
-strategy, governance, quality, and business-value terms, and the same guidance
-still feeds Abdullah's pipeline planning. The user retains approval
-and decision authority. Run `python3 scripts/dev.py run agents` for the active roster.
+Ahmad is the user's main coordinator, as the main Claude Code session. Abdullah
+heads the Documentation section: the generate, review, revise and export jobs. The
+former Khalid owner agent was removed; Ahmad frames advice in its strategy,
+governance, quality, and business-value terms. The user retains approval and
+decision authority. Run `python3 scripts/dev.py run agents` for the active roster.
 
 | Agent | Current responsibility |
 | --- | --- |
-| Ahmad | Main coordinator for tasks, preferences, planning, conversations, and direct specialist consultation |
-| Abdullah | SOP pipeline leader and specialist orchestrator |
-| Agent 1 | Research and IT service practices |
-| Agent 2 | Standards and control alignment for human verification |
-| Agent 3 | Writing and SOP content |
-| Agent 4 | Quality review |
+| Ahmad | Main coordinator for tasks, preferences, planning and conversations (Claude Code session) |
+| Abdullah | Documentation section head: the local generate, review, revise and export jobs |
+| Agent 1 | Research and IT service practices (role only) |
+| Agent 2 | Standards and control alignment (role only) |
+| Agent 3 | Writing and SOP content (`reema-writer`, `reema-reviser`) |
+| Agent 4 | Quality review (`reema-reviewer`, `reema-rechecker`) |
 | Agent 5 | PDF, DOCX, Markdown, and HTML formatting |
-| Agent 6 | Access and identity security |
-| Agent 7 | Problem management and root-cause analysis |
-| Agent 8 | Analytics and KPI design |
+| Agent 6 | Access and identity security (role only; IAM checks on supplied data) |
+| Agent 7 | Problem management and root-cause analysis (role only; case checks on supplied data) |
+| Agent 8 | Analytics and KPI design (role only; metric checks on supplied data) |
 | Agent 9 | Building-design advice, local DWG intake, and assumption-labeled concept meshes from selected DXF wall linework |
 | Agent 10 | End-user computing advice: patching and deployment rings, OS images, software packaging, Intune/MECM, endpoint compliance, change requests and runbooks; endpoint appendix for patch and device-batch SOPs |
 
@@ -348,25 +319,14 @@ permissions: REEMA keeps the task and memory stores owner-only.
 
 ### Python API
 
-You can also use the system programmatically. Save a script and run it through
-the locked launcher with `python3 scripts/dev.py python your_script.py`:
+The jobs are plain Python and make no model call. For example, to prepare a new SOP
+for Claude Code from a script (run it with `python3 scripts/dev.py python your_script.py`):
 
 ```python
-import asyncio
-from src.main import initialize_system
+from src.generate_job import prepare
 
-async def generate_docs():
-    # Registers Abdullah and the core workers (Agents 1–5).
-    leader = initialize_system()["leader"]
-    try:
-        # Set allow_external_ai=True only after authorizing this run's input material.
-        return await leader.generate_documentation(
-            "Incident Management", ["pdf", "docx"], allow_external_ai=True
-        )
-    finally:
-        await leader.close()
-
-asyncio.run(generate_docs())
+work_id = prepare("Incident Management", ["pdf", "docx"])
+print(f"Ask Ahmad in Claude Code to write SOP work {work_id}")
 ```
 
 Drafts stop at `awaiting_human_approval`; only the named human reviewer approves.
@@ -395,6 +355,6 @@ Version 2.0.0
 
 ---
 
-**Generated by the IT Process Documentation Multi-Agent System**
+**REEMA, Khalid's IT company**
 
-Powered by Claude AI (Anthropic)
+The text is written in Claude Code; REEMA checks, exports and records it.

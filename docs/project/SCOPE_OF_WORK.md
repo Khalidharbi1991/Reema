@@ -491,8 +491,7 @@ Abdullah (Team Leader)
 
 ### 6.1 Core Technologies
 - **Python 3.9+:** Programming language
-- **Anthropic Claude API:** AI/LLM for each agent
-- **Claude Agent SDK:** Multi-agent orchestration
+- **Claude Code:** writes the text through skills and subagents (REEMA itself makes no model call, since 2026-10-31)
 
 ### 6.2 Document Generation
 - **python-docx:** Word document generation

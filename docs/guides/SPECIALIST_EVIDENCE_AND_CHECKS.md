@@ -1,35 +1,35 @@
 # Specialist evidence and deterministic checks
 
-Package 4 adds bounded Research, Access, Problem, Data and CAD checks. They remain
-Anthropic-backed advisory/document capabilities, supplemented by local validators.
-No check grants access, confirms a real root cause, certifies compliance or
-approves a building/document. See the [package checkpoint](../reports/AGENT_IMPROVEMENTS_PACKAGE_4.md).
+Package 4 added bounded Access, Problem, Data, Research and CAD checks. They are
+local validators: they make no model call. Agents 6, 7 and 8 (and Agent 1) no
+longer have classes, so these checks run on their own: when a new SOP is prepared,
+the checks on a supplied `--specialist-input` file go into the generate request as
+data (`specialist_checks`), for the writer to describe as checks on supplied data.
+No check grants access, confirms a real root cause, certifies compliance or approves
+a building/document. See the [package checkpoint](../reports/AGENT_IMPROVEMENTS_PACKAGE_4.md).
 
 `config/specialist_policy.yaml` configures freshness age limits, input sizes,
 privileged-MFA/approval checks and CAD resource limits. It is required when upgrading
-a custom configuration directory and participates in model-recovery identity.
-Changing policy, supplied inputs, source permissions/content or code rejects
-incompatible recovery. Existing CLI defaults and async APIs remain.
+a custom configuration directory.
 
 ## Explicit specialist inputs
 
 Use the optional `--specialist-input` JSON file for supplied environment/incident/
 metric records. It must be a regular local file no larger than 2 MB. Unknown fields
-are rejected; credential fields at the top level or in strict snapshot objects
-are unsupported. Metric rows and free text are not automatically scrubbed for
-secrets. Keep private inputs in ignored `references/` or
-`output/` and inspect them before external authorization.
+are rejected; credential fields at the top level or in strict snapshot objects are
+unsupported. Metric rows and free text are not automatically scrubbed for secrets.
+Keep private inputs in ignored `references/` or `output/` and inspect them first: the
+file joins the confirm-read token, and a Claude Code session reads it after
+Khalid's yes.
 
 ```bash
-python3 scripts/dev.py run generate "Change Management" -f markdown \
-  --specialist-input output/my-specialist-input.json --allow-external-ai
+python3 scripts/dev.py run generate "Change Management" -f markdown --specialist-input output/my-specialist-input.json
 ```
 
 IAM input selects Access, incident input selects Problem, and metric specifications
-select Data, in addition to configured/explicit specialists. All supplied material
-also enters core writing context. The existing run-consent flag authorizes that
-transmission; it does not override reference permissions or approve artifacts.
-Request/checkpoint records retain these private inputs for recovery.
+select Data, in addition to configured/explicit specialists; these add no appendix.
+If the file changes after prepare, check and finish refuse. Request and checkpoint
+records keep these private inputs.
 
 This minimal example defines a deterministic percentage calculation:
 
@@ -49,30 +49,9 @@ This minimal example defines a deterministic percentage calculation:
 }
 ```
 
-The result is 90 percent from aggregate numerator/denominator, not an average of
-row percentages. `SpecialistInputs.model_json_schema()` exposes the full Python
-input schema. Local `AccessAgent.check_environment()`, `ProblemAgent.assess_case()`
-and `DataAgent.calculate_metrics()` make no model calls.
-
-## Research provenance and freshness
-
-Research requests typed claims with `CLM-...` IDs, text, kind (observation,
-recommendation, assumption) and located evidence. Evidence needs a recorded source
-ID, file, extraction location, file SHA-256 and exact quote. Invented or mismatched
-references fail. Valid supporting excerpts persist privately for downstream checks.
-
-An authorized manifest source may declare optional `published_on: YYYY-MM-DD`.
-This is user-supplied metadata, not an independently verified publication date.
-Do not substitute file modification time or retrieval time. Undated references
-and curated knowledge stay unknown. Research reports an explicit as-of date,
-source dates/age and `unsupported`, `unknown_freshness`, `stale_support`,
-`future_evidence` or `located_unverified`. Within the configured age limit does not
-mean factually correct, authoritative or legally current. Stale/unsupported claims
-remain visible review items, not automatic certification or silent deletion.
-Legacy narrative is explicitly unstructured/unverified. Empty typed claims are
-reported as `no_typed_claims`; completeness of narrative claim extraction is not
-proved. Default as-of is the UTC calendar date; explicit input can select a
-reproducible assessment date. Recovery keeps the original reported assessment date.
+The result is 90 percent from aggregate numerator/denominator, not an average of row
+percentages. `SpecialistInputs.model_json_schema()` exposes the full Python input
+schema; `specialist_checks()` in `src/utils/specialists.py` runs all three checks.
 
 ## Access environment checks
 
@@ -92,30 +71,25 @@ bounded nested groups, effective privileged-role checks, supplied baseline drift
 and configured separation-of-duties pairs. Live state/control operation remains
 external. See [the current guide](COMPLETION_AND_EVALUATION.md).
 
-## Problem observations and hypotheses
+
+## Problem observations
 
 `problem_case` supplies a case ID and observations with unique `OBS-...` IDs,
 timezone-aware times, descriptions and evidence lists. The timeline is sorted by
 actual instants across offsets. Quoted observations remain `located_unverified`;
-uncited observations are `user_reported_unverified`.
-
-Structured model research must provide at least two competing `HYP-...` hypotheses,
-known observation IDs for/against each and next tests. Unknown, duplicate or
-simultaneously supporting/contradicting IDs fail. The model cannot invent new
-timeline observations or set a confirmed-root-cause field. Root cause stays
+uncited observations are `user_reported_unverified`. Supplied `TEST-...` outcomes
+are listed with their evidence checked; grading them per hypothesis needs `HYP-...`
+hypotheses, which no job supplies now. Root cause stays
 `unconfirmed`, including when observations are missing. These checks validate
-relationships, not the causal truth of the supplied evidence. Package 5 also
-grades supplied located test support/refutation/conflicts while retaining an
-unconfirmed root cause.
+relationships, not the causal truth of the supplied evidence.
 
 ## Metric calculations
 
 Specifications carry stable IDs, owner/source/cadence, units, operands, exclusions
 and missing-data policy. Supported calculations are percentage ratios, elapsed-time
 means (seconds/minutes/hours), nonnegative sums and row counts. No formula strings
-or DAX are evaluated. Explicitly supplied specifications cannot be changed by the
-model. Calculation checks and complete specifications reach Content and dashboard
-design; the leader recomputes typed results before caching or use.
+or DAX are evaluated. The calculation checks and the complete specifications go into
+the generate request as data; the writer cannot change them.
 
 Exclusion flags must be booleans. Missing operands either fail or are counted as
 missing and excluded, according to the specification. Numeric inputs must be
@@ -127,6 +101,16 @@ supplied data, not validated production statistics. Package 5 adds differences,
 weighted means, bounded explicit working calendars and located unverified lineage.
 Arbitrary formula execution, inferred mappings and production lineage verification
 remain outside these checks.
+
+## Research claims and freshness
+
+`assess_claims()` still checks typed `CLM-...` claims against located evidence and
+the optional manifest `published_on: YYYY-MM-DD` date (user-supplied metadata, not an
+independently verified publication date), reporting `unsupported`,
+`unknown_freshness`, `stale_support`, `future_evidence` or `located_unverified`. No
+job produces typed claims now that Agent 1 has no class; the function remains for a
+future Claude Code research step. Within the configured age limit does not mean
+factually correct, authoritative or legally current.
 
 ## CAD intake and selected-region validation
 

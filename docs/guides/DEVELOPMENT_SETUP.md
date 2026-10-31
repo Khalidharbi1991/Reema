@@ -13,12 +13,14 @@ python3 scripts/dev.py smoke --output output/local-smoke-new
 On Windows, use `python` if `python3` is unavailable. The bootstrap creates ignored
 `.venv/`, installs binary wheels with `--require-hashes` from the existing
 `requirements-dev.lock`, checks dependencies and records the lock digest. It does
-not install into global Python, activate a shell, change shell configuration or
-enable external AI. Re-running it updates an existing project environment. A
-changed lock requires a new bootstrap; doctor checks installed package versions
-against the applicable lock entries and imports the actual PDF formatter.
-Dependency lock/build metadata digests also participate in model-recovery identity;
-changing them rejects reuse of a failed run under the earlier environment contract.
+not install into global Python, activate a shell or change shell configuration.
+Re-running it updates an existing project environment; it installs but never
+uninstalls, so after a lock drops a package, uninstall it from `.venv/` too (the
+no-API guard fails if `anthropic` is installed). A changed lock requires a new
+bootstrap; doctor checks installed package versions against the applicable lock
+entries and imports the actual PDF formatter. The locks are made with `uv`: `uv lock`
+for `uv.lock`, then the `uv export` command in each `requirements*.lock` header;
+don't hand-edit them.
 
 Normal commands use the project Python with the repository as working directory.
 The launcher removes inherited `PYTHONPATH`/`PYTHONHOME`, so temporary test packages
@@ -31,10 +33,9 @@ python3 scripts/dev.py python -m scripts.verify_document_package --output output
 python3 scripts/dev.py run task list --area work
 ```
 
-Use a fresh smoke output directory to preserve earlier files. All normal AI
-authorization/API-key/source-permission requirements still apply to model features.
-Doctor, local tasks and synthetic export scripts make no model calls. Tests deny
-live HTTP. No API key is needed for those offline operations.
+Use a fresh smoke output directory to preserve earlier files. REEMA makes no model
+call and needs no API key; source permissions still apply. Tests block every network
+connection.
 
 ## Native PDF libraries
 

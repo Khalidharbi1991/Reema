@@ -7,8 +7,7 @@ work to sections. The main section is Documentation, led by Abdullah: writing,
 reviewing and revising SOPs, and later reports and presentations, starting with a
 patch report PowerPoint from SCCM and Intune data. Agent 9 supports home design as
 a side service. A Development section is planned. Generate, review, revise and
-coordination run inside Claude Code; REEMA's own commands make no model call (the
-no-API migration finishes removing the remaining API plumbing).
+coordination run inside Claude Code; REEMA's own commands make no model call.
 
 Not yet built: patch report PowerPoint (PPTX export) and SCCM/Intune export intake.
 
@@ -61,15 +60,15 @@ planning. The former owner agent has been removed.
 | Agent | Responsibility |
 | --- | --- |
 | Ahmad | Task management, planning, communication, strategy/governance framing (main Claude Code session) |
-| Abdullah | SOP pipeline leader: planning, specialist orchestration, document workflow, recovery; leads the Claude Code SOP review/revise jobs |
-| Agent 1 | Research and IT service practices |
-| Agent 2 | Standards and control alignment |
+| Abdullah | Documentation section head: plans and runs the local generate, review, revise and export jobs whose text Claude Code writes |
+| Agent 1 | Research and IT service practices (role only; no class or job) |
+| Agent 2 | Standards and control alignment (role only; no class or job) |
 | Agent 3 | Writing and SOP content |
 | Agent 4 | Quality review |
 | Agent 5 | Document formatting and export |
-| Agent 6 | Access and identity security |
-| Agent 7 | Problem management and root-cause analysis |
-| Agent 8 | Metrics and analytics design |
+| Agent 6 | Access and identity security (role only; its IAM checks run on supplied data) |
+| Agent 7 | Problem management and root-cause analysis (role only; its case checks run on supplied data) |
+| Agent 8 | Metrics and analytics design (role only; its metric checks run on supplied data) |
 | Agent 9 | Building-design advice (`reema-agent9-design` subagent), local DWG intake, and bounded DXF-to-OBJ concept meshes |
 | Agent 10 | End-user computing and endpoint management (patching, imaging, packaging, Intune/MECM, change records); advice (`reema-agent10-euc` subagent) and endpoint SOP appendices |
 
@@ -262,10 +261,9 @@ drafts scripts, change requests and runbooks; it cannot run scripts or reach
 tenants, devices or directories. See `docs/guides/PERSONAL_ASSISTANT.md`.
 
 Private tasks and generated outputs remain under ignored local paths, but local
-SQLite files are not encrypted. Live evaluation still requires an API key and
-authorization of its exact synthetic material; the offline canonical-answer mock
-is harness evidence, not model/full production-agent quality evidence. Remaining
-external requirements are tracked in `docs/reports/PENDING_LEDGER.md`.
+SQLite files are not encrypted. The offline evaluation grades canonical answers:
+harness evidence, not model or agent quality evidence. `docs/reports/PENDING_LEDGER.md`
+records the earlier external requirements as they stood before the no-API migration.
 
 ## Engineering map
 
@@ -285,9 +283,10 @@ external requirements are tracked in `docs/reports/PENDING_LEDGER.md`.
 
 ## Start here
 
-- Use `docs/architecture/ARCHITECTURE.md` for the current pipeline and domain
-  model. Parts of it are legacy; where it conflicts with this file, AGENTS.md wins.
-- Read the relevant agent module in `src/agents/` before changing a pipeline phase.
+- Use `docs/architecture/ARCHITECTURE.md` for the current jobs and components;
+  where it conflicts with this file, AGENTS.md wins.
+- Read the relevant job script, skill and agent module before changing a job, and
+  keep its checks in REEMA's code, not in the skill or subagent text.
 - Process and standards data live in `config/*.yaml`; keep new process behavior
   configuration-driven.
 - One-off document generators and converters live in `scripts/`; run them from
@@ -299,27 +298,27 @@ external requirements are tracked in `docs/reports/PENDING_LEDGER.md`.
 
 ## Working conventions
 
-- Keep the current asynchronous pipeline and public CLI commands compatible unless
-  a change request explicitly permits breaking changes.
+- Keep the public CLI commands and the Claude Code job scripts compatible unless a
+  change request explicitly permits breaking changes.
 - Add or update focused tests in `tests/` for behavioral changes.
-- Run the affected tests; `pytest -q` is safe for the local test suite.
-  Prefer `python3 scripts/dev.py test -q -rs` after
+- Run the affected tests; the suite is offline, blocks the network and includes the
+  strict no-API guard. Prefer `python3 scripts/dev.py test -q -rs` after
   `python3 scripts/dev.py bootstrap`; the project launcher discovers PDF libraries
   and uses the locked ignored `.venv` without temporary import paths. See
   `docs/guides/DEVELOPMENT_SETUP.md`.
 
-## Provider migration boundary
+## Model runtime boundary
 
-Do not imply that the application itself has moved to OpenAI until that runtime
-migration is made. A provider migration requires an explicit request and must
-update the client abstraction, settings, dependencies, documentation, and tests
-together. See `docs/migration/CODEX_ADOPTION.md` before starting that work.
+REEMA has no model runtime and has not moved to OpenAI or any other provider. Adding
+any model API back is a new feature that needs Khalid's explicit request and must add
+the client, settings, consent, dependencies (regenerated with `uv`), documentation and
+tests together, including the no-API guard. See `docs/migration/CODEX_ADOPTION.md`.
 
 ## Definition of done
 
 For code changes, finish the requested implementation, run relevant tests, and
-report any remaining external requirement (such as an API key or platform-specific
-PDF dependency).
+report any remaining external requirement (such as a platform-specific PDF
+dependency).
 
 When you complete a feature listed under 'Not yet built', remove it from that list
 and from any matching 'not yet built' note in README.md in the same change.
