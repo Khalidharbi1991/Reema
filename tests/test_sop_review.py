@@ -83,13 +83,13 @@ async def test_local_only_review_makes_no_model_call_and_changes_nothing(tmp_pat
     path = tmp_path / "handover.md"
     path.write_text(NON_TEMPLATE_SOP)
     before = digest(path)
-    leader = LeaderAgent(api_key="")
+    leader = LeaderAgent()
     findings = await leader.review_existing(load_sop(path), local_only=True)
     run = Path(leader.context["run_dir"])
     assert run.parent == output_root / "runs"
     assert findings["mode"] == "local_only" and len(findings["template_gaps"]) == 11 and findings["findings"] == []
     state = json.loads((run / "run.json").read_text())
-    assert state["status"] == "review_complete" and state["usage"]["calls"] == []
+    assert state["status"] == "review_complete" and "usage" not in state
     assert {"source", "findings"} <= set(state["checkpoints"])
     assert not (run / "approval.json").exists()
     assert "Required section 'Introduction' is missing" in (run / "findings.md").read_text()
@@ -100,15 +100,15 @@ async def test_local_only_review_makes_no_model_call_and_changes_nothing(tmp_pat
 async def test_model_review_runs_only_through_claude_code(tmp_path, output_root):
     path = tmp_path / "sop.md"
     path.write_text(template_sop())
-    review = ReviewAgent(api_key="")
-    review._call_claude = AsyncMock()
-    leader = LeaderAgent(api_key="")
+    review = ReviewAgent()
+    review._reply = AsyncMock()
+    leader = LeaderAgent()
     leader.register_worker("ReviewAgent", review)
     with pytest.raises(ValueError, match="Claude Code"):
         await leader.review_existing(load_sop(path))
     with pytest.raises(ValueError, match="file-backed ReviewAgent"):
         await leader.review_existing(load_sop(path), local_author=True)
-    review._call_claude.assert_not_awaited()
+    review._reply.assert_not_awaited()
     assert not (output_root / "runs").exists()
 
 
@@ -120,7 +120,7 @@ async def test_model_review_locates_categorized_findings(tmp_path, output_root):
     review = stand_in_review(assessment(
         issue("sec-tools", "ServiceNow version 2019.", category="outdated", description="Old tool version"),
         issue("sec-procedures", "Escalate when needed.", category="missing_step")))
-    leader = LeaderAgent(api_key="")
+    leader = LeaderAgent()
     leader.register_worker("ReviewAgent", review)
     findings = await leader.review_existing(load_sop(path), local_author=True)
     assert [(f["section_id"], f["category"]) for f in findings["findings"]] == [("sec-tools", "outdated"),
@@ -137,7 +137,7 @@ async def test_model_review_rejects_an_invented_location(tmp_path, output_root):
     path = tmp_path / "sop.md"
     path.write_text(template_sop())
     review = stand_in_review(assessment(issue("sec-tools", "Text that is not in the SOP")))
-    leader = LeaderAgent(api_key="")
+    leader = LeaderAgent()
     leader.register_worker("ReviewAgent", review)
     with pytest.raises(ValueError):
         await leader.review_existing(load_sop(path), local_author=True)
@@ -155,7 +155,7 @@ async def test_model_review_of_non_template_and_docx_sops(tmp_path, output_root)
         assessment(issue("extra-" + hashlib.sha256(b"steps").hexdigest()[:16], "Collect the device from stores.")),
         assessment(issue("extra-" + hashlib.sha256(b"escalation").hexdigest()[:16], "Escalate when needed."))])
     for path in (md, docx):
-        leader = LeaderAgent(api_key="")
+        leader = LeaderAgent()
         leader.register_worker("ReviewAgent", review)
         findings = await leader.review_existing(load_sop(path), local_author=True)
         assert len(findings["findings"]) == 1 and len(findings["template_gaps"]) >= 8
@@ -167,11 +167,11 @@ async def test_model_review_refuses_duplicate_headings_before_any_call(tmp_path,
     path = tmp_path / "sop.md"
     path.write_text(template_sop().replace("# Synthetic Incident SOP", "# Synthetic Incident SOP\n\n## Document Control\n\nDraft."))
     review = stand_in_review([])
-    leader = LeaderAgent(api_key="")
+    leader = LeaderAgent()
     leader.register_worker("ReviewAgent", review)
     with pytest.raises(ValueError, match="more than once: Document Control"):
         await leader.review_existing(load_sop(path), local_author=True)
-    review._call_claude.assert_not_awaited()
+    review._reply.assert_not_awaited()
 
 
 def test_cli_review_is_the_local_template_check(tmp_path, monkeypatch):

@@ -2,7 +2,7 @@
 
 import asyncio
 from importlib import import_module
-from typing import Dict, List, Optional
+from typing import Dict, List
 from pathlib import Path
 from .base_agent import BaseAgent
 from ..utils.logger import logger
@@ -27,11 +27,9 @@ class FormatAgent(BaseAgent):
     AGENT_ROLE = "Format & Export Agent"
     CONFIG_KEY = "format_agent"
     KNOWLEDGE_FILE = "bee_format_knowledge_ENHANCED.md"
-    DEFAULT_MAX_TOKENS = 4096
 
-    def __init__(self, api_key: Optional[str] = None):
-        # Bee doesn't need an API key — pass empty to skip Anthropic client
-        super().__init__(api_key="")
+    def __init__(self):
+        super().__init__()
 
         # Alias for backward compatibility
         self.format_knowledge = self.knowledge_base

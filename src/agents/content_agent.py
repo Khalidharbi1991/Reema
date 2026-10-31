@@ -1,6 +1,6 @@
 """Saad (Content Generation Agent) - Creates detailed SOP documentation."""
 
-from typing import Dict, List, Optional
+from typing import Dict, List
 from .base_agent import BaseAgent
 from ..utils.logger import logger
 from ..utils.config import config_manager
@@ -27,10 +27,9 @@ class ContentAgent(BaseAgent):
     AGENT_ROLE = "Content Generation Agent"
     CONFIG_KEY = "content_agent"
     KNOWLEDGE_FILE = "saad_content_knowledge_ENHANCED.md"
-    DEFAULT_MAX_TOKENS = 16000  # Per section reply; the SOP is written one section per request
 
-    def __init__(self, api_key: Optional[str] = None):
-        super().__init__(api_key)
+    def __init__(self):
+        super().__init__()
 
         # Alias for backward compatibility
         self.content_knowledge = self.knowledge_base
@@ -145,14 +144,13 @@ class ContentAgent(BaseAgent):
         self, process_name: str, research_data: Dict
     ) -> str:
         """
-        Generate the SOP one configured section per model request, then assemble it.
+        Assemble the SOP one configured section at a time, from the text written for each section.
 
-        max_tokens bounds each section reply, not the whole document. Sections run in
-        order so later ones reuse the written definitions and RACI.
+        Sections run in order, and each one is checked as it arrives.
 
         Args:
             process_name: Name of the IT process
-            research_data: Research findings from Research and Standards agents
+            research_data: Planning data (the control register)
 
         Returns:
             Complete SOP document in Markdown format
@@ -175,9 +173,8 @@ class ContentAgent(BaseAgent):
                 try:
                     result = await structured_call(self, prompt, SectionBody, check)
                 except (ValueError, RuntimeError) as error:
-                    hint = f"; it exceeded max_tokens={self.max_tokens}" if "max_tokens" in str(error) else ""
                     category = ValueError if isinstance(error, ValueError) else RuntimeError
-                    raise category(f"Section {number} ({section.title}) failed: {error}{hint}") from error
+                    raise category(f"Section {number} ({section.title}) failed: {error}") from error
                 written[section.id] = result.body
                 sections.append(result)
                 logger.info(f"Section {number}/{len(profile.sections)} written: {section.title}", agent=self.name)
@@ -217,7 +214,7 @@ class ContentAgent(BaseAgent):
                   "Do not add top-level headings or claim approvals. Return only the JSON object, with no text "
                   "before or after it, matching:\n"
                   + json.dumps(SectionPatch.model_json_schema()) + "\nREVISION DATA:\n" + payload_json(data))
-        response = await self._call_claude([{"role": "user", "content": prompt}], system=self._build_system_prompt())
+        response = await self._reply([{"role": "user", "content": prompt}], system=self._build_system_prompt())
         try:
             patch = (parse_fenced_json_response if finished_sop else parse_json_response)(response, SectionPatch)
         except ValueError as error:

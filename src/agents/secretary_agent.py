@@ -1,6 +1,6 @@
 """Ahmad (Secretary & Coordination Agent) - Manages tasks and communications."""
 
-from typing import Dict, List, Optional
+from typing import Dict, List
 from .base_agent import BaseAgent
 from ..utils.logger import logger
 from ..utils.config import config_manager
@@ -30,18 +30,14 @@ class SecretaryAgent(BaseAgent):
     AGENT_ROLE = "Personal Coordination & Task Management Agent"
     CONFIG_KEY = "secretary_agent"
     KNOWLEDGE_FILE = "ahmad_secretary_knowledge_ENHANCED.md"
-    DEFAULT_MAX_TOKENS = 4096
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self):
         """
         Initialize the Secretary Agent.
 
         Sets up Ahmad with his knowledge base and communication log.
-
-        Args:
-            api_key: Optional Anthropic API key. Falls back to config if not provided.
         """
-        super().__init__(api_key)
+        super().__init__()
 
         # Communication tracking
         self.communication_log: List[Dict] = []

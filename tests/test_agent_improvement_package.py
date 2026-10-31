@@ -73,11 +73,11 @@ def test_contradictory_compliance_gate_is_rejected():
 
 @pytest.mark.asyncio
 async def test_communication_record_does_not_claim_dispatch():
-    secretary = SecretaryAgent(api_key="")
-    secretary._call_claude = AsyncMock()
+    secretary = SecretaryAgent()
+    secretary._reply = AsyncMock()
     result = await secretary.coordinate_team_communication("Check pending evidence", "Abdullah", ["Agent 2"])
     assert result["status"] == "recorded" and result["dispatch_status"] == "not_dispatched"
     assert secretary.communication_log == [result]
-    secretary._call_claude.assert_not_awaited()
+    secretary._reply.assert_not_awaited()
 
 

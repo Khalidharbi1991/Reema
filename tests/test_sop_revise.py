@@ -46,7 +46,7 @@ def recheck_reply(findings, quote, status="resolved"):
 
 def leader_with(content_reply, recheck):
     content, review = stand_in_patch(content_reply), stand_in_recheck(recheck)
-    leader = LeaderAgent(api_key="")
+    leader = LeaderAgent()
     leader.register_worker("ContentAgent", content)
     leader.register_worker("ReviewAgent", review)
     return leader, content, review
@@ -87,7 +87,7 @@ async def test_markdown_revision_changes_only_the_target_section(tmp_path, outpu
     assert "+Escalate P1 incidents" in (run / "changes.md").read_text()
     assert json.loads((run / "run.json").read_text())["full_profile_checks"] is True
     assert digest(path) == before
-    assert content._call_claude.await_count == 1 and review._call_claude.await_count == 1
+    assert content._reply.await_count == 1 and review._reply.await_count == 1
 
 
 @pytest.mark.asyncio
@@ -100,7 +100,7 @@ async def test_patch_touching_another_section_is_refused(tmp_path, output_root):
     leader, _, review = leader_with(sneaky, "{}")
     with pytest.raises(ValueError, match="exactly the requested sections"):
         await leader.revise_existing(source, findings, local_author=True)
-    review._call_claude.assert_not_awaited()
+    review._reply.assert_not_awaited()
     run = Path(leader.context["run_dir"])
     assert json.loads((run / "run.json").read_text())["status"] == "failed" and not (run / "approval.json").exists()
 
@@ -132,15 +132,15 @@ async def test_revision_runs_only_through_claude_code(tmp_path, output_root):
     path.write_text(template_sop())
     source = load_sop(path)
     findings = instruction_findings(source.content, PROFILE, "Fix escalation", ["sec-procedures"])
-    plain = LeaderAgent(api_key="")
-    plain.register_worker("ContentAgent", ContentAgent(api_key=""))
-    plain.register_worker("ReviewAgent", ReviewAgent(api_key=""))
+    plain = LeaderAgent()
+    plain.register_worker("ContentAgent", ContentAgent())
+    plain.register_worker("ReviewAgent", ReviewAgent())
     with pytest.raises(ValueError, match="file-backed"):
         await plain.revise_existing(source, findings, local_author=True)
     leader, content, _ = leader_with("{}", "{}")
     with pytest.raises(ValueError, match="Claude Code"):
         await leader.revise_existing(source, findings)
-    content._call_claude.assert_not_awaited()
+    content._reply.assert_not_awaited()
     assert not (output_root / "runs").exists()
 
 
@@ -213,7 +213,7 @@ async def test_findings_from_review_run_are_bound_to_the_file(tmp_path, output_r
     reviewer = stand_in_review(assessment(
         issue("sec-tools", "ServiceNow version 2019.", category="outdated"),
         issue("sec-procedures", "Escalate when needed.", category="missing_step")))
-    leader = LeaderAgent(api_key="")
+    leader = LeaderAgent()
     leader.register_worker("ReviewAgent", reviewer)
     await leader.review_existing(load_sop(path), local_author=True)
     run = Path(leader.context["run_dir"])
@@ -231,7 +231,7 @@ async def test_findings_from_review_run_are_bound_to_the_file(tmp_path, output_r
 async def test_template_gap_findings_cannot_be_revised(tmp_path, output_root):
     path = tmp_path / "handover.md"
     path.write_text(NON_TEMPLATE_SOP)
-    leader = LeaderAgent(api_key="")
+    leader = LeaderAgent()
     findings = await leader.review_existing(load_sop(path), local_only=True)
     run = Path(leader.context["run_dir"])
     with pytest.raises(ValueError, match="template gaps"):
@@ -243,11 +243,11 @@ async def test_template_gap_findings_cannot_be_revised(tmp_path, output_root):
 @pytest.mark.asyncio
 async def test_generate_revision_still_requires_the_complete_profile():
     """Regression: generate's positional call keeps require_complete=True."""
-    agent = ContentAgent(api_key="")
-    agent._call_claude = AsyncMock()
+    agent = ContentAgent()
+    agent._reply = AsyncMock()
     with pytest.raises(ValueError, match="required sections"):
         await agent.revise_sections(NON_TEMPLATE_SOP, [{"section_id": "sec-introduction"}])
-    agent._call_claude.assert_not_awaited()
+    agent._reply.assert_not_awaited()
     from src.utils.capabilities import LocatedRevisionInputs
     values = LocatedRevisionInputs.model_validate({"content": "x", "findings": [{"a": 1}]}).model_dump()
     assert values["require_complete"] is None
@@ -281,7 +281,7 @@ async def test_unparsable_revision_reply_is_saved_locally_for_diagnosis(tmp_path
     state = json.loads((run / "run.json").read_text())
     assert state["status"] == "failed" and state["unparsed_reply"] == "unparsed_reply.txt"
     assert "Here is the patch" not in caplog.text and "Here is the patch" not in (run / "run.json").read_text()
-    review._call_claude.assert_not_awaited()
+    review._reply.assert_not_awaited()
     assert not (run / "approval.json").exists()
 
 
@@ -307,7 +307,7 @@ async def test_revise_and_recheck_prompts_ask_for_json_only(tmp_path, output_roo
                                           lambda *a, **k: recheck_reply(findings, "within 15 minutes"))
     await leader.revise_existing(source, findings, local_author=True)
     for agent in (content, review):
-        assert "Return only the JSON object, with no text before or after it" in agent._call_claude.await_args.args[0][0]["content"]
+        assert "Return only the JSON object, with no text before or after it" in agent._reply.await_args.args[0][0]["content"]
     assert not (Path(leader.context["run_dir"]) / "unparsed_reply.txt").exists()
 
 
@@ -328,7 +328,7 @@ async def test_patch_adding_a_source_or_control_id_is_blocked(tmp_path, output_r
     leader, _, review = leader_with(patch_reply(source.content, {"sec-procedures": NEW_ESCALATION + " " + added}), "{}")
     with pytest.raises(ValueError, match="source or control IDs that are not in the original section"):
         await leader.revise_existing(source, findings, local_author=True)
-    review._call_claude.assert_not_awaited()
+    review._reply.assert_not_awaited()
     run = Path(leader.context["run_dir"])
     assert json.loads((run / "run.json").read_text())["status"] == "failed" and not (run / "approval.json").exists()
 
@@ -357,15 +357,15 @@ async def test_finished_sop_prompt_limits_scope_but_generate_prompt_does_not(tmp
     leader, content, _ = leader_with(patch_reply(source.content, {"sec-procedures": NEW_ESCALATION}),
                                      lambda *a, **k: recheck_reply(findings, "within 15 minutes"))
     await leader.revise_existing(source, findings, local_author=True)
-    prompt = content._call_claude.await_args.args[0][0]["content"]
+    prompt = content._reply.await_args.args[0][0]["content"]
     for phrase in ("Make only the change each finding asks for", "Do not add requirements, roles, tools",
                    "do not add source or control IDs", "State the change once"):
         assert phrase in prompt
     # generate's correction loop keeps its prompt (positional call, no finished_sop).
-    generator = ContentAgent(api_key="")
-    generator._call_claude = AsyncMock(return_value=patch_reply(source.content, {"sec-procedures": NEW_ESCALATION}))
+    generator = ContentAgent()
+    generator._reply = AsyncMock(return_value=patch_reply(source.content, {"sec-procedures": NEW_ESCALATION}))
     await generator.revise_sections(source.content, findings)
-    assert "finished SOP" not in generator._call_claude.await_args.args[0][0]["content"]
+    assert "finished SOP" not in generator._reply.await_args.args[0][0]["content"]
 
 
 def fenced(reply, prose="I need to apply the finding once, in the most fitting place."):
@@ -398,7 +398,7 @@ async def test_prose_without_exactly_one_block_still_fails_and_is_saved(tmp_path
     with pytest.raises(ValueError, match="Invalid structured SectionPatch"):
         await leader.revise_existing(source, findings, local_author=True)
     assert (Path(leader.context["run_dir"]) / "unparsed_reply.txt").read_text() == reply
-    review._call_claude.assert_not_awaited()
+    review._reply.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -417,11 +417,11 @@ async def test_fenced_block_with_stale_hash_still_fails_the_stale_check(tmp_path
 async def test_generate_style_calls_still_reject_prose_before_json(tmp_path):
     content = template_sop()
     findings = instruction_findings(content, PROFILE, "Add a rule", ["sec-procedures"])
-    writer, checker = ContentAgent(api_key=""), ReviewAgent(api_key="")
-    writer._call_claude = AsyncMock(return_value=fenced(patch_reply(content, {"sec-procedures": NEW_ESCALATION})))
+    writer, checker = ContentAgent(), ReviewAgent()
+    writer._reply = AsyncMock(return_value=fenced(patch_reply(content, {"sec-procedures": NEW_ESCALATION})))
     with pytest.raises(ValueError, match="Invalid structured SectionPatch"):
         await writer.revise_sections(content, findings)
     revised = template_sop({"Detailed Procedures": NEW_ESCALATION})
-    checker._call_claude = AsyncMock(return_value=fenced(recheck_reply(findings, "within 15 minutes")))
+    checker._reply = AsyncMock(return_value=fenced(recheck_reply(findings, "within 15 minutes")))
     with pytest.raises(ValueError, match="Invalid structured CorrectionAssessment"):
         await checker.recheck_corrections(revised, findings)

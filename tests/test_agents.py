@@ -11,22 +11,20 @@ class TestLeaderAgent:
     @patch('src.agents.leader_agent.config_manager')
     def test_leader_init(self, mock_cm):
         """Verify LeaderAgent initializes."""
-        mock_cm.system_config.anthropic_api_key = "test-key"
         mock_cm.system_config.leader_model = "claude-sonnet-4-6"
 
         from src.agents.leader_agent import LeaderAgent
-        leader = LeaderAgent(api_key="test-key")
+        leader = LeaderAgent()
         assert leader.name == "Abdullah"
         assert leader.worker_agents == {}
 
     @patch('src.agents.leader_agent.config_manager')
     def test_leader_register_worker(self, mock_cm):
         """Verify worker registration."""
-        mock_cm.system_config.anthropic_api_key = "test-key"
         mock_cm.system_config.leader_model = "claude-sonnet-4-6"
 
         from src.agents.leader_agent import LeaderAgent
-        leader = LeaderAgent(api_key="test-key")
+        leader = LeaderAgent()
 
         mock_worker = MagicMock()
         leader.register_worker("TestAgent", mock_worker)
@@ -35,11 +33,10 @@ class TestLeaderAgent:
     @patch('src.agents.leader_agent.config_manager')
     def test_leader_get_status(self, mock_cm):
         """Verify status dict structure."""
-        mock_cm.system_config.anthropic_api_key = "test-key"
         mock_cm.system_config.leader_model = "claude-sonnet-4-6"
 
         from src.agents.leader_agent import LeaderAgent
-        leader = LeaderAgent(api_key="test-key")
+        leader = LeaderAgent()
         status = leader.get_status()
         assert "leader" in status
         assert "workers" in status
@@ -48,11 +45,10 @@ class TestLeaderAgent:
     @patch('src.agents.leader_agent.config_manager')
     def test_leader_get_process_kpis_incident(self, mock_cm):
         """Verify incident-specific KPIs are returned."""
-        mock_cm.system_config.anthropic_api_key = "test-key"
         mock_cm.system_config.leader_model = "claude-sonnet-4-6"
 
         from src.agents.leader_agent import LeaderAgent
-        leader = LeaderAgent(api_key="test-key")
+        leader = LeaderAgent()
 
         kpis = leader._get_process_kpis("Incident Management", {})
         assert "Mean Time to Resolve (MTTR)" in kpis
@@ -61,11 +57,10 @@ class TestLeaderAgent:
     @patch('src.agents.leader_agent.config_manager')
     def test_leader_get_process_kpis_access(self, mock_cm):
         """Verify access-specific KPIs are returned."""
-        mock_cm.system_config.anthropic_api_key = "test-key"
         mock_cm.system_config.leader_model = "claude-sonnet-4-6"
 
         from src.agents.leader_agent import LeaderAgent
-        leader = LeaderAgent(api_key="test-key")
+        leader = LeaderAgent()
 
         kpis = leader._get_process_kpis("Access Management", {})
         assert "Access Request Fulfillment Time" in kpis
@@ -82,11 +77,10 @@ class TestLeaderAgent:
     @patch('src.agents.leader_agent.config_manager')
     def test_leader_matches_every_kpi_category_by_display_name(self, mock_cm, process, expected):
         """Multi-word categories such as Service Request match the configured display name."""
-        mock_cm.system_config.anthropic_api_key = "test-key"
         mock_cm.system_config.leader_model = "claude-sonnet-4-6"
 
         from src.agents.leader_agent import LeaderAgent
-        leader = LeaderAgent(api_key="test-key")
+        leader = LeaderAgent()
 
         kpis = leader._get_process_kpis(process, {})
         assert kpis[0] == expected
@@ -95,11 +89,10 @@ class TestLeaderAgent:
     @patch('src.agents.leader_agent.config_manager')
     def test_leader_get_process_kpis_generic(self, mock_cm):
         """Verify generic KPIs for unknown process."""
-        mock_cm.system_config.anthropic_api_key = "test-key"
         mock_cm.system_config.leader_model = "claude-sonnet-4-6"
 
         from src.agents.leader_agent import LeaderAgent
-        leader = LeaderAgent(api_key="test-key")
+        leader = LeaderAgent()
 
         kpis = leader._get_process_kpis("Custom Unknown Process", {})
         assert "Process Cycle Time" in kpis
@@ -108,11 +101,10 @@ class TestLeaderAgent:
     @patch('src.agents.leader_agent.config_manager')
     def test_leader_get_process_kpis_from_config(self, mock_cm):
         """Verify KPIs from config override defaults."""
-        mock_cm.system_config.anthropic_api_key = "test-key"
         mock_cm.system_config.leader_model = "claude-sonnet-4-6"
 
         from src.agents.leader_agent import LeaderAgent
-        leader = LeaderAgent(api_key="test-key")
+        leader = LeaderAgent()
 
         process_def = {"kpis": ["Custom KPI 1", "Custom KPI 2"]}
         kpis = leader._get_process_kpis("Any Process", process_def)
@@ -124,35 +116,29 @@ class TestContentAgent:
 
     @patch('src.agents.content_agent.config_manager')
     @patch('src.agents.base_agent.config_manager')
-    @patch('src.agents.base_agent.Anthropic')
-    def test_content_agent_init(self, mock_anthropic, mock_base_cm, mock_cm):
+    def test_content_agent_init(self, mock_base_cm, mock_cm):
         """Verify ContentAgent initializes."""
         for cm in [mock_cm, mock_base_cm]:
-            cm.system_config.anthropic_api_key = "test-key"
-            cm.system_config.worker_model = "claude-sonnet-4-6"
             cm.system_config.knowledge_dir = Path("/tmp/knowledge")
             cm.system_config.templates_dir = Path("/tmp/templates")
             cm.get_agent_config.return_value = {}
 
         from src.agents.content_agent import ContentAgent
-        agent = ContentAgent(api_key="test-key")
+        agent = ContentAgent()
         assert agent.name == "Agent 3"
-        assert agent.max_tokens == 16000  # Per-section reply limit
+        assert not hasattr(agent, "max_tokens")  # No model, so no reply limit
 
     @patch('src.agents.content_agent.config_manager')
     @patch('src.agents.base_agent.config_manager')
-    @patch('src.agents.base_agent.Anthropic')
-    def test_content_research_truncation_limit(self, mock_anthropic, mock_base_cm, mock_cm):
+    def test_content_research_truncation_limit(self, mock_base_cm, mock_cm):
         """Verify research data truncation uses 8000 chars, not 2000 (Gap 3 fix)."""
         for cm in [mock_cm, mock_base_cm]:
-            cm.system_config.anthropic_api_key = "test-key"
-            cm.system_config.worker_model = "claude-sonnet-4-6"
             cm.system_config.knowledge_dir = Path("/tmp/knowledge")
             cm.system_config.templates_dir = Path("/tmp/templates")
             cm.get_agent_config.return_value = {}
 
         from src.agents.content_agent import ContentAgent
-        agent = ContentAgent(api_key="test-key")
+        agent = ContentAgent()
 
         # Create research data with content > 2000 but < 8000 chars
         long_research = "A" * 5000
@@ -210,12 +196,9 @@ class TestFormatAgent:
 
     @patch('src.agents.format_agent.config_manager')
     @patch('src.agents.base_agent.config_manager')
-    @patch('src.agents.base_agent.Anthropic')
-    def test_format_agent_no_api(self, mock_anthropic, mock_base_cm, mock_cm):
-        """Verify FormatAgent works without API key."""
+    def test_format_agent_has_no_client(self, mock_base_cm, mock_cm):
+        """Verify FormatAgent has no model client."""
         for cm in [mock_cm, mock_base_cm]:
-            cm.system_config.anthropic_api_key = ""
-            cm.system_config.worker_model = "claude-sonnet-4-6"
             cm.system_config.knowledge_dir = Path("/tmp/knowledge")
             cm.system_config.output_dir = Path("/tmp/output")
             cm.get_agent_config.return_value = {}
@@ -223,5 +206,4 @@ class TestFormatAgent:
         from src.agents.format_agent import FormatAgent
         agent = FormatAgent()
         assert agent.name == "Agent 5"
-        # Should not have a usable Anthropic client
-        assert agent.client is None or not agent.api_key
+        assert not hasattr(agent, "client")

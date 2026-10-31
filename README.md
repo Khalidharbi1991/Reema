@@ -129,22 +129,9 @@ On Windows use `python` if `python3` is unavailable. No activation, temporary
 [development setup guide](docs/guides/DEVELOPMENT_SETUP.md) for offline wheelhouses
 and platform dependencies. Runtime lock files and `uv.lock` remain unchanged.
 
-3. **Set your Anthropic API key for authorized model features:**
-
-Windows:
-```bash
-set ANTHROPIC_API_KEY=your-api-key-here
-```
-
-Linux/Mac:
-```bash
-export ANTHROPIC_API_KEY='your-api-key-here'
-```
-
-Or create a `.env` file:
-```
-ANTHROPIC_API_KEY=your-api-key-here
-```
+3. **No API key is needed.** REEMA makes no model call; Claude Code writes the text. A
+`.env` left from earlier versions may still hold a key: it is ignored, and you can
+delete that line.
 
 ## Usage
 
@@ -337,18 +324,6 @@ python3 scripts/dev.py run generate "Devices Batch Management" -f pdf -f html
 ```
 
 ## Troubleshooting
-
-### API Key Issues
-
-If you see "API key not set" error:
-
-```bash
-# Windows
-set ANTHROPIC_API_KEY=sk-ant-...
-
-# Linux/Mac
-export ANTHROPIC_API_KEY='sk-ant-...'
-```
 
 ### ITOM.pdf Not Found
 

@@ -20,7 +20,6 @@ import importlib.util
 import json
 import sys
 from collections import Counter
-from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
 
@@ -56,18 +55,6 @@ def work_dir(work_id):
 
 def file_sha256(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
-
-
-@contextmanager
-def offline():
-    """No key and no consent while a step runs, so a provider call could not be made."""
-    settings = config_manager.system_config
-    saved = settings.anthropic_api_key, settings.allow_external_ai
-    settings.anthropic_api_key, settings.allow_external_ai = "", False
-    try:
-        yield
-    finally:
-        settings.anthropic_api_key, settings.allow_external_ai = saved
 
 
 def _load(work_id):
@@ -128,9 +115,8 @@ def check(work_id):
     _require(path / "excerpts.json", "reema-reviewer")
     consistency = _consistency(path, request)
     complete = consistency is None or consistency.is_file()
-    with offline():
-        review = asyncio.run(FileReviewWorker(path / "excerpts.json", consistency,
-                                              excerpts_only=not complete).review_existing(source.content))
+    review = asyncio.run(FileReviewWorker(path / "excerpts.json", consistency,
+                                          excerpts_only=not complete).review_existing(source.content))
     if request["consistency_pass"]:
         excerpts = json.loads((path / "excerpts.json").read_text(encoding="utf-8"))
         _write(path / "consistency_request.json", {
@@ -155,7 +141,7 @@ def finish(work_id):
     if consistency is not None:
         _require(consistency, "reema-consistency-reviewer")
     before = file_sha256(source.path)
-    leader = LeaderAgent(api_key="")
+    leader = LeaderAgent()
     leader.register_worker("ReviewAgent", FileReviewWorker(path / "excerpts.json", consistency))
 
     async def run():
@@ -164,8 +150,7 @@ def finish(work_id):
         finally:
             await leader.close()
 
-    with offline():
-        findings = asyncio.run(run())
+    findings = asyncio.run(run())
     run_dir = Path(leader.context["run_dir"])
     after = file_sha256(source.path)
     if after != before:

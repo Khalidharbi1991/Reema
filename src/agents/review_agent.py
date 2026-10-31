@@ -1,6 +1,6 @@
 """Faisal (Review & Quality Agent) - Validates and ensures content quality."""
 
-from typing import Dict, List, Optional
+from typing import Dict, List
 from .base_agent import BaseAgent
 from ..utils.logger import logger
 from ..utils.config import config_manager
@@ -28,7 +28,6 @@ class ReviewAgent(BaseAgent):
     AGENT_ROLE = "Review & Quality Agent"
     CONFIG_KEY = "review_agent"
     KNOWLEDGE_FILE = "faisal_review_knowledge_ENHANCED.md"
-    DEFAULT_MAX_TOKENS = 4096
     # Shared with scripts/claude_code_review.py, so the API and Claude Code reviews get the same brief.
     EXISTING_SOP_INSTRUCTIONS = (
         "This is a finished SOP already in use. Find only real problems, each tied to one section: "
@@ -39,8 +38,8 @@ class ReviewAgent(BaseAgent):
         "unless the quote repeats. Give an actionable correction. Critical and major issues block use. "
         "Never invent a location or claim compliance.")
 
-    def __init__(self, api_key: Optional[str] = None):
-        super().__init__(api_key)
+    def __init__(self):
+        super().__init__()
 
         # Alias for backward compatibility
         self.review_knowledge = self.knowledge_base
@@ -89,7 +88,7 @@ class ReviewAgent(BaseAgent):
                   "Return only the JSON object, with no text before or after it, matching:\n"
                   + json.dumps(CorrectionAssessment.model_json_schema())
                   + "\nCORRECTION DATA:\n" + json.dumps(data))
-        response = await self._call_claude([{"role": "user", "content": prompt}], system=self._build_system_prompt())
+        response = await self._reply([{"role": "user", "content": prompt}], system=self._build_system_prompt())
         try:
             parsed = (parse_fenced_json_response if finished_sop else parse_json_response)(response, CorrectionAssessment)
         except ValueError as error:

@@ -12,17 +12,11 @@ def deny_live_http(monkeypatch):
     """The test suite cannot send model prompts or other HTTP requests."""
     import httpx
     def denied(*args, **kwargs):
-        raise AssertionError("Live HTTP is forbidden in tests; use a fake provider")
+        raise AssertionError("Live HTTP is forbidden in tests")
     async def denied_async(*args, **kwargs):
-        raise AssertionError("Live HTTP is forbidden in tests; use a fake provider")
+        raise AssertionError("Live HTTP is forbidden in tests")
     monkeypatch.setattr(httpx.Client, "send", denied)
     monkeypatch.setattr(httpx.AsyncClient, "send", denied_async)
-
-
-@pytest.fixture
-def mock_api_key():
-    """Provide a test API key."""
-    return "test-api-key-12345"
 
 
 @pytest.fixture
@@ -53,14 +47,11 @@ def temp_knowledge_dir(tmp_path):
 def mock_config(tmp_path, temp_knowledge_dir):
     """Mock the config_manager with temp directories."""
     mock_system_config = MagicMock()
-    mock_system_config.anthropic_api_key = "test-api-key"
     mock_system_config.project_root = tmp_path
     mock_system_config.output_dir = tmp_path / "output"
     mock_system_config.config_dir = tmp_path / "config"
     mock_system_config.templates_dir = tmp_path / "templates"
     mock_system_config.knowledge_dir = temp_knowledge_dir
-    mock_system_config.leader_model = "claude-sonnet-4-6"
-    mock_system_config.worker_model = "claude-sonnet-4-6"
     mock_system_config.default_formats = ["pdf", "docx", "markdown", "html"]
     mock_system_config.page_target = (15, 30)
 
@@ -69,9 +60,6 @@ def mock_config(tmp_path, temp_knowledge_dir):
     mock_cm.get_agent_config.return_value = {
         "name": "TestAgent",
         "role": "Test Role",
-        "model": "claude-sonnet-4-6",
-        "max_tokens": 4096,
-        "temperature": 0.5,
     }
     mock_cm.get_process_definition.return_value = {
         "name": "Incident Management",
@@ -84,16 +72,6 @@ def mock_config(tmp_path, temp_knowledge_dir):
     }
 
     return mock_cm
-
-
-@pytest.fixture
-def mock_anthropic_client():
-    """Mock the Anthropic client to avoid real API calls."""
-    mock_client = MagicMock()
-    mock_response = MagicMock()
-    mock_response.content = [MagicMock(text="## Test Response\n\nThis is a test response from Claude.")]
-    mock_client.messages.create.return_value = mock_response
-    return mock_client
 
 
 @pytest.fixture

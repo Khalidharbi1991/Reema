@@ -4,7 +4,7 @@ import json
 import shutil
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 from typer.testing import CliRunner
@@ -22,8 +22,7 @@ def catalog(tmp_path, monkeypatch):
     shutil.copytree(ROOT / "config", tmp_path / "config")
     settings = SystemConfig(
         _env_file=None, project_root=tmp_path, config_dir=tmp_path / "config",
-        output_dir=tmp_path / "output", anthropic_api_key="test-key",
-        allow_external_ai=True,
+        output_dir=tmp_path / "output",
     )
     return ConfigManager(settings)
 
@@ -33,7 +32,7 @@ def pipeline(catalog, monkeypatch, sample_sop_content):
     from src.agents import leader_agent, format_agent
     monkeypatch.setattr(leader_agent, "config_manager", catalog)
     monkeypatch.setattr(format_agent, "config_manager", catalog)
-    leader = leader_agent.LeaderAgent(api_key="test-key")
+    leader = leader_agent.LeaderAgent()
     workers = {
         "ResearchAgent": SimpleNamespace(research_process=AsyncMock(return_value={"raw_research": "Research"})),
         "StandardsAgent": SimpleNamespace(analyze_compliance=AsyncMock(return_value={"compliance_analysis": "Analysis"})),
@@ -221,14 +220,12 @@ async def test_docx_retains_sections_between_horizontal_rules(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_external_ai_denied_before_client_call(monkeypatch):
+async def test_an_agent_without_a_claude_code_file_makes_no_model_call():
     from src.agents import base_agent
-    agent = base_agent.BaseAgent(api_key="")
-    agent.client = MagicMock()
-    monkeypatch.setattr(base_agent.config_manager.system_config, "allow_external_ai", False)
-    with pytest.raises(PermissionError):
-        await agent._call_claude([{"role": "user", "content": "Sensitive input"}])
-    agent.client.messages.create.assert_not_called()
+    agent = base_agent.BaseAgent()
+    assert not hasattr(agent, "client")
+    with pytest.raises(RuntimeError, match="no model call"):
+        await agent._reply([{"role": "user", "content": "Sensitive input"}])
 
 
 @pytest.mark.parametrize("args", [

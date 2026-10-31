@@ -21,11 +21,6 @@ class AgentConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     name: str = Field(min_length=1)
     role: str = Field(min_length=1)
-    model: str | None = None
-    max_tokens: int = Field(default=4096, gt=0)
-    temperature: float | None = Field(default=None, ge=0, le=1)
-    # Per-attempt deadline for this role; must stay under the SDK's 10-minute non-streaming limit.
-    timeout_seconds: float | None = Field(default=None, gt=0, le=600)
     specialization: List[str] = Field(default_factory=list)
     quality_threshold: int = Field(default=85, ge=0, le=100)
     min_quality_for_delivery: int = Field(default=85, ge=0, le=100)
@@ -49,8 +44,8 @@ class ProcessConfig(BaseModel):
 
 
 class SystemConfig(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
-    anthropic_api_key: str = Field(default="", repr=False)
+    # Unknown entries are ignored, so an old .env with removed model settings still loads.
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
     project_root: Path = Field(default_factory=lambda: PACKAGE_ROOT if SOURCE_CHECKOUT else Path.cwd())
     output_dir: Path = Field(
         default=Path("output"),
@@ -63,22 +58,12 @@ class SystemConfig(BaseSettings):
     log_dir: Path = Path("logs")
     task_data_dir: Path = Path("output/assistant")
     user_timezone: str = "Asia/Riyadh"
-    leader_model: str = "claude-sonnet-4-6"
-    worker_model: str = "claude-sonnet-4-6"
-    max_concurrent_agents: int = Field(default=5, gt=0)
     default_formats: List[OutputFormat] = Field(
         default_factory=lambda: ["pdf", "docx", "markdown", "html"], min_length=1
     )
     page_target: tuple[int, int] = (15, 30)
-    allow_external_ai: bool = False
-    api_timeout_seconds: float = Field(default=120, gt=0)
-    api_max_retries: int = Field(default=2, ge=0, le=5)
-    retry_backoff_seconds: float = Field(default=1, ge=0, le=30)
-    max_run_tokens: int = Field(default=1_000_000, gt=0)
-    max_prompt_chars: int = Field(default=200_000, gt=0)
     review_chunk_chars: int = Field(default=24_000, ge=1000, le=100_000)
     knowledge_context_chars: int = Field(default=12_000, ge=1000, le=50_000)
-    model_prices: Dict[str, tuple[float, float]] = Field(default_factory=dict)
     reference_manifest: Path = Path("references/manifest.yaml")
     enforce_page_target: bool = False
 
@@ -93,8 +78,6 @@ class SystemConfig(BaseSettings):
                 setattr(self, name, base / value)
         if not 0 < self.page_target[0] <= self.page_target[1]:
             raise ValueError("page_target must be a positive, ordered range")
-        if any(min(rates) < 0 for rates in self.model_prices.values()):
-            raise ValueError("Model prices must be nonnegative USD per million tokens")
         try:
             ZoneInfo(self.user_timezone)
         except ZoneInfoNotFoundError as error:
@@ -190,12 +173,6 @@ class ConfigManager:
     def get_standards_for_process(self, process_name: str) -> list:
         key = self._process_aliases.get(normalize_process_name(process_name))
         return self.standards_mapping.get(key, [])
-
-
-def selected_model(settings, agent_config, *, leader=False):
-    """Explicit role model wins; otherwise respect the configured family override."""
-    role_model = agent_config.get('model')
-    return role_model if isinstance(role_model, str) and role_model.strip() else (settings.leader_model if leader else settings.worker_model)
 
 
 config_manager = ConfigManager()

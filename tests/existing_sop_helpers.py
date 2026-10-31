@@ -93,7 +93,7 @@ def issue(section_id, quote, *, category="vague", severity="major", description=
 
 def _mocked(worker, reply):
     from unittest.mock import AsyncMock
-    worker._call_claude = AsyncMock(side_effect=reply if callable(reply) or isinstance(reply, list) else [reply])
+    worker._reply = AsyncMock(side_effect=reply if callable(reply) or isinstance(reply, list) else [reply])
     return worker
 
 

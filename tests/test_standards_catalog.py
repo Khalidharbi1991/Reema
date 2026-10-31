@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def catalog(tmp_path):
     shutil.copytree(ROOT / "config", tmp_path / "config")
     return ConfigManager(SystemConfig(_env_file=None, project_root=tmp_path, config_dir=tmp_path / "config",
-                                      output_dir=tmp_path / "output", anthropic_api_key=""))
+                                      output_dir=tmp_path / "output"))
 
 
 def test_iso_27001_uses_the_2022_edition(catalog):

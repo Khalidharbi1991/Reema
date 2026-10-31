@@ -17,12 +17,11 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
-from typing import Dict, List, Optional
+from typing import Dict, List
 from ..utils.logger import logger
-from ..utils.config import config_manager, normalize_process_name, selected_model
+from ..utils.config import config_manager, normalize_process_name
 from ..utils.approvals import create_pending_record
 from ..utils.validation import validate_formats, validate_sop, validate_output_files
-from ..utils.provider import RunRuntime, current_runtime
 from ..utils.runs import RunStore, load_ready
 from ..utils.quality import validate_quality, UnparsedReplyError
 from ..utils.handoffs import adapt_handoff, ReviewResult
@@ -69,10 +68,8 @@ class LeaderAgent:
     - Leads the SOP jobs only; Ahmad is the main Claude Code session
     """
 
-    def __init__(self, api_key: Optional[str] = None):
-        # api_key is accepted for compatibility; model calls are made by the workers.
+    def __init__(self):
         self.name = "Abdullah"
-        self.model = selected_model(config_manager.system_config, config_manager.get_agent_config('leader_agent'), leader=True)
         guidance = config_manager.get_agent_config("leader_agent").get("specialization", [])
         self.strategic_guidance = guidance if isinstance(guidance, list) else []
 
@@ -131,10 +128,9 @@ class LeaderAgent:
         self._save_task_status()
 
     def _record_handoff(self, process_name, producer, stage, payload, *, text_key=None):
-        runtime = current_runtime.get()
         try:
             handoff = adapt_handoff(process_name, producer, stage, payload, text_key=text_key,
-                                    sources=runtime.sources if runtime else None)
+                                    sources=self.context.get("sources"))
         except ValueError:
             # Validation errors can contain the full private input; expose field guidance only.
             raise ValueError(f"Invalid {stage} handoff from {producer}; check {text_key or 'result fields'}, "
@@ -227,11 +223,9 @@ class LeaderAgent:
         self.context["run_dir"] = str(run_dir)
         original_output_dir = formatter.output_dir
         formatter.output_dir = run_dir
-        # External AI stays off, so any provider call would be refused.
-        runtime = RunRuntime(config_manager.system_config.model_copy(update={"allow_external_ai": False}))
-        runtime.sources = {record["id"]: {key: value for key, value in record.items() if key != "text"}
-                           for record in evidence or []}
-        token = current_runtime.set(runtime)
+        # The run's source record: the excerpts the writer was given, without their text.
+        sources = {record["id"]: {key: value for key, value in record.items() if key != "text"} for record in evidence or []}
+        self.context["sources"] = sources
         store = None
         self._begin_workflow(process_name, ["planning", "content", "checks", "formatting", "human_review_record"])
         try:
@@ -244,18 +238,18 @@ class LeaderAgent:
                 self.context["control_register"] = register.model_dump()
                 if request.specialist_inputs:
                     workflow["specialist_checks"] = specialist_checks(
-                        request.specialist_inputs, runtime.sources, config_manager.specialist_policy)
+                        request.specialist_inputs, sources, config_manager.specialist_policy)
                 store.save("planned", workflow)
             async with self._phase("content"):
                 content = await self._invoke("content", {"process_name": process_name, "research_data": {
                     "standards": {"control_register": self.context["control_register"]}}})
                 if endpoint_appendix is not None:
                     content += "\n\n" + self._format_euc_section(endpoint_appendix, process_name)
-                store.save("generated", {"content": content, "sources": runtime.sources})
+                store.save("generated", {"content": content, "sources": sources})
             async with self._phase("checks"):
-                quality = self.check_draft(content, workflow["applicable_standards"], runtime.sources, register)
+                quality = self.check_draft(content, workflow["applicable_standards"], sources, register)
                 self.context["quality"] = quality
-                store.save("ready", {"content": content, "review": None, "sources": runtime.sources,
+                store.save("ready", {"content": content, "review": None, "sources": sources,
                                      "standards": workflow["applicable_standards"], "quality": quality,
                                      "control_register": self.context["control_register"],
                                      "document_profile": config_manager.document_profile.model_dump()})
@@ -263,22 +257,21 @@ class LeaderAgent:
                 output_files = await self._coordinate_formatting(content, output_formats, process_name)
                 validate_output_files(output_files, output_formats)
                 self._check_page_count(output_files, quality)
-                store.save("exported", {"outputs": output_files, "quality": quality, "sources": runtime.sources,
+                store.save("exported", {"outputs": output_files, "quality": quality, "sources": sources,
                                         "export_checks": getattr(formatter, "last_export_checks", {})})
             async with self._phase("human_review_record"):
                 self.context["delivery"] = await self._coordinate_delivery(process_name, output_files)
             self._finish_workflow("awaiting_human_approval")
-            store.finish("awaiting_human_approval", runtime.summary())
+            store.finish("awaiting_human_approval")
             return output_files
         except BaseException as error:
             self._finish_workflow("cancelled" if isinstance(error, asyncio.CancelledError) else "failed")
             if store:
-                store.finish(self.workflow_status, runtime.summary(), type(error).__name__)
+                store.finish(self.workflow_status, type(error).__name__)
             raise
         finally:
             if store:
                 store.close()
-            current_runtime.reset(token)
             formatter.output_dir = original_output_dir
             self._task_store = None
 
@@ -354,11 +347,11 @@ class LeaderAgent:
             async with self._phase("human_review_record"):
                 self.context["delivery"] = await self._coordinate_delivery(state["process_name"], outputs)
             self._finish_workflow("awaiting_human_approval")
-            store.finish("awaiting_human_approval", {"calls": [], "accounted_tokens": 0})
+            store.finish("awaiting_human_approval")
             return outputs
         except BaseException as error:
             self._finish_workflow("cancelled" if isinstance(error, asyncio.CancelledError) else "failed")
-            store.finish(self.workflow_status, {"calls": []}, type(error).__name__)
+            store.finish(self.workflow_status, type(error).__name__)
             raise
         finally:
             store.close()
@@ -524,7 +517,7 @@ class LeaderAgent:
 
         local_only=True runs the template-gap check alone. Otherwise local_author=True is required:
         the assessments come from files written in a Claude Code session (src/agents/file_workers.py),
-        and no provider call is made.
+        and no model call is made.
         """
         from ..utils.existing_sops import template_gaps, findings_markdown, require_unique_sections, duplicate_sections
         if self.workflow_status == "running":
@@ -542,11 +535,7 @@ class LeaderAgent:
         run_dir = config_manager.system_config.output_dir / "runs" / uuid4().hex
         self.context = {"run_dir": str(run_dir), "job": "review", "source_path": str(source.path)}
         self._begin_workflow(source.path.name, ["template_check", *([] if local_only else ["review"]), "findings_record"])
-        # External AI stays off, so any provider call would be refused.
-        runtime = None if local_only else RunRuntime(config_manager.system_config.model_copy(update={"allow_external_ai": False}))
-        token = current_runtime.set(runtime)
         store = None
-        summary = lambda: runtime.summary() if runtime else {"calls": [], "accounted_tokens": 0}
         try:
             store = RunStore(run_dir, source.path.name, [])
             self._task_store = store
@@ -572,18 +561,17 @@ class LeaderAgent:
                 store.save("findings", findings)
                 (run_dir / "findings.md").write_text(findings_markdown(findings), encoding="utf-8")
             self._finish_workflow("review_complete")
-            store.finish("review_complete", summary())
+            store.finish("review_complete")
             self.context["findings"] = findings
             return findings
         except BaseException as e:
             self._finish_workflow("cancelled" if isinstance(e, asyncio.CancelledError) else "failed")
             if store:
-                store.finish("cancelled" if isinstance(e, asyncio.CancelledError) else "failed", summary(), type(e).__name__)
+                store.finish("cancelled" if isinstance(e, asyncio.CancelledError) else "failed", type(e).__name__)
             raise
         finally:
             if store:
                 store.close()
-            current_runtime.reset(token)
             self._task_store = None
 
     async def revise_existing(self, source, findings, *, origin=None, local_author=False, major=False) -> Dict[str, str]:
@@ -591,7 +579,7 @@ class LeaderAgent:
 
         Only the sections named by the findings may change; the source file is never written.
         local_author=True is required: the patch and recheck come from files written in a Claude Code
-        session (src/agents/file_workers.py), and no provider call is made.
+        session (src/agents/file_workers.py), and no model call is made.
         The draft is named with the next version (X_V2 -> X_V2.1; major=True -> X_V3.0). Only the
         file name carries it: Document Control inside the document is left for the reviewer.
         """
@@ -615,9 +603,6 @@ class LeaderAgent:
         run_dir = config_manager.system_config.output_dir / "runs" / uuid4().hex
         self.context = {"run_dir": str(run_dir), "job": "revise", "source_path": str(source.path)}
         self._begin_workflow(source.path.name, ["revision", "recheck", "formatting", "human_review_record"])
-        # External AI stays off, so any provider call would be refused.
-        runtime = RunRuntime(config_manager.system_config.model_copy(update={"allow_external_ai": False}))
-        token = current_runtime.set(runtime)
         store = None
         try:
             formats = ["markdown", "docx"] if source.kind == "docx" else ["markdown"]
@@ -676,7 +661,7 @@ class LeaderAgent:
                 self.context["delivery"] = {"output_files": outputs, "approval_record": str(record_path),
                                             "delivery_status": "awaiting_human_approval", "quality_score": score}
             self._finish_workflow("awaiting_human_approval")
-            store.finish("awaiting_human_approval", runtime.summary())
+            store.finish("awaiting_human_approval")
             if source.sha256 != hashlib.sha256(source.path.read_bytes()).hexdigest():
                 logger.warning("The original SOP changed on disk during the revision", agent=self.name)
             return outputs
@@ -690,12 +675,11 @@ class LeaderAgent:
                 store.state["unparsed_reply"] = path.name
                 self.context["unparsed_reply"] = str(path)
             if store:
-                store.finish("cancelled" if isinstance(e, asyncio.CancelledError) else "failed", runtime.summary(), type(e).__name__)
+                store.finish("cancelled" if isinstance(e, asyncio.CancelledError) else "failed", type(e).__name__)
             raise
         finally:
             if store:
                 store.close()
-            current_runtime.reset(token)
             self._task_store = None
 
     def get_status(self) -> Dict:

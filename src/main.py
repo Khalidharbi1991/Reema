@@ -39,7 +39,7 @@ app.add_typer(drawing_app, name="drawing")
 def drawing_inspect(path: Path = typer.Argument(..., help="Local AutoCAD DWG drawing")):
     """Identify a DWG locally; this does not extract geometry or create a model."""
     try:
-        report = BuildingDesignAgent(api_key="").inspect_drawing(path)
+        report = BuildingDesignAgent().inspect_drawing(path)
         console.print(f"Agent 9 recognized {report['filename']} as an AutoCAD DWG drawing.", markup=False)
         console.print("This intake check did not extract geometry or create a 3D model.")
     except (ValueError, OSError) as error:
@@ -61,7 +61,7 @@ def drawing_concept(
 ):
     """Create a concept wall mesh for one selected DXF area; not a full BIM model."""
     try:
-        result = BuildingDesignAgent(api_key="").create_concept_model(
+        result = BuildingDesignAgent().create_concept_model(
             path, output_dir, (xmin, ymin, xmax, ymax),
             wall_height=wall_height, design_spec=design_spec, source_units=source_units)
         console.print(f"Concept model: {result['obj_path']}", markup=False)
@@ -79,7 +79,7 @@ def drawing_concept(
 def _task_agent(area: str):
     if area not in AREAS:
         raise ValueError("Area must be work or personal")
-    return SecretaryAgent(api_key="")
+    return SecretaryAgent()
 
 
 def _task_table(records):
@@ -329,7 +329,7 @@ def generate(
 
 def _export(run: Path, formats: Optional[List[str]], output_dir: Optional[Path]):
     async def execute():
-        leader = LeaderAgent(api_key="")
+        leader = LeaderAgent()
         leader.register_worker("FormatAgent", FormatAgent())
         try:
             outputs = await leader.export_run(run, formats)
@@ -388,7 +388,7 @@ def review(
         console.print(str(error), markup=False)
         raise typer.Exit(code=2)
     settings = config_manager.system_config
-    leader = LeaderAgent(api_key="")
+    leader = LeaderAgent()
     previous_output = settings.output_dir
     try:
         if output_dir is not None:
@@ -552,25 +552,18 @@ def status():
     """Show system status and configuration."""
     console.print("\n[bold cyan]📊 System Status:[/bold cyan]\n")
 
-    # Check API key
-    api_key_status = "✓ Configured" if config_manager.system_config.anthropic_api_key else "❌ Not set"
-
     table = Table(show_header=False)
     table.add_column("Setting", style="cyan")
     table.add_column("Value", style="green")
 
-    table.add_row("API Key", api_key_status)
-    table.add_row("External AI permission", "Enabled" if config_manager.system_config.allow_external_ai else "Disabled (explicit authorization required)")
+    table.add_row("Model calls", "None: Claude Code writes the text")
     table.add_row("Final approval", "Human decision required for each run")
     table.add_row("Reference permission manifest", str(config_manager.system_config.reference_manifest))
-    table.add_row("API timeout / retries", f"{config_manager.system_config.api_timeout_seconds}s / {config_manager.system_config.api_max_retries}")
     table.add_row("Project Root", str(config_manager.system_config.project_root))
     table.add_row("Output Directory", str(config_manager.system_config.output_dir))
     table.add_row("Knowledge Directory", str(config_manager.system_config.knowledge_dir))
     table.add_row("References Directory", str(config_manager.system_config.references_dir))
-    table.add_row("Leader Model", config_manager.system_config.leader_model)
-    table.add_row("Worker Model", config_manager.system_config.worker_model)
-    table.add_row("Generation agents", "Leader + 5 core workers + process-selected specialists")
+    table.add_row("Generation", "reema generate prepares; Claude Code writes; REEMA checks, exports and records")
     table.add_row("Personal coordination", "Ahmad; local work and personal task lists")
     table.add_row("Conversation", "Ahmad in Claude Code; task, memory and find-sop run locally here")
 

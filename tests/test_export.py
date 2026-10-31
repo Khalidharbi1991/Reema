@@ -1,4 +1,4 @@
-"""Offline export of a run's ready checkpoint (`reema export`), and old runs that must still load. No provider calls."""
+"""Offline export of a run's ready checkpoint (`reema export`), and old runs that must still load. No model calls."""
 
 import hashlib
 import json
@@ -13,7 +13,7 @@ from src.main import app
 from src.utils.approvals import create_pending_record, read_record, record_decision
 from src.utils.config import config_manager
 from src.utils.publish import plan_publish, publish
-from tests.test_claude_code_generate import ccg, no_provider, output_root, prepared, write_sections  # noqa: F401
+from tests.test_claude_code_generate import ccg, no_model_call, output_root, prepared, write_sections  # noqa: F401
 
 
 def generated_run():
@@ -24,8 +24,8 @@ def generated_run():
 
 def export(run, formats=None):
     import asyncio
-    leader = LeaderAgent(api_key="")
-    leader.register_worker("FormatAgent", FormatAgent(api_key=""))
+    leader = LeaderAgent()
+    leader.register_worker("FormatAgent", FormatAgent())
     outputs = asyncio.run(leader.export_run(run, formats))
     return outputs, Path(leader.context["run_dir"])
 
@@ -48,20 +48,20 @@ def old_api_run(root, sop, score=92):
     return run
 
 
-def test_a_claude_code_run_exports_again_through_every_local_check(output_root, no_provider):
+def test_a_claude_code_run_exports_again_through_every_local_check(output_root, no_model_call):
     source = generated_run()
     before = (source / "run.json").read_bytes()
     outputs, run = export(source, ["markdown", "html"])
     assert set(outputs) == {"markdown", "html"} and run != source
     state = json.loads((run / "run.json").read_text())
     assert (state["job"], state["status"], state["authoring"]) == ("export", "awaiting_human_approval", "claude_code_session")
-    assert state["exported_from"] == str(source.resolve()) and state["usage"]["calls"] == []
+    assert state["exported_from"] == str(source.resolve()) and "usage" not in state
     record = read_record(run / "approval.json")
     assert record.status == "awaiting_human_approval" and record.quality_score is None
     assert (source / "run.json").read_bytes() == before
 
 
-def test_a_changed_or_unreviewed_checkpoint_is_refused(output_root, no_provider):
+def test_a_changed_or_unreviewed_checkpoint_is_refused(output_root, no_model_call):
     source = generated_run()
     state = json.loads((source / "run.json").read_text())
     del state["authoring"]
@@ -83,7 +83,7 @@ def test_an_old_api_run_still_exports_with_its_review_gate(output_root, sample_s
         export(low)
 
 
-def test_cli_export_and_its_old_name(output_root, no_provider):
+def test_cli_export_and_its_old_name(output_root, no_model_call):
     source = generated_run()
     runner = CliRunner()
     for command in ("export", "resume"):
@@ -119,13 +119,13 @@ def test_old_review_runs_with_usage_still_feed_a_revision(output_root, tmp_path)
     import asyncio
     path = tmp_path / "sop.md"
     path.write_text(template_sop())
-    leader = LeaderAgent(api_key="")
+    leader = LeaderAgent()
     leader.register_worker("ReviewAgent", stand_in_review(assessment(issue("sec-tools", "ServiceNow version 2019."))))
     asyncio.run(leader.review_existing(load_sop(path), local_author=True))
     run = Path(leader.context["run_dir"])
     state = json.loads((run / "run.json").read_text())
     state.pop("authoring")
-    state["usage"].update(lineage=[{"run": "/old"}], inherited_accounted_tokens=5)
+    state["usage"] = {"accounted_tokens": 5, "lineage": [{"run": "/old"}], "inherited_accounted_tokens": 5}
     (run / "run.json").write_text(json.dumps(state))
     assert len(review_findings(run, load_sop(path))) == 1
     assert config_manager.system_config.output_dir == output_root
