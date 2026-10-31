@@ -105,7 +105,7 @@ def test_ambiguous_catalog_alias_is_rejected(catalog):
         ConfigManager(catalog.system_config)
 
 
-def test_paths_follow_project_root_and_docker_env(tmp_path, monkeypatch):
+def test_paths_follow_project_root_and_environment(tmp_path, monkeypatch):
     monkeypatch.setenv("REEMA_OUTPUT_DIR", str(tmp_path / "container-output"))
     monkeypatch.delenv("OUTPUT_DIR", raising=False)
     settings = SystemConfig(_env_file=None, project_root=tmp_path)
