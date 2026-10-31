@@ -1,605 +1,118 @@
 # System Architecture
 
-> Names (2026-10-30): older diagrams below use retired persona names. Taif is
-> Agent 1, Mohammad Agent 2, Saad Agent 3, Faisal Agent 4 and Bee Agent 5;
-> setup now uses `python3 scripts/dev.py` (see [README](../../README.md)).
+REEMA is a local Python CLI for Khalid's IT company. Since the no-API migration
+(2026-10-30/31) it makes no model call: a Claude Code session writes the text through
+skills and subagents, and REEMA's code plans, checks, exports and records it for
+human approval. `AGENTS.md` wins where this page and it disagree. Earlier versions
+(an Anthropic-backed asynchronous pipeline with research, enrichment, review loops,
+advisory chat and model-phase recovery) are described in `docs/reports/` and
+`docs/archive/` as history.
 
-> Update (2026-10-29): Abdullah is no longer in the chat path. Ahmad consults the
-> selected specialists directly and answers strategy, budget and prioritization
-> requests himself; Abdullah leads only the SOP pipeline below. Where older notes
-> or diagrams say Abdullah coordinates chat consultations, this update wins. See
-> [Coordination and recovery](../guides/COORDINATION_AND_RECOVERY.md).
-
-> Package 5 (2026-10-16): Current coordination supports bounded Arabic/English
-> intent and optional consent-gated resolution. OS ownership, atomic signed run
-> snapshots and validated review chunks support crash recovery. Arabic/RTL graphs
-> and configured layouts have synthetic export QA. Specialist checks include
-> supplied IAM groups/drift/SoD, causal outcomes, working calendars/lineage and
-> explicit CAD units/transforms. Defaults are configurable Anthropic Sonnet 4.6.
-> See [the current guide](../guides/COMPLETION_AND_EVALUATION.md) and
-> [finite ledger](../reports/PENDING_LEDGER.md). The synthetic canonical-answer
-> benchmark verifies the harness; live quality remains separately authorized.
-
-> Package 4 (2026-10-16): A project-local locked launcher discovers native PDF
-> libraries. The specialist pipeline carries located claim freshness, supplied
-> IAM/incident evidence and deterministic metrics; CAD selection has bounded
-> geometry checks. See [Specialist checks](../guides/SPECIALIST_EVIDENCE_AND_CHECKS.md).
-
-> Package 3 (2026-10-15): The SOP flow carries a typed control register,
-> configured section inventory, located correction records and export checks.
-> See [Document quality](../guides/DOCUMENT_QUALITY.md) for contracts and limits.
-
-> Package 2 (2026-10-15): Ahmad now plans multiple advisory capabilities and
-> Abdullah coordinates them. Explicit session context is separate from verified
-> SOP execution recovery for failed/cancelled research/generation. See
-> [Coordination and recovery](../guides/COORDINATION_AND_RECOVERY.md) for current
-> behavior and limits; the older diagrams below do not describe the chat planner.
-
-> Update (2026-10-15): Specialist handoffs retain complete payloads and use
-> validated internal envelopes; leader phase status now reflects actual execution.
-> See [Handoffs and status](../guides/AGENT_HANDOFFS_AND_STATUS.md) and the
-> [package checkpoint](../reports/AGENT_IMPROVEMENTS_PACKAGE_1.md). The legacy
-> diagrams below are background, not a claim of multi-specialist chat planning
-> or a general persistent execution engine.
-
-> Current personal-assistant entry point: Ahmad coordinates `chat` and local
-> `task` commands; Abdullah leads the separate SOP specialist pipeline. See
-> [Personal assistant](../guides/PERSONAL_ASSISTANT.md). The older diagrams below
-> describe the documentation pipeline only.
-
-> Update (2026-09-29): Runtime calls now use an asynchronous provider boundary
-> with bounded requests and per-run accounting. Source permissions, full-document
-> review, and offline export recovery are described in
-> [Reliability and sources](../guides/RELIABILITY_AND_SOURCES.md). Use that guide
-> and the implementation for current operational behavior.
-
-> Current implementation (2026-09-28): The legacy design below predates explicit
-> external-AI authorization, process-selected specialists, and hash-bound pending
-> human approval records. AI owner/secretary roles do not grant approval or run in
-> the normal generation pipeline. See `../reports/PHASE_0_1_CHECKPOINT.md` and the
-> root README for current behavior.
-
-## REEMA - Multi-Agent IT Process Documentation System
-
----
-
-## High-Level Architecture
+## Overview
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                         USER CLI                              │
-│                    (Typer + Rich)                            │
-└────────────────────────┬─────────────────────────────────────┘
-                         │
-                         │ Command: generate "Process Name"
-                         ▼
-┌──────────────────────────────────────────────────────────────┐
-│                    ABDULLAH (LEADER)                          │
-│              (Orchestrator & Coordinator)                     │
-│                                                               │
-│  • Receives user requests                                    │
-│  • Plans workflow                                            │
-│  • Assigns tasks to workers                                  │
-│  • Coordinates agent communication                           │
-│  • Performs final QC                                         │
-│  • Assembles output                                          │
-└─────────┬────────────────────────────────────────────────────┘
-          │
-          │ Delegates to Worker Agents
-          │
-    ┌─────┴──────┬──────────┬──────────┬─────────┐
-    │            │          │          │         │
-    ▼            ▼          ▼          ▼         ▼
-┌────────┐  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐
-│ Taif   │  │Mohammad│ │  Saad  │ │ Faisal │ │  Bee   │
-│Research│  │Standards│ │Content │ │ Review │ │ Format │
-└────┬───┘  └───┬────┘ └───┬────┘ └───┬────┘ └───┬────┘
-     │          │          │          │          │
-     │          │          │          │          │
-     ▼          ▼          ▼          ▼          ▼
-┌────────────────────────────────────────────────────┐
-│              KNOWLEDGE BASE & RESOURCES             │
-├────────────────────────────────────────────────────┤
-│ • Manifest-authorized references                   │
-│ • ITIL v4 knowledge                                │
-│ • Standards mapping                                │
-│ • SOP templates                                    │
-│ • Configuration files                              │
-└────────────────────────────────────────────────────┘
-                         │
-                         ▼
-┌──────────────────────────────────────────────────────────────┐
-│                    OUTPUT GENERATION                          │
-├──────────────────────────────────────────────────────────────┤
-│  PDF Formatter    │  DOCX Formatter  │  MD Formatter  │  HTML │
-│  (WeasyPrint)     │  (python-docx)   │  (markdown2)   │ (Jinja2)│
-└──────────────────────────────────────────────────────────────┘
-                         │
-                         ▼
-                   output/ directory
-                ┌────────┴────────┐
-                │                 │
-            PDF/  DOCX/  MD/  HTML/
-```
-
----
-
-## Agent Workflow Diagram
-
-```
-START
-  │
+Khalid
+  │  plain words
   ▼
-┌──────────────────────────────────────┐
-│ User: "Generate Incident Management" │
-└──────────────┬───────────────────────┘
-               │
-               ▼
-        ┌─────────────┐
-        │  ABDULLAH   │
-        └──────┬──────┘
-               │
-               │ 1. Plan Workflow
-               │ 2. Get Process Definition
-               │ 3. Get Standards Mapping
-               │
-               ▼
-        ┌──────────────┐
-        │ PHASE 1:     │
-        │ RESEARCH     │
-        └──────┬───────┘
-               │
-        ┌──────┴──────┬─────────────┐
-        │             │             │
-        ▼             ▼             ▼
-   ┌─────────┐  ┌─────────┐  ┌─────────┐
-   │  Taif   │  │ Mohammad│  │ Manifest│
-   │(Research)│ │(Standards)│ │ sources │
-   │         │  │         │  │         │
-   │ Gathers │  │ Analyzes│  │ Extracts│
-   │ ITIL    │  │Compliance│  │Knowledge│
-   │ Info    │  │Req.     │  │         │
-   └────┬────┘  └────┬────┘  └────┬────┘
-        │            │            │
-        └────────────┴────────────┘
-                     │
-                     ▼
-             Research Data Bundle
-                     │
-                     ▼
-        ┌──────────────┐
-        │ PHASE 2:     │
-        │ CONTENT GEN  │
-        └──────┬───────┘
-               │
-               ▼
-        ┌──────────────┐
-        │     Saad     │
-        │  (Content)   │
-        │ • Generates  │
-        │   15-30 pages│
-        │ • Creates    │
-        │   11 sections│
-        │ • RACI matrix│
-        │ • Procedures │
-        │ • KPIs       │
-        └──────┬───────┘
-               │
-               ▼
-          Draft SOP (MD)
-               │
-               ▼
-        ┌──────────────┐
-        │ PHASE 3:     │
-        │ REVIEW       │
-        └──────┬───────┘
-               │
-               ▼
-        ┌──────────────┐
-        │    Faisal    │
-        │   (Review)   │
-        │ • Validates  │
-        │ • Scores     │
-        │ • Feedback   │
-        └──────┬───────┘
-               │
-        ┌──────┴──────┐
-        │             │
-    Score >= 85?    Score < 85?
-        │             │
-        ▼             ▼
-    APPROVED    ┌──────────┐
-        │       │ Refine   │
-        │       │ Content  │
-        │       └────┬─────┘
-        │            │
-        │            │ Loop back
-        └────────────┘
-               │
-               ▼
-        Approved Content
-               │
-               ▼
-        ┌──────────────┐
-        │ PHASE 4:     │
-        │ FORMATTING   │
-        └──────┬───────┘
-               │
-               ▼
-        ┌──────────────┐
-        │     Bee      │
-        │   (Format)   │
-        └──────┬───────┘
-               │
-        ┌──────┴──────┬──────────┬─────────┐
-        │             │          │         │
-        ▼             ▼          ▼         ▼
-    ┌───────┐   ┌───────┐  ┌───────┐ ┌───────┐
-    │  PDF  │   │ DOCX  │  │  MD   │ │ HTML  │
-    │Formatter│ │Formatter││Formatter││Formatter│
-    └───┬───┘   └───┬───┘  └───┬───┘ └───┬───┘
-        │           │          │         │
-        ▼           ▼          ▼         ▼
-    .pdf       .docx        .md       .html
-        │           │          │         │
-        └───────────┴──────────┴─────────┘
-                     │
-                     ▼
-        ┌──────────────────────┐
-        │ Leader: Final Check  │
-        └──────────┬───────────┘
-                   │
-                   ▼
-        ┌──────────────────────┐
-        │  Return File Paths   │
-        │  Display Results     │
-        └──────────┬───────────┘
-                   │
-                   ▼
-                  END
+Claude Code session = Ahmad (coordinator)              .claude/skills, .claude/agents
+  ├─ abdullah-docs ─┬─ reema-generate ─ reema-writer (+ reema-agent10-euc appendix)
+  │                 ├─ reema-review  ─ reema-reviewer, reema-consistency-reviewer
+  │                 └─ reema-revise  ─ reema-reviser, reema-rechecker
+  ├─ reema-agent9-design, reema-agent10-euc (advice)
+  └─ local commands: task, memory, find-sop, drawing
+         │
+         │  writes JSON / Markdown under output/claude_code/<id>/
+         ▼
+REEMA (Python, no model call, no network)
+  prepare → request file (plan, skeleton, rules, approved excerpts)
+  check   → file-backed workers through the existing gates
+  finish  → LeaderAgent job → checks → FormatAgent export → approval.json (pending)
+         │
+         ▼
+output/runs/<run-id>/  ──  reema approve / reject (human)  ──  publish into output/
 ```
 
----
+Subagents have only Read and Write tools and cannot call each other, so Ahmad routes
+everything. Every prepare step that copies document text needs Khalid's yes as a
+`--confirm-read` token for those exact files (`src/utils/read_gate.py`), plus the
+reference manifest for anything under `references/`.
 
-## Data Flow Architecture
+## Jobs
 
-```
-┌──────────────┐
-│ User Request │
-└──────┬───────┘
-       │
-       ▼
-┌──────────────────────────────────┐
-│ Abdullah (Leader)                │
-│ • process_name: str              │
-│ • output_formats: List[str]      │
-└──────┬───────────────────────────┘
-       │
-       ├─────────────────────────────────────┐
-       │                                     │
-       ▼                                     ▼
-┌──────────────┐                  ┌──────────────┐
-│ Taif         │                  │ Mohammad     │
-│ (Research)   │                  │ (Standards)  │
-└──────┬───────┘                  └──────┬───────┘
-       │                                  │
-       ▼                                  ▼
-┌──────────────────┐            ┌─────────────────┐
-│ research_data    │            │compliance_data  │
-│ • raw_research   │            │ • standards_map │
-│ • sections: {}   │            │ • requirements  │
-│ • timestamp      │            │ • checklist     │
-└──────┬───────────┘            └─────────┬───────┘
-       │                                  │
-       └──────────────┬───────────────────┘
-                      │
-                      ▼
-            ┌─────────────────────┐
-            │ Combined Research   │
-            │ Data Bundle         │
-            └──────────┬──────────┘
-                       │
-                       ▼
-            ┌──────────────────┐
-            │ Saad (Content)   │
-            └──────────┬───────┘
-                       │
-                       ▼
-            ┌──────────────────┐
-            │ Draft SOP        │
-            │ • Markdown format│
-            │ • 15-30 pages    │
-            │ • 11 sections    │
-            └──────────┬───────┘
-                       │
-                       ▼
-            ┌──────────────────┐
-            │ Faisal (Review)  │
-            └──────────┬───────┘
-                       │
-                       ▼
-            ┌──────────────────┐
-            │ Review Results   │
-            │ • quality_score  │
-            │ • issues: []     │
-            │ • feedback: []   │
-            └──────────┬───────┘
-                       │
-                Quality >= 85?
-                       │
-                       ▼ YES
-            ┌──────────────────┐
-            │ Bee (Format)     │
-            └──────────┬───────┘
-                       │
-            ┌──────────┴──────────┐
-            │                     │
-            ▼                     ▼
-    ┌──────────────┐      ┌──────────────┐
-    │ PDF Formatter│      │DOCX Formatter│
-    │ • HTML → PDF │      │ • MD → DOCX  │
-    │ • Styling    │      │ • Tables     │
-    │ • TOC        │      │ • Styles     │
-    └──────┬───────┘      └──────┬───────┘
-           │                     │
-           └──────────┬──────────┘
-                      │
-                      ▼
-            ┌──────────────────┐
-            │ Output Files     │
-            │ • pdf: path      │
-            │ • docx: path     │
-            │ • markdown: path │
-            │ • html: path     │
-            └──────────────────┘
-```
+| Job | Entry | Request file | Written by Claude Code | Leader method | Ends |
+| --- | --- | --- | --- | --- | --- |
+| Generate | `reema generate` or `scripts/claude_code_generate.py prepare` | `generate_request.json` | `sections/NN-<id>.md`, `appendices/endpoint.md` | `generate_local` | `awaiting_human_approval`, `quality_score` null |
+| Review | `scripts/claude_code_review.py prepare` | `review_request.json` | `excerpts.json`, `consistency.json` | `review_existing(local_author=True)` | `review_complete`, no approval record |
+| Revise | `scripts/claude_code_revise.py prepare` | `request.json` | `patch.json`, `recheck.json` | `revise_existing(local_author=True)` | `awaiting_human_approval` |
+| Template check | `reema review FILE` | — | — | `review_existing(local_only=True)` | `review_complete` |
+| Export | `reema export RUN` | — | — | `export_run` | `awaiting_human_approval` |
 
----
+The file-backed workers (`src/agents/file_workers.py`) subclass Agent 3 and Agent 4:
+`FileSectionWriter`, `FileReviewWorker`, `FilePatchWorker`, `FileRecheckWorker`. Each
+answers `BaseAgent._reply` from the files, so the original per-section loop, located
+review, section patch and recheck checks run unchanged. `BaseAgent._reply` itself
+raises: no other path supplies text.
 
-## Component Architecture
-
-### 1. Agent Layer
+## Components
 
 ```
-agents/
-├── leader_agent.py
-│   ├── LeaderAgent
-│   │   ├── __init__(api_key)
-│   │   ├── register_worker(name, agent)
-│   │   ├── generate_documentation(process, formats)
-│   │   ├── _plan_workflow()
-│   │   ├── _coordinate_research()
-│   │   ├── _coordinate_content_generation()
-│   │   ├── _coordinate_review()
-│   │   └── _coordinate_formatting()
-│   └── AgentTask
-│
-├── research_agent.py
-│   └── ResearchAgent
-│       ├── research_process(name, standards)
-│       ├── _build_research_prompt()
-│       ├── _parse_research_response()
-│       └── _call_claude()
-│
-├── standards_agent.py
-│   └── StandardsAgent
-│       ├── analyze_compliance(name, standards)
-│       ├── _build_compliance_prompt()
-│       └── _parse_compliance_response()
-│
-├── content_agent.py
-│   └── ContentAgent
-│       ├── generate_sop(name, research_data)
-│       ├── refine_content(content, feedback)
-│       └── _format_sop_document()
-│
-├── review_agent.py
-│   └── ReviewAgent
-│       ├── review_content(content)
-│       ├── _extract_quality_score()
-│       └── _extract_recommendations()
-│
-└── format_agent.py
-    └── FormatAgent
-        ├── convert_to_formats(content, formats)
-        └── _convert_to_format(content, type)
+src/
+├── main.py              CLI (Typer): generate, review, revise*, export, resume*, approve,
+│                        reject, publish, find-sop, task, memory, drawing, agents, status
+│                        (* hidden pointers/aliases; chat* points to Claude Code)
+├── generate_job.py      Claude Code generate: prepare, check, finish
+├── agents/
+│   ├── leader_agent.py  Abdullah: request/plan, check_draft, generate_local, review_existing,
+│   │                    revise_existing, export_run, phases and delivery
+│   ├── content_agent.py Agent 3: section loop, SECTION_RULES, revise_sections
+│   ├── review_agent.py  Agent 4: review brief, located review, recheck
+│   ├── format_agent.py  Agent 5: export to Markdown, HTML, DOCX, PDF
+│   ├── euc_agent.py     Agent 10: protocol (shared with its subagent), appendix outline/check
+│   ├── building_design_agent.py  Agent 9: DWG intake, DXF concept mesh
+│   ├── secretary_agent.py        Ahmad: local task store and communication log
+│   ├── file_workers.py  Claude Code file-backed workers
+│   └── base_agent.py    config, knowledge text, the _reply hook
+├── formatters/          Markdown, HTML, DOCX, PDF writers and shared theme
+├── knowledge/           curated knowledge files (source material), reference retrieval
+└── utils/
+    ├── config.py        settings (.env, unknown keys ignored) and YAML catalogs
+    ├── read_gate.py     confirm-read token and manifest check
+    ├── existing_sops.py finished-SOP intake, template gaps, findings, DOCX splice, find-sop
+    ├── documents.py     section map, SectionDraft/Patch, controls, located findings
+    ├── quality.py       quality report, structured parse, excerpt assessment
+    ├── specialists.py   IAM, problem case, metric checks (specialist_checks)
+    ├── runs.py          RunStore checkpoints, ready checkpoint loading
+    ├── ownership.py     RunLease lock on a run folder
+    ├── approvals.py     pending/decided approval records
+    ├── publish.py       publishing approved revisions, archiving older versions
+    └── tasks.py         local work/personal task and memory stores (SQLite)
+config/                  agent roles, processes, standards, document profile, specialist policy
+scripts/                 Claude Code job scripts, dev launcher, export and QA fixtures
+tests/                   offline tests; network blocked; strict no-API guard
 ```
 
-### 2. Formatter Layer
+Agents 1, 2, 6, 7 and 8 have no class; they remain roles in `config/agent_config.yaml`
+and their knowledge files remain in `src/knowledge/`.
 
-```
-formatters/
-├── pdf_formatter.py
-│   └── PDFFormatter
-│       ├── convert(content, path, name)
-│       └── _get_pdf_css()
-│
-├── docx_formatter.py
-│   └── DOCXFormatter
-│       ├── convert(content, path, name)
-│       ├── _setup_styles()
-│       ├── _add_title_page()
-│       └── _parse_markdown_to_docx()
-│
-├── markdown_formatter.py
-│   └── MarkdownFormatter
-│       └── convert(content, path, name)
-│
-└── html_formatter.py
-    └── HTMLFormatter
-        ├── convert(content, path, name)
-        └── _get_html_template()
-```
+## Data and storage
 
-### 3. Knowledge Layer
+- `references/` (ignored): customer sources; only manifest-allowed, hash-matching
+  files can be searched, and only after the confirm-read token.
+- `output/claude_code/<id>/` (ignored): a job's request and the subagents' files.
+- `output/runs/<run-id>/` (ignored): `run.json`, checkpoints, drafts, `approval.json`,
+  `publish.json`; locked while a job writes it.
+- `output/assistant/` (ignored): work and personal SQLite stores; not encrypted.
+- `output/archive/<run-id>/`: older versions moved aside when a revision is published.
 
-```
-knowledge/
-└── itom_parser.py
-    └── ITOMParser
-        ├── extract_knowledge()
-        ├── search_knowledge(query)
-        ├── _extract_with_pdfplumber()
-        └── _extract_with_pypdf2()
-```
+## Security boundaries
 
-### 4. Configuration Layer
-
-```
-config/
-├── agent_config.yaml
-│   ├── leader_agent: {model, tokens, temp}
-│   ├── research_agent: {specialization[]}
-│   ├── standards_agent: {specialization[]}
-│   └── ...
-│
-├── process_definitions.yaml
-│   ├── incident_management: {name, category, standards[], complexity}
-│   ├── change_management: {...}
-│   └── ...
-│
-└── standards_mapping.yaml
-    ├── incident_management: [ITIL, ISO 20000, ...]
-    └── ...
-```
-
-### 5. Utilities Layer
-
-```
-utils/
-├── config.py
-│   ├── SystemConfig (Pydantic model)
-│   ├── AgentConfig (Pydantic model)
-│   └── ConfigManager
-│       ├── load_configs()
-│       ├── get_agent_config()
-│       └── get_process_definition()
-│
-└── logger.py
-    └── AgentLogger
-        ├── info()
-        ├── error()
-        ├── agent_start()
-        └── agent_complete()
-```
-
----
-
-## Technology Stack Details
-
-```
-┌─────────────────────────────────────────┐
-│         Application Layer               │
-├─────────────────────────────────────────┤
-│ • Typer (CLI framework)                 │
-│ • Rich (Console UI)                     │
-│ • Asyncio (Concurrency)                 │
-└─────────────────────────────────────────┘
-                  │
-┌─────────────────────────────────────────┐
-│         Agent Layer                     │
-├─────────────────────────────────────────┤
-│ • Anthropic SDK (Claude API)            │
-│ • Custom Agent Classes                  │
-│ • Async/Await Pattern                   │
-└─────────────────────────────────────────┘
-                  │
-┌─────────────────────────────────────────┐
-│      Document Generation Layer          │
-├─────────────────────────────────────────┤
-│ • python-docx (Word)                    │
-│ • WeasyPrint (PDF)                      │
-│ • markdown2 (Markdown)                  │
-│ • Jinja2 (HTML templating)              │
-└─────────────────────────────────────────┘
-                  │
-┌─────────────────────────────────────────┐
-│      Configuration Layer                │
-├─────────────────────────────────────────┤
-│ • PyYAML (Config parsing)               │
-│ • Pydantic (Validation)                 │
-│ • python-dotenv (Env vars)              │
-└─────────────────────────────────────────┘
-                  │
-┌─────────────────────────────────────────┐
-│         Data Layer                      │
-├─────────────────────────────────────────┤
-│ • PyPDF2 (PDF reading)                  │
-│ • pdfplumber (PDF parsing)              │
-│ • File system (output/)                 │
-└─────────────────────────────────────────┘
-```
-
----
-
-## Deployment Architecture
-
-```
-┌──────────────────────────────────────────┐
-│          Local Development               │
-├──────────────────────────────────────────┤
-│ Windows/Linux/Mac                        │
-│ Python 3.11–3.14                         │
-│ Virtual Environment (venv)               │
-│ ANTHROPIC_API_KEY (env var)              │
-└──────────────────────────────────────────┘
-                  │
-┌──────────────────────────────────────────┐
-│      External Dependencies               │
-├──────────────────────────────────────────┤
-│ • Anthropic API (api.anthropic.com)      │
-│ • Claude Sonnet 4.5                      │
-│ • Internet connection (for API)          │
-└──────────────────────────────────────────┘
-                  │
-┌──────────────────────────────────────────┐
-│         Output Storage                   │
-├──────────────────────────────────────────┤
-│ • output/pdf/                            │
-│ • output/docx/                           │
-│ • output/markdown/                       │
-│ • output/html/                           │
-│ • logs/                                  │
-└──────────────────────────────────────────┘
-```
-
----
-
-## Security Architecture
-
-```
-┌──────────────────────────────────────────┐
-│       Environment Variables              │
-├──────────────────────────────────────────┤
-│ ANTHROPIC_API_KEY (sensitive)            │
-│ Loaded via python-dotenv                 │
-│ Never committed to version control       │
-└──────────────────────────────────────────┘
-                  │
-┌──────────────────────────────────────────┐
-│          API Communication               │
-├──────────────────────────────────────────┤
-│ • HTTPS only                             │
-│ • Anthropic SDK handles auth             │
-│ • No data persistence on API side        │
-└──────────────────────────────────────────┘
-                  │
-┌──────────────────────────────────────────┐
-│         Local Data Handling              │
-├──────────────────────────────────────────┤
-│ • References stay local                  │
-│ • Generated docs stay local              │
-│ • Logs stored locally                    │
-│ • No external data transmission          │
-└──────────────────────────────────────────┘
-```
-
----
-
-This architecture supports:
-- ✅ Scalability (add more agents/processes)
-- ✅ Maintainability (modular design)
-- ✅ Extensibility (config-driven)
-- ✅ Reliability (error handling)
-- ✅ Performance (async operations)
-- ✅ Security (API key management)
+- No model client, key, consent flag or network call in REEMA; the guard test fails
+  on any API reference, declaration, installation or import.
+- What a Claude Code session reads goes to Anthropic through Claude Code; the
+  confirm-read token and the manifest decide what it may read.
+- File text is untrusted data for every subagent.
+- No agent or session approves: `.claude/settings.json` denies approve, reject,
+  publish and `git push`; approval records bind file SHA-256 values to a
+  self-declared human reviewer.
+- There is no container image, CI workflow, deployed service, mailbox or calendar
+  connection.

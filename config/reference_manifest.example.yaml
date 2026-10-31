@@ -1,5 +1,7 @@
 # Copy to references/manifest.yaml locally. Do not commit private manifests.
 # Set a real SHA-256 after reviewing the file. Restricted sources are always denied.
+# external_ai_allowed: true lets a Claude Code session read the file's excerpts, and only
+# after Khalid's yes (the --confirm-read token); REEMA itself sends nothing anywhere.
 version: 1
 sources:
   - path: itom/ITOM.pdf

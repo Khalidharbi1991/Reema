@@ -2,8 +2,44 @@
 
 Newest first. Each entry summarizes completed work and links the report that
 records its verification. Current rules and behavior live in
-[AGENTS.md](../../AGENTS.md); open external requirements live in the
-[finite ledger](PENDING_LEDGER.md).
+[AGENTS.md](../../AGENTS.md). The [finite ledger](PENDING_LEDGER.md) records external
+requirements as they stood before the no-API migration below.
+
+## 2026-10-30/31 — No-API migration: REEMA runs through Claude Code only
+
+REEMA no longer makes any Anthropic API call, holds a key or opens a network
+connection; Claude Code writes the text through skills and subagents, and REEMA's code
+plans, checks, exports and records it. Done in reversible steps, each tagged
+`pre-no-api-<n>` on main before its branch, following Khalid's decisions D1–D10 and
+G1–G12:
+
+- **0** A guard test listing every remaining API reference (suite 835 → 836).
+- **1** Review and revise only through Claude Code; `reema review` is the local
+  template check, `reema revise` points to Claude Code. Prepare steps need a
+  `--confirm-read` token for the exact file and enforce the reference manifest
+  (`src/utils/read_gate.py`) (→ 837).
+- **2** `reema chat` retired (hidden stub); `src/assistant.py`, the chat routing
+  config and advice contracts removed; new `reema find-sop` (→ 730).
+- **3** `reema-agent9-design` and `reema-agent10-euc` advice subagents (→ 733).
+- **4a** Claude Code generate (option C): `prepare`/`check`/`finish`, the
+  `reema-writer` subagent writing one file per section, `FileSectionWriter`,
+  `LeaderAgent.generate_local`; `quality_score` optional; reference excerpts behind
+  the token (→ 752).
+- **4b** Agent 10 writes the patch appendix; Agents 6/7/8 add no appendix, and their
+  local checks on a `--specialist-input` file go into the request as data (→ 756).
+- **4c** The API generate path removed; `reema generate` runs prepare; Agents 1, 2,
+  6, 7, 8 lose their classes (roles stay); model-phase resume removed (→ 610).
+- **4d** The signed recovery journal and `.recovery-key` removed; `reema export RUN`
+  re-exports offline, old runs still load; `RunLease` kept (→ 613).
+- **5** The provider/runtime, the client in `BaseAgent` (hook now `_reply`), API and
+  consent settings and `--allow-external-ai` removed; unknown `.env` entries are
+  ignored; the evaluation is offline only; AGENTS.md rules reworded with Khalid's
+  approval (→ 579).
+- **6** `anthropic` removed from `pyproject.toml`, locks regenerated with `uv`;
+  Dockerfile, `.dockerignore`, CI workflow and the archived generation script
+  deleted; the test suite blocks the network; the guard is strict (→ 582).
+- **7** Current guides, architecture, AGENTS.md and README rewritten for Claude Code;
+  `docs/archive/` and the older reports left as history.
 
 ## 2026-10-30 — Publish on approve
 
