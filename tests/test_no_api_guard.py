@@ -1,14 +1,18 @@
-"""No code path may reach the Anthropic API (guard for the no-API migration). No provider calls.
+"""No code path can reach the Anthropic API. Strict: any reference, declaration or import fails the suite.
 
 The scan covers code, configuration and packaging files that Git tracks or would add. Ignored files,
-Markdown, docs/ history and src/knowledge/ source material are skipped. KNOWN lists what remains today;
-each migration step removes its entries, and the test fails both when a new reference appears and when
-a listed one is gone but still listed. The last step empties KNOWN.
+Markdown, docs/ history and src/knowledge/ source material are skipped. A fresh process with every
+`anthropic` import blocked must still load all of REEMA, its scripts and every command's help, and
+the test suite itself cannot reach the network (tests/conftest.py).
 """
 
 import ast
+import importlib.util
 import re
+import socket
 import subprocess
+import sys
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -24,17 +28,7 @@ PATTERNS = {
     "consent": re.compile(r"allow_external_ai|ALLOW_EXTERNAL_AI|allow-external-ai"),
     "package": re.compile(r"^\s*[\"']?anthropic\s*(==|>=|~=|<|\[|[\"'])", re.M),
 }
-
-# Remaining references: file -> kinds. Shrinks step by step; empty when the migration is done.
-KNOWN = {
-    ".env.example": ["consent", "key"],
-    ".github/workflows/ci.yml": ["consent", "key"],
-    "Dockerfile": ["consent"],
-    "pyproject.toml": ["package"],
-    "requirements-dev.lock": ["package"],
-    "requirements.lock": ["package"],
-    "scripts/archive/generate_workstation_patches.py": ["key"],
-}
+SCRIPTS = ["claude_code_generate.py", "claude_code_review.py", "claude_code_revise.py", "evaluate_agents.py"]
 
 
 def _files():
@@ -76,8 +70,63 @@ def scan():
     return found
 
 
-def test_api_references_match_the_known_remaining_list():
-    found = scan()
-    new = {name: kinds for name, kinds in found.items() if KNOWN.get(name) != kinds}
-    cleared = sorted(set(KNOWN) - set(found))
-    assert not new and not cleared, f"Changed or new API references: {new}; no longer present, drop from KNOWN: {cleared}"
+def test_no_file_references_the_anthropic_api():
+    assert scan() == {}
+
+
+def test_anthropic_is_neither_declared_nor_installed():
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    declared = project["dependencies"] + [d for extra in project.get("optional-dependencies", {}).values() for d in extra]
+    assert not [d for d in declared if re.match(r"\s*anthropic\b", d, re.I)]
+    assert importlib.util.find_spec("anthropic") is None
+
+
+LOAD_EVERYTHING = r'''
+import importlib, importlib.abc, importlib.util, pkgutil, sys
+from pathlib import Path
+
+class Blocked(importlib.abc.MetaPathFinder):
+    def find_spec(self, name, path=None, target=None):
+        if name.split(".")[0] == "anthropic":
+            raise ImportError("anthropic import attempted: " + name)
+
+sys.meta_path.insert(0, Blocked())
+root = Path(sys.argv[1])
+sys.path.insert(0, str(root))
+import src
+modules = [m.name for m in pkgutil.walk_packages(src.__path__, "src.")]
+for name in modules:
+    importlib.import_module(name)
+for script in sys.argv[2:]:
+    spec = importlib.util.spec_from_file_location(Path(script).stem, root / "scripts" / script)
+    spec.loader.exec_module(importlib.util.module_from_spec(spec))
+import typer.main
+from typer.testing import CliRunner
+from src.main import app
+
+def paths(command, prefix=()):
+    yield prefix
+    for name, child in getattr(command, "commands", {}).items():
+        yield from paths(child, prefix + (name,))
+
+runner, count = CliRunner(), 0
+for path in paths(typer.main.get_command(app)):
+    result = runner.invoke(app, [*path, "--help"])
+    assert result.exit_code == 0, (path, result.output)
+    count += 1
+assert "anthropic" not in sys.modules
+print(len(modules), count)
+'''
+
+
+def test_everything_loads_with_anthropic_blocked():
+    result = subprocess.run([sys.executable, "-c", LOAD_EVERYTHING, str(ROOT), *SCRIPTS],
+                            capture_output=True, text=True, cwd=ROOT)
+    assert result.returncode == 0, result.stderr[-2000:]
+    modules, commands = map(int, result.stdout.split()[-2:])
+    assert modules >= 30 and commands >= 20
+
+
+def test_the_suite_cannot_reach_the_network():
+    with socket.socket() as connection, pytest.raises(AssertionError, match="Network access is forbidden"):
+        connection.connect(("127.0.0.1", 9))

@@ -8,15 +8,20 @@ import os
 
 
 @pytest.fixture(autouse=True)
-def deny_live_http(monkeypatch):
-    """The test suite cannot send model prompts or other HTTP requests."""
-    import httpx
-    def denied(*args, **kwargs):
-        raise AssertionError("Live HTTP is forbidden in tests")
-    async def denied_async(*args, **kwargs):
-        raise AssertionError("Live HTTP is forbidden in tests")
-    monkeypatch.setattr(httpx.Client, "send", denied)
-    monkeypatch.setattr(httpx.AsyncClient, "send", denied_async)
+def deny_network(monkeypatch):
+    """No test can reach a network host (loopback included), so no prompt could leave this computer."""
+    import socket
+
+    def guarded(name):
+        real = getattr(socket.socket, name)
+
+        def call(self, address, *args):
+            if self.family in (socket.AF_INET, socket.AF_INET6):
+                raise AssertionError(f"Network access is forbidden in tests: {address!r}")
+            return real(self, address, *args)
+        return call
+    for name in ("connect", "connect_ex"):
+        monkeypatch.setattr(socket.socket, name, guarded(name))
 
 
 @pytest.fixture

@@ -105,9 +105,8 @@ and decision authority. Run `python3 scripts/dev.py run agents` for the active r
 ### Prerequisites
 
 - Python 3.11–3.14
-- Anthropic API key and explicit input authorization for generation
 - Optional references explicitly permitted in `references/manifest.yaml`
-- Native Pango libraries for PDF output; the Docker image includes them
+- Native Pango libraries for PDF output (see the development setup guide)
 
 ### Setup
 
