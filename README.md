@@ -4,8 +4,8 @@
 routes work to sections. The main section is Documentation, led by Abdullah:
 writing, reviewing and revising SOPs, and later reports and presentations. The
 first new feature, not yet built, will turn SCCM and Intune data into a patch
-report PowerPoint. Agent 9 supports home design as a side service. A Development
-section is planned.
+report PowerPoint. Agent 9 supports home design as a side service. The Development
+section, led by Agent 11, builds software, apps and games in separate project repos.
 
 Everything that needs writing or judgment runs in a Claude Code session: talk to
 Ahmad there. REEMA itself makes no model call and needs no API key: it plans,
@@ -70,6 +70,14 @@ decision authority. Run `python3 scripts/dev.py run agents` for the active roste
 | Agent 8 | Analytics and KPI design (role only; metric checks on supplied data) |
 | Agent 9 | Building-design advice, local DWG intake, and assumption-labeled concept meshes from selected DXF wall linework |
 | Agent 10 | End-user computing advice: patching and deployment rings, OS images, software packaging, Intune/MECM, endpoint compliance, change requests and runbooks; endpoint appendix for patch and device-batch SOPs |
+| Agent 11 | Development section head: sizes each job, picks the agents, gets your yes |
+| Agent 12 | Requirements (PRD) |
+| Agent 13 | Software architecture |
+| Agent 14 | Developer |
+| Agent 15 | Tester |
+| Agent 16 | Security review |
+| Agent 17 | UI design |
+| Agent 18 | Game writer and designer |
 
 ## Installation
 
@@ -255,6 +263,31 @@ Building or home-design questions go to Agent 9 and endpoint questions (patching
 imaging, packaging, Intune/MECM) to Agent 10, as Claude Code subagents that only
 read files you allow and save drafts under `output/claude_code/advice/`. The
 org chart and rules are in AGENTS.md under "REEMA company in Claude Code".
+
+#### Development section
+
+Ask Ahmad in plain words, for example "Ahmad, build a small offline expense tracker"
+or "Ahmad, fix the score bug in my game", or type `/reema-agent11-dev-lead`. Agent
+11's playbook sizes the job (small fix, new feature, new app, new game), picks only
+the agents it needs (Agents 12–18, as Claude Code subagents), and shows you the plan,
+the agents, the files and every package it wants to install. Nothing is written until
+you say yes. Anything bigger than a small fix starts with a PRD you confirm.
+
+Each project gets its own folder and git repo in
+`/Users/khalidalharbi/D Drive/claude/REEMA Projects/`, tagged at the start and end of
+every job and before each risky change. To list a project's tags (replace `my-game`
+with the project's folder name):
+
+```bash
+git -C "/Users/khalidalharbi/D Drive/claude/REEMA Projects/my-game" tag --list
+```
+
+A job finishes only when its tests pass and the security review has no open Critical
+or High finding. The section never pushes, deploys or publishes, and never touches
+REEMA's `references/` or `output/assistant/`. `.claude/settings.json` blocks push,
+remotes, publishing, deploy tools, `sudo` and network tools such as `curl` and `wget`
+for the whole session, and its hook (`.claude/hooks/dev_guard.py`) also catches them
+inside `sh -c`, `eval` and similar.
 
 To find a finished SOP by file name without opening it:
 

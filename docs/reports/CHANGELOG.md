@@ -5,6 +5,27 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md). The [finite ledger](PENDING_LEDGER.md) records external
 requirements as they stood before the no-API migration below.
 
+## 2026-11-01 — Development section (Agents 11–18)
+
+The Development section is working in Claude Code, built on branch `feature/dev-section`
+after tag `before-dev-section` on main, following Khalid's decisions D1–D6:
+
+- **Agent 11** `reema-agent11-dev-lead` skill: sizes each job (small fix, feature, app,
+  game), picks only the agents needed, shows the plan with every package to install and
+  waits for Khalid's yes; PRD first; one git repo per project in `../REEMA Projects/`;
+  tags at the start and end of every job and before each risky change.
+- **Agents 12–18** subagents: requirements, architect, developer, tester, security, UI,
+  game writer. Only 14 and 15 have Bash (plus Edit, Glob, Grep).
+- **Done** is blocked by an open Critical or High security finding; Medium and Low go
+  to Khalid. No online scanner.
+- `.claude/settings.json`: the projects folder as an additional directory; deny rules for
+  remotes, package publishing, deploy tools, `sudo`, network tools, and file tools on
+  `references/` and `output/assistant/`; a Bash `PreToolUse` hook
+  (`.claude/hooks/dev_guard.py`) that also blocks them inside `sh -c`, `eval`, `env`,
+  `xargs` and command substitution.
+- Setup tests check a per-agent tool list, the org chart, team table, skill rules, deny
+  rules and the hook (suite → 643, all passing).
+
 ## 2026-10-30/31 — No-API migration: REEMA runs through Claude Code only
 
 REEMA no longer makes any Anthropic API call, holds a key or opens a network

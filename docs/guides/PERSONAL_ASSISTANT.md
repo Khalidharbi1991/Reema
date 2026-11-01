@@ -13,9 +13,12 @@ that advice is unverified and Khalid decides. He routes the rest:
   a review (`reema-review`) or a revision (`reema-revise`) of a finished one.
 - **Building and home design**: the `reema-agent9-design` subagent.
 - **End-user computing and endpoints**: the `reema-agent10-euc` subagent.
+- **Development** (Agent 11, `reema-agent11-dev-lead` skill): software, apps and
+  games built by Agents 12–18 in separate project repos, after Khalid's yes to the plan.
 - **Tasks and memory**: the local `task` and `memory` commands below.
 
-There are twelve agent roles. Agents 1, 2, 6, 7 and 8 have no class any more: they
+There are twenty agent roles; Agents 11–18 (Development) exist only as a
+Claude Code skill and subagents. Agents 1, 2, 6, 7 and 8 have no class any more: they
 remain roles in the roster (`reema agents`), and their knowledge files remain source
 material. Khalid remains the decision authority.
 
