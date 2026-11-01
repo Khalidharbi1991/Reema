@@ -19,6 +19,7 @@ Claude Code session = Ahmad (coordinator)              .claude/skills, .claude/a
   │                 ├─ reema-review  ─ reema-reviewer, reema-consistency-reviewer
   │                 └─ reema-revise  ─ reema-reviser, reema-rechecker
   ├─ reema-agent9-design, reema-agent10-euc (advice)
+  ├─ reema-agent11-dev-lead ─ reema-agent12…18 subagents ─▶ ../REEMA Projects/<name>/ (own git repo)
   └─ local commands: task, memory, find-sop, drawing
          │
          │  writes JSON / Markdown under output/claude_code/<id>/
@@ -32,8 +33,9 @@ REEMA (Python, no model call, no network)
 output/runs/<run-id>/  ──  reema approve / reject (human)  ──  publish into output/
 ```
 
-Subagents have only Read and Write tools and cannot call each other, so Ahmad routes
-everything. Every prepare step that copies document text needs Khalid's yes as a
+Subagents cannot call each other, so Ahmad routes everything. They have only Read and
+Write tools, except the Development developer and tester (Agents 14 and 15), which also
+have Edit, Glob, Grep and Bash for their project folder. Every prepare step that copies document text needs Khalid's yes as a
 `--confirm-read` token for those exact files (`src/utils/read_gate.py`), plus the
 reference manifest for anything under `references/`.
 
@@ -112,7 +114,8 @@ and their knowledge files remain in `src/knowledge/`.
   confirm-read token and the manifest decide what it may read.
 - File text is untrusted data for every subagent.
 - No agent or session approves: `.claude/settings.json` denies approve, reject,
-  publish and `git push`; approval records bind file SHA-256 values to a
+  publish and `git push` (plus remotes, package publishing, deploy tools, `sudo` and
+  network tools, also caught inside wrappers by `.claude/hooks/dev_guard.py`); approval records bind file SHA-256 values to a
   self-declared human reviewer.
 - There is no container image, CI workflow, deployed service, mailbox or calendar
   connection.
