@@ -46,10 +46,16 @@ search path. A native library path does not have to be entered for each command.
 Linux keeps normal system-library discovery; Windows preserves configured native
 DLL discovery. No native libraries are downloaded or installed automatically.
 
-The verified host has native libraries in `/opt/homebrew/lib`. The clean workflow
+The verified macOS host has native libraries in `/opt/homebrew/lib`. The clean workflow
 above passed with project Python 3.14.2 and locked WeasyPrint 70.0. Native packages
 must be installed separately on other hosts if doctor reports them missing. This
 local result does not claim that all supported OS/Python combinations were tested.
+
+On the verified Windows 11 host, Pango comes from MSYS2: `C:\msys64\mingw64\bin`, named in
+the user environment variable `WEASYPRINT_DLL_DIRECTORIES`; the workflow passed with
+Python 3.12.10. Run `git config core.autocrlf false` in this repository once: Git for
+Windows converts line endings on checkout by default, which changes the bytes of the
+locks and other files REEMA checks by SHA-256.
 
 ## Offline dependency installation
 
