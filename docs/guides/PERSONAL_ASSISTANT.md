@@ -60,7 +60,7 @@ To summarize a converted DXF for Agent 19 (layers, text labels, dimensions, door
 window candidates, with no room inferred):
 
 ```bash
-python3 scripts/dev.py run drawing summary "D:/Projects/REEMA Projects/New Home/input/plan.dxf" --output "D:/Projects/REEMA Projects/New Home/docs/plan-drawing-summary.json"
+python3 scripts/dev.py run drawing summary "D:/Projects/REEMA Projects/New Home/output/drawings/20261103_majlis_plan.dxf" --output "D:/Projects/REEMA Projects/New Home/output/summaries/20261103_majlis_drawing-summary.json"
 ```
 
 To check a local AutoCAD drawing:

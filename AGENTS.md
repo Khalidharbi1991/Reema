@@ -308,8 +308,12 @@ The old Agent 9 subagent's rules are kept word for word in that skill.
   never the whole land unless he asks. Then show the plan and the chosen agents and wait
   for his yes.
 - **Project:** `D:/Projects/REEMA Projects/New Home/`, its own local repo with no remote;
-  its `.gitignore` keeps DWG, DXF, models and renders out of Git (scripts and docs only).
-  Tags as in the Development section.
+  its `.gitignore` keeps DWG, DXF and `output/` out of Git (scripts, READMEs and the
+  approval record only). Tags as in the Development section.
+- **One output folder:** every result from any Home Design agent or from Ahmad goes in
+  `New Home/output/` (`renders/`, `models/`, `drawings/`, `summaries/`, `reports/`), named
+  `<date>_<area>_<what>`, for example `20261103_majlis_preview.png`. Only Agent 22's
+  scripts, the approval record and the README and `.gitignore` files live elsewhere.
 - **Drawings:** Agent 22 converts DWG to DXF; Ahmad runs `drawing summary` locally, and
   Agent 19 reads that summary after Khalid's yes, the raw DXF only on a separate yes.
 - **Agent 22 is the only agent that runs commands**, and only Blender 4.5 LTS,
@@ -319,7 +323,8 @@ The old Agent 9 subagent's rules are kept word for word in that skill.
   --disable-autoexec`, and a script only when its SHA-256 is in
   `reviews/script_reviews.json` (Agent 16 reviews it; Ahmad records it; no subagent may write
   that file). The three programs are blocked for everyone else, Ahmad included. Agents 19–23
-  write only inside their New Home folders. A reviewed script still runs with full Python;
+  write only their named results in `output/` (Agent 22 also its scripts), and Ahmad's file
+  writes in New Home follow the same rule. A reviewed script still runs with full Python;
   Agent 16's review is the control for what it does.
 - **Tools:** Agent 22 has Read, Write and PowerShell; 19, 20, 21 and 23 have Read and Write.
 - Structural, electrical, plumbing and permit items are flagged by Agent 23 for a licensed

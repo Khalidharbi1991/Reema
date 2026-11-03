@@ -226,19 +226,23 @@ def test_design_lead_skill_holds_khalids_rules():
     assert "reviews/script_reviews.json" in flat and "No subagent may write that file" in flat
     assert "job-<short>-<YYYYMMDD>-start" in flat and "pre-<short>-<YYYYMMDD-HHMM>" in flat
     assert NEW_HOME in flat and "drawing summary" in flat
+    assert "<date>_<area>_<what>" in flat and "20261103_majlis_preview.png" in flat
+    assert all(f"`output/{name}/`" in body for name in ("renders", "models", "drawings", "summaries", "reports"))
     assert not (CLAUDE / "agents" / "reema-agent9-design.md").exists()
 
 
 def _home(tmp_path, monkeypatch, script="scripts/blender/majlis.py", approve=True):
     guard = _guard()
     home = tmp_path / "New Home"
-    for folder in ("scripts/blender", "scripts/freecad", "models", "renders", "reviews", "input"):
+    for folder in ("scripts/blender", "scripts/freecad", "reviews", "input",
+                   *(f"output/{name}" for name in guard.OUTPUT_FOLDERS)):
         (home / folder).mkdir(parents=True)
     (home / script).write_text("import bpy\n", encoding="utf-8")
-    (home / "reviews" / "SCRIPT_REVIEW_majlis.md").write_text("no findings\n", encoding="utf-8")
+    review = "output/reports/20261103_majlis_script-review-majlis.md"
+    (home / review).write_text("no findings\n", encoding="utf-8")
     import hashlib
     entries = [{"script": script, "sha256": hashlib.sha256((home / script).read_bytes()).hexdigest(),
-                "review": "reviews/SCRIPT_REVIEW_majlis.md"}] if approve else []
+                "review": review}] if approve else []
     (home / "reviews" / "script_reviews.json").write_text(json.dumps({"approved": entries}), encoding="utf-8")
     monkeypatch.setattr(guard, "HOME_PROJECT", str(home))
     monkeypatch.setattr(guard, "SCRIPT_LEDGER", str(home / "reviews" / "script_reviews.json"))
@@ -248,15 +252,17 @@ def _home(tmp_path, monkeypatch, script="scripts/blender/majlis.py", approve=Tru
 BLENDER_FLAGS = "-b --factory-startup --offline-mode --disable-autoexec"
 
 
-def test_agent22_runs_reviewed_scripts_and_the_converter_inside_new_home(tmp_path, monkeypatch):
+def test_agent22_runs_reviewed_scripts_and_the_converter_into_output(tmp_path, monkeypatch):
     guard, home = _home(tmp_path, monkeypatch)
     blender, oda = guard.AGENT22_PROGRAMS["blender"], guard.AGENT22_PROGRAMS["odafileconverter"]
-    script = home / "scripts" / "blender" / "majlis.py"
+    script, out = home / "scripts" / "blender" / "majlis.py", home / "output"
     allowed = [
         f'& "{blender}" {BLENDER_FLAGS} --python "{script}"',
-        f'& "{blender}" {BLENDER_FLAGS} "{home / "models" / "majlis.blend"}" -E CYCLES -t 8 '
-        f'--python "{script}" --python-exit-code 1 -o "{home / "renders" / "majlis_####"}" -f 1 -- --samples 64',
-        f'& "{oda}" "{home / "input"}" "{home / "input"}" ACAD2018 DXF 0 1 "*.dwg"',
+        f'& "{blender}" {BLENDER_FLAGS} "{out / "models" / "20261103_majlis_model.blend"}" -E CYCLES -t 8 '
+        f'--python "{script}" --python-exit-code 1 -o "{out / "renders" / "20261103_majlis_preview_####"}" -f 1 '
+        f'-- --samples 64 --output "{out / "renders" / "20261103_majlis_preview.png"}" --plan "{home / "input" / "plan.dwg"}"',
+        f'& "{oda}" "{home / "input"}" "{out / "drawings"}" ACAD2018 DXF 0 1 "*.dwg"',
+        f'& "{oda}" "{home / "input"}\\" "{out / "drawings"}" ACAD2018 DXF 0 1',
     ]
     for command in allowed:
         assert guard.agent22_reason(command, "PowerShell") is None, command
@@ -268,7 +274,7 @@ def test_agent22_runs_reviewed_scripts_and_the_converter_inside_new_home(tmp_pat
 def test_agent22_is_refused_anything_else(tmp_path, monkeypatch):
     guard, home = _home(tmp_path, monkeypatch)
     blender, oda = guard.AGENT22_PROGRAMS["blender"], guard.AGENT22_PROGRAMS["odafileconverter"]
-    script = home / "scripts" / "blender" / "majlis.py"
+    script, out = home / "scripts" / "blender" / "majlis.py", home / "output"
     refused = [
         "git status", "python -c print(1)", f'& "{blender}" {BLENDER_FLAGS} --python "{script}"; curl x',
         f'& "{blender}" {BLENDER_FLAGS} --python "{script}" | Out-File x', f"blender {BLENDER_FLAGS} --python {script}",
@@ -278,11 +284,19 @@ def test_agent22_is_refused_anything_else(tmp_path, monkeypatch):
         f'& "{blender}" {BLENDER_FLAGS} --python "C:\\Temp\\x.py"',
         f'& "{blender}" {BLENDER_FLAGS} --python "{home / "scripts" / "blender" / ".." / ".." / ".." / "x.py"}"',
         f'& "{blender}" {BLENDER_FLAGS} --python "{script}" -o "C:\\Temp\\out"',
+        f'& "{blender}" {BLENDER_FLAGS} --python "{script}" -o "{out / "renders" / "preview_####"}"',
+        f'& "{blender}" {BLENDER_FLAGS} --python "{script}" -o "{out / "reports" / "20261103_majlis_preview"}"',
+        f'& "{blender}" {BLENDER_FLAGS} --python "{script}" -o "{home / "renders" / "20261103_majlis_preview"}"',
         f'& "{blender}" {BLENDER_FLAGS} "C:\\Temp\\other.blend" --python "{script}"',
+        f'& "{blender}" {BLENDER_FLAGS} "{out / "models" / "majlis.blend"}" --python "{script}"',
         f'& "{blender}" {BLENDER_FLAGS} --python "{script}" -- "C:\\Users\\Khali\\secret.txt"',
+        f'& "{blender}" {BLENDER_FLAGS} --python "{script}" -- "{home / "scripts" / "blender" / "other.py"}"',
+        f'& "{blender}" {BLENDER_FLAGS} --python "{script}" -- "{out / "renders" / "preview.png"}"',
         f'& "{blender}" {BLENDER_FLAGS} --python "$env:TEMP\\x.py"',
-        f'& "{oda}" "C:\\Drawings" "{home / "input"}" ACAD2018 DXF 0 1',
-        f'& "{oda}" "{home / "input"}" "{home / "input"}" ACAD2018 PDF 0 1',
+        f'& "{oda}" "C:\\Drawings" "{out / "drawings"}" ACAD2018 DXF 0 1',
+        f'& "{oda}" "{home / "input"}" "{home / "input"}" ACAD2018 DXF 0 1',
+        f'& "{oda}" "{home / "input"}" "{out / "reports"}" ACAD2018 DXF 0 1',
+        f'& "{oda}" "{home / "input"}" "{out / "drawings"}" ACAD2018 PDF 0 1',
     ]
     for command in refused:
         assert guard.agent22_reason(command, "PowerShell"), command
@@ -290,6 +304,19 @@ def test_agent22_is_refused_anything_else(tmp_path, monkeypatch):
     script.write_text("import bpy, socket\n", encoding="utf-8")
     assert "no Agent 16 review" in guard.agent22_reason(f'& "{blender}" {BLENDER_FLAGS} --python "{script}"',
                                                          "PowerShell")
+
+
+def test_script_approvals_need_a_named_review_report_in_output(tmp_path, monkeypatch):
+    guard, home = _home(tmp_path, monkeypatch)
+    command = f'& "{guard.AGENT22_PROGRAMS["blender"]}" {BLENDER_FLAGS} --python "{home / "scripts" / "blender" / "majlis.py"}"'
+    ledger = json.loads((home / "reviews" / "script_reviews.json").read_text(encoding="utf-8"))
+    for review, exists in (("reviews/SCRIPT_REVIEW_majlis.md", True), ("output/reports/review.md", True),
+                           ("output/reports/20261103_majlis_missing.md", False)):
+        if exists:
+            (home / review).write_text("no findings\n", encoding="utf-8")
+        ledger["approved"][0]["review"] = review
+        (home / "reviews" / "script_reviews.json").write_text(json.dumps(ledger), encoding="utf-8")
+        assert "no Agent 16 review" in guard.agent22_reason(command, "PowerShell"), review
 
 
 @pytest.mark.parametrize("command", [
@@ -306,14 +333,51 @@ def test_guard_still_lets_ahmad_name_the_home_folders():
         assert _guard().reason(command) is None
 
 
-def test_home_design_subagents_write_only_in_their_new_home_folders(tmp_path, monkeypatch):
+@pytest.mark.parametrize("name", [
+    "20261103_majlis_preview.png", "20261103_master-bedroom_space-plan.md", "20261231_kitchen_preview_0001.png",
+    "20261103_majlis_script-review-cube.md",
+])
+def test_result_names_follow_date_area_what(name):
+    assert _guard().RESULT_NAME.fullmatch(name)
+
+
+@pytest.mark.parametrize("name", [
+    "majlis_preview.png", "2026-11-03_majlis_preview.png", "20261303_majlis_preview.png", "20261103_preview.png",
+    "20261103__preview.png", "20261103_Majlis room_preview.png", "notes.md",
+])
+def test_result_names_refuse_other_patterns(name):
+    assert not _guard().RESULT_NAME.fullmatch(name)
+
+
+def test_home_design_agents_write_only_named_results_in_output(tmp_path, monkeypatch):
     guard, home = _home(tmp_path, monkeypatch)
-    write = guard.write_reason
-    assert write({"file_path": str(home / "docs" / "majlis-blueprint.md")}, "reema-agent19-blueprint") is None
+    write, out = guard.write_reason, home / "output"
+    report = str(out / "reports" / "20261103_majlis_blueprint.md")
+    for agent in ("reema-agent19-blueprint", "reema-agent20-space-planner", "reema-agent21-interior",
+                  "reema-agent23-design-reviewer", "reema-agent22-3d-modeler", "reema-agent16-security"):
+        assert write({"file_path": report}, agent) is None, agent
+        assert write({"file_path": str(out / "reports" / "blueprint.md")}, agent), agent
+        assert write({"file_path": str(home / "docs" / "20261103_majlis_blueprint.md")}, agent), agent
+        assert write({"file_path": str(out / "20261103_majlis_blueprint.md")}, agent), agent
+        assert write({"file_path": str(home / "reviews" / "script_reviews.json")}, agent), agent
+    assert write({"file_path": str(out / "renders" / "20261103_majlis_preview.png")}, "reema-agent19-blueprint")
     assert write({"file_path": str(home / "scripts" / "blender" / "x.py")}, "reema-agent19-blueprint")
     assert write({"file_path": str(home / "scripts" / "blender" / "x.py")}, "reema-agent22-3d-modeler") is None
-    assert write({"file_path": str(home / "reviews" / "SCRIPT_REVIEW_x.md")}, "reema-agent22-3d-modeler")
+    assert write({"file_path": str(home / "scripts" / "blender" / "x.txt")}, "reema-agent22-3d-modeler")
+    assert write({"file_path": str(out / "renders" / "20261103_majlis_preview.png")}, "reema-agent22-3d-modeler") is None
+    assert write({"file_path": str(out / "summaries" / "20261103_majlis_drawing-summary.json")},
+                 "reema-agent22-3d-modeler")
     assert write({"file_path": "D:/Projects/IT Consultant/src/main.py"}, "reema-agent22-3d-modeler")
-    assert write({"file_path": str(home / "reviews" / "SCRIPT_REVIEW_x.md")}, "reema-agent16-security") is None
-    assert write({"file_path": str(home / "reviews" / "script_reviews.json")}, "reema-agent16-security")
-    assert write({"file_path": str(home / "reviews" / "script_reviews.json")}, None) is None
+    assert write({"file_path": str(out / "README.md")}, "reema-agent22-3d-modeler")
+
+
+def test_ahmad_writes_in_new_home_only_results_readmes_and_the_approval_record(tmp_path, monkeypatch):
+    guard, home = _home(tmp_path, monkeypatch)
+    write, out = guard.write_reason, home / "output"
+    for path in (home / "reviews" / "script_reviews.json", home / "README.md", home / ".gitignore", out / "README.md",
+                 out / "summaries" / "20261103_majlis_drawing-summary.json",
+                 out / "reports" / "20261103_majlis_plan.md", "D:/Projects/IT Consultant/AGENTS.md"):
+        assert write({"file_path": str(path)}, None) is None, path
+    for path in (home / "notes.md", home / "input" / "x.dwg", out / "summaries" / "summary.json",
+                 home / "scripts" / "blender" / "x.py", out / "20261103_majlis_plan.md"):
+        assert write({"file_path": str(path)}, None), path

@@ -5,6 +5,16 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md). The [finite ledger](PENDING_LEDGER.md) records external
 requirements as they stood before the no-API migration below.
 
+## 2026-11-03 — Home Design: one output folder for every result
+
+Every Home Design result now goes in `New Home/output/` (`renders/`, `models/`, `drawings/`,
+`summaries/`, `reports/`), named `<date>_<area>_<what>`. The guard's write check allows
+Agents 19–23 and Agent 16 only their named results there (Agent 22 also its scripts) and holds
+Ahmad's New Home writes to the same rule plus the READMEs, `.gitignore` and the approval
+record. Blender's `-o` and `.blend` paths and ODA's output folder point into `output/`; a script
+approval's review must be a named report in `output/reports/`. `output/` is ignored in the New
+Home repo except its README.
+
 ## 2026-11-03 — Home Design section (Agent 9, Agents 19–23)
 
 Built on branch `feature/home-design` after tag `pre-homedesign-20261103-1940`, following

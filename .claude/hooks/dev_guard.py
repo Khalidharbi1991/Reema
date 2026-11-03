@@ -47,11 +47,18 @@ HOME_PROGRAMS = set(AGENT22_PROGRAMS) | {"freecad", "blender-launcher"}
 LAUNCHERS = {"start-process", "saps", "start", "invoke-item", "ii"}
 HOME_PROJECT = r"D:\Projects\REEMA Projects\New Home"
 SCRIPT_LEDGER = HOME_PROJECT + r"\reviews\script_reviews.json"
+# Every result goes in output\<folder>\, named <date>_<area>_<what>, e.g. 20261103_majlis_preview.png.
+OUTPUT_FOLDERS = ("renders", "models", "drawings", "summaries", "reports")
+RESULT_NAME = re.compile(r"(19|20)\d\d(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])_[a-z0-9]+(-[a-z0-9]+)*"
+                         r"_[a-z0-9#][a-z0-9#_-]*(\.[a-z0-9]+)*", re.I)
+REPORTS = r"output\reports"
 HOME_AGENT_WRITES = {
-    "reema-agent19-blueprint": ("docs",), "reema-agent20-space-planner": ("docs",),
-    "reema-agent21-interior": ("docs",), "reema-agent23-design-reviewer": ("docs",),
-    AGENT22: ("scripts", "models", "renders", "docs"),
+    "reema-agent19-blueprint": (REPORTS,), "reema-agent20-space-planner": (REPORTS,),
+    "reema-agent21-interior": (REPORTS,), "reema-agent23-design-reviewer": (REPORTS,),
+    AGENT22: (r"scripts\blender", r"scripts\freecad", r"output\renders", r"output\models", r"output\drawings",
+              REPORTS),
 }
+AHMAD_HOME_FILES = ("README.md", ".gitignore", r"output\README.md", r"reviews\script_reviews.json")
 WRITE_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit"}
 BLENDER_REQUIRED = {"--factory-startup", "--offline-mode", "--disable-autoexec"}
 BLENDER_SWITCHES = BLENDER_REQUIRED | {"-b", "--background", "-noaudio", "-a", "--render-anim"}
@@ -233,6 +240,22 @@ def _in_home(path, *folders):
     return any(path.startswith(root + "\\") for root in [ntpath.join(home, f) for f in folders] or [home])
 
 
+def _is_home_dir(path, folder):
+    """True when path is New Home's folder itself (input, output\\drawings, ...)."""
+    return re.match(r"[a-z]:\\", _win(path)) is not None and _win(path).rstrip("\\") == _win(ntpath.join(HOME_PROJECT, folder))
+
+
+def _result_reason(path, *folders):
+    """Why path is not a correctly named result in one of output\\<folders>, or None."""
+    folders = folders or OUTPUT_FOLDERS
+    parent, name = ntpath.split(_win(path))
+    if not any(parent == _win(ntpath.join(HOME_PROJECT, "output", f)) for f in folders):
+        return "results go directly in New Home\\output\\" + " or output\\".join(f"{f}\\" for f in folders)
+    if not RESULT_NAME.fullmatch(name):
+        return f"result names are <date>_<area>_<what>, for example 20261103_majlis_preview.png (got {name})"
+    return None
+
+
 def _approved(script, folder):
     """Why this script may not run, or None when its current SHA-256 is recorded as reviewed."""
     if not _in_home(script, ntpath.join("scripts", folder)) or not script.lower().endswith(".py"):
@@ -245,7 +268,8 @@ def _approved(script, folder):
     for entry in approved if isinstance(approved, list) else []:
         if (isinstance(entry, dict) and _win(ntpath.join(HOME_PROJECT, str(entry.get("script", "")))) == _win(script)
                 and str(entry.get("sha256", "")).lower() == digest
-                and _in_home(ntpath.join(HOME_PROJECT, str(entry.get("review", ""))), "reviews")):
+                and _result_reason(ntpath.join(HOME_PROJECT, str(entry.get("review", ""))), "reports") is None
+                and Path(HOME_PROJECT, str(entry.get("review", ""))).is_file()):
             return None
     return "this version of the script has no Agent 16 review recorded in reviews\\script_reviews.json"
 
@@ -264,8 +288,10 @@ def _blender(args):
             scripts.append(args[k + 1])
             k += 2
         elif word in ("-o", "--render-output"):
-            if k + 1 == len(args) or not _in_home(args[k + 1], "renders"):
-                return "render output must be inside New Home\\renders\\"
+            if k + 1 == len(args):
+                return "-o needs a render path"
+            if why := _result_reason(args[k + 1], "renders"):
+                return why
             k += 2
         elif word in BLENDER_VALUES:
             if k + 1 == len(args) or not BLENDER_VALUES[word].fullmatch(args[k + 1]):
@@ -276,22 +302,25 @@ def _blender(args):
             k += 1
         elif word.startswith("-"):
             return f"Blender option `{word}` is not allowed for Agent 22"
-        elif not (word.lower().endswith(".blend") and _in_home(word, "models")):
-            return "a .blend file must be inside New Home\\models\\"
+        elif not word.lower().endswith(".blend") or _result_reason(word, "models"):
+            return "a .blend file must be a named result in New Home\\output\\models\\"
         else:
             k += 1
     if not switches & {"-b", "--background"} or not BLENDER_REQUIRED <= switches:
         return "Blender must run with -b --factory-startup --offline-mode --disable-autoexec"
     if len(scripts) != 1:
         return "Blender must run exactly one reviewed --python script"
-    if any(_pathlike(word) and not _in_home(word) for word in args[k + 1:]):
-        return "script arguments that are paths must be inside New Home"
+    for word in args[k + 1:]:
+        if _pathlike(word) and not _in_home(word, "input") and _result_reason(word):
+            return "script arguments that are paths must be in New Home\\input\\ or named results in output\\"
     return _approved(scripts[0], "blender")
 
 
 def _oda(args):
-    if len(args) not in (6, 7) or not all(_in_home(folder) for folder in args[:2]):
-        return "ODA File Converter takes: input folder, output folder (both in New Home), version, type, recurse, audit, [filter]"
+    if len(args) not in (6, 7) or not _is_home_dir(args[0], "input") \
+            or not _is_home_dir(args[1], r"output\drawings"):
+        return ("ODA File Converter takes: New Home\\input, New Home\\output\\drawings, version, type, "
+                "recurse, audit, [filter]")
     if args[2] not in ODA_VERSIONS or args[3] not in {"DWG", "DXF", "DXB"} or args[4] not in ("0", "1") \
             or args[5] not in ("0", "1"):
         return "ODA File Converter needs an ACAD version, DWG/DXF/DXB, and 0 or 1 for recurse and audit"
@@ -328,14 +357,25 @@ def agent22_reason(command, tool):
 
 
 def write_reason(tool_input, agent):
-    """Why this subagent may not write this file, or None."""
+    """Why this write may not happen, or None. In New Home every result is a named file in output\\."""
     path = str(tool_input.get("file_path") or tool_input.get("notebook_path") or "")
     if agent and _win(path) == _win(SCRIPT_LEDGER):
         return "only Ahmad records script approvals in reviews\\script_reviews.json"
-    if agent in HOME_AGENT_WRITES and not _in_home(path, *HOME_AGENT_WRITES[agent]):
-        folders = ", ".join(f"New Home\\{f}\\" for f in HOME_AGENT_WRITES[agent])
-        return f"{agent} writes only inside {folders}"
-    return None
+    if agent in HOME_AGENT_WRITES:
+        if not _in_home(path, *HOME_AGENT_WRITES[agent]):
+            folders = ", ".join(f"New Home\\{f}\\" for f in HOME_AGENT_WRITES[agent])
+            return f"{agent} writes only inside {folders}"
+        if _in_home(path, "scripts"):
+            return None if path.lower().endswith(".py") else "Agent 22's scripts are .py files"
+        return _result_reason(path)
+    if not _in_home(path):
+        return None
+    if agent:
+        return _result_reason(path, "reports") and f"{agent} writes in New Home only named reports in output\\reports\\"
+    if any(_win(path) == _win(ntpath.join(HOME_PROJECT, name)) for name in AHMAD_HOME_FILES):
+        return None
+    return _result_reason(path) and ("Ahmad writes in New Home only named results in output\\, the README files, "
+                                     ".gitignore and reviews\\script_reviews.json")
 
 
 def main():

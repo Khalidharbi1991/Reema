@@ -304,12 +304,14 @@ design (never the whole land unless you ask), then shows the plan and the agents
 picked (19 blueprint reader, 20 space planner, 21 interior designer, 22 3D modeler,
 23 design reviewer) and waits for your yes. The work goes in
 `D:/Projects/REEMA Projects/New Home/`, a local git repo with no remote whose
-`.gitignore` keeps the DWG, DXF, models and renders out of Git.
+`.gitignore` keeps the DWG, DXF and `output/` out of Git. Every result goes in
+`New Home/output/` (`renders/`, `models/`, `drawings/`, `summaries/`, `reports/`), named
+`<date>_<area>_<what>`, for example `20261103_majlis_preview.png`.
 
 Agent 22 converts the DWG with ODA File Converter, and Ahmad summarizes the DXF locally:
 
 ```bash
-python3 scripts/dev.py run drawing summary "D:/Projects/REEMA Projects/New Home/input/plan.dxf" --output "D:/Projects/REEMA Projects/New Home/docs/majlis-drawing-summary.json"
+python3 scripts/dev.py run drawing summary "D:/Projects/REEMA Projects/New Home/output/drawings/20261103_majlis_plan.dxf" --output "D:/Projects/REEMA Projects/New Home/output/summaries/20261103_majlis_drawing-summary.json"
 ```
 
 The summary lists layers, text labels, dimension values and door or window candidates
