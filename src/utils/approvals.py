@@ -99,7 +99,7 @@ def record_decision(path: Path, decision: str, reviewer: str, notes: str = ""):
         values.update(status=decision, reviewer=reviewer.strip(), decided_at=timestamp(), notes=notes)
         record = ApprovalRecord.model_validate(values)
         temporary = path.with_suffix(path.suffix + ".tmp")
-        temporary.write_text(record.model_dump_json(indent=2) + "\n", encoding="utf-8")
+        temporary.write_text(record.model_dump_json(indent=2) + "\n", encoding="utf-8", newline="\n")
         temporary.replace(path)
         return record
     finally:

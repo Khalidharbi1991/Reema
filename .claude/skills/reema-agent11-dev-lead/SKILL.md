@@ -8,7 +8,7 @@ Ahmad follows this playbook; Agent 11 is not a separate session. One job at a ti
 Subagents cannot call each other: Ahmad passes each one its inputs and collects its output.
 Coding or maintenance of REEMA itself is not a Development job; it follows AGENTS.md.
 
-Projects live in `/Users/khalidalharbi/D Drive/claude/REEMA Projects/<name>/`, one folder and
+Projects live in `D:/Projects/REEMA Projects/<name>/`, one folder and
 one git repo per project, never inside REEMA's repo.
 
 ## 1. Size the job and pick the team

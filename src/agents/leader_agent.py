@@ -559,7 +559,7 @@ class LeaderAgent:
                             "findings": review["issues"], "summaries": review["summaries"],
                             "section_locations": review["section_locations"], "verification": "unverified"}
                 store.save("findings", findings)
-                (run_dir / "findings.md").write_text(findings_markdown(findings), encoding="utf-8")
+                (run_dir / "findings.md").write_text(findings_markdown(findings), encoding="utf-8", newline="\n")
             self._finish_workflow("review_complete")
             store.finish("review_complete")
             self.context["findings"] = findings
@@ -637,7 +637,7 @@ class LeaderAgent:
                 store.state["file_version"] = version
                 # The run folder is new (RunStore refuses an existing one), so no file is ever overwritten.
                 outputs = {"markdown": str(run_dir / f"{stem}.md")}
-                Path(outputs["markdown"]).write_text(revised, encoding="utf-8")
+                Path(outputs["markdown"]).write_text(revised, encoding="utf-8", newline="\n")
                 if source.kind == "docx":
                     new = section_map(revised, profile)
                     bodies = {key: revised[new[key]["body_start"]:new[key]["end"]].strip() for key in targets}
@@ -649,7 +649,7 @@ class LeaderAgent:
                 (run_dir / "changes.md").write_text(
                     f"File version: {version['to']} (from {version['from']}). The version in Document Control "
                     "inside the document was not changed; update it before approval if needed.\n\n"
-                    + changes_markdown(content, revised, source.path.name), encoding="utf-8")
+                    + changes_markdown(content, revised, source.path.name), encoding="utf-8", newline="\n")
             async with self._phase("human_review_record"):
                 record_path = run_dir / "approval.json"
                 # The record's score field holds the share of findings the model recheck marked resolved.

@@ -32,7 +32,7 @@ class MarkdownFormatter:
             formatted_content = self._format_markdown(content, process_name)
 
             # Write to file
-            with open(output_path, 'w', encoding='utf-8') as f:
+            with open(output_path, 'w', encoding='utf-8', newline='\n') as f:
                 f.write(formatted_content)
 
             logger.info(f"Markdown file created: {output_path}", agent=self.name)

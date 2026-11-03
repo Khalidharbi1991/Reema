@@ -26,7 +26,7 @@ DEV_AGENTS = {12: "reema-agent12-requirements", 13: "reema-agent13-architect", 1
               15: "reema-agent15-tester", 16: "reema-agent16-security", 17: "reema-agent17-ui",
               18: "reema-agent18-game-writer"}
 DEV_LEAD = CLAUDE / "skills" / "reema-agent11-dev-lead" / "SKILL.md"
-PROJECTS = "/Users/khalidalharbi/D Drive/claude/REEMA Projects"
+PROJECTS = "D:/Projects/REEMA Projects"
 
 
 def frontmatter(path):

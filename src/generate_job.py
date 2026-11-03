@@ -51,7 +51,7 @@ def work_root():
 
 
 def _write(path, value):
-    path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
 
 
 def work_dir(work_id):
@@ -133,7 +133,7 @@ def prepare(process, formats=None, *, custom=False, objective=None, constraints=
         "sections": [{"number": number, "id": section.id, "title": section.display_title or section.title,
                       "instructions": section.instructions, "target_pages": section.target_pages,
                       "diagrams_allowed": section.id in ContentAgent.DIAGRAM_SECTIONS,
-                      "file": str(files[section.id].relative_to(path))}
+                      "file": files[section.id].relative_to(path).as_posix()}
                      for number, section in enumerate(profile.sections, 1)],
         "flow_schemas": {"sequence": SequenceFlow.model_json_schema(), "graph": GraphFlow.model_json_schema()},
         "control_register": legacy_register(standards).model_dump(),
@@ -196,7 +196,7 @@ def check(work_id):
     content, _ = _draft(path, prepared)
     quality = LeaderAgent.check_draft(content, prepared["standards"], _sources(evidence),
                                       ControlRegister.model_validate(prepared["control_register"]))
-    (path / "draft_preview.md").write_text(content, encoding="utf-8")
+    (path / "draft_preview.md").write_text(content, encoding="utf-8", newline="\n")
     low, high = prepared["page_target"]
     print(f"Draft passed every check: {quality['word_count']} words (target {low}-{high} pages, counted at finish).")
     for warning in quality["warnings"]:
