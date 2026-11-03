@@ -12,8 +12,6 @@ from pathlib import Path
 
 UNIT_NAMES = {0: "unitless", 1: "inches", 2: "feet", 4: "millimetres", 5: "centimetres", 6: "metres"}
 OPENING_NAME = re.compile(r"door|dr\d|window|win\d|wdw|glaz|باب|نافذة|شباك", re.I)
-MAX_TEXTS = 500
-MAX_DIMENSIONS = 500
 MAX_POSITIONS = 50
 
 
@@ -48,13 +46,13 @@ def summarize_drawing(source: Path) -> dict:
         layers.setdefault(layer, {}).setdefault(kind, 0)
         layers[layer][kind] += 1
         if kind in ("TEXT", "MTEXT"):
-            if len(texts) >= MAX_TEXTS:
+            if len(texts) >= policy.cad_summary_max_texts:
                 skipped_texts += 1
                 continue
             value = entity.plain_text() if kind == "MTEXT" else entity.dxf.text
             texts.append({"text": " ".join(value.split())[:200], "layer": layer, "position": _point(entity.dxf.insert)})
         elif kind == "DIMENSION":
-            if len(dimensions) >= MAX_DIMENSIONS:
+            if len(dimensions) >= policy.cad_summary_max_dimensions:
                 skipped_dimensions += 1
                 continue
             try:
@@ -85,6 +83,7 @@ def summarize_drawing(source: Path) -> dict:
         "block_inserts": blocks,
         "door_window_candidates": [{"block": b["block"], "layer": b["layer"], "count": b["count"]}
                                    for b in blocks if b["opening_candidate"]],
+        "limits": {"text_labels": policy.cad_summary_max_texts, "dimensions": policy.cad_summary_max_dimensions},
         "truncated": {"text_labels": skipped_texts, "dimensions": skipped_dimensions},
         "rooms_inferred": False,
         "notes": ["Values are as stored in the drawing, in its declared units.",

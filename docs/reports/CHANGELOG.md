@@ -5,6 +5,13 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md). The [finite ledger](PENDING_LEDGER.md) records external
 requirements as they stood before the no-API migration below.
 
+## 2026-11-03 — Configurable drawing summary caps
+
+`drawing summary` kept at most 500 text labels and 500 dimensions, which left out 945 of
+1,445 labels in Khalid's plan. The caps are now `cad_summary_max_texts` and
+`cad_summary_max_dimensions` in `config/specialist_policy.yaml` (default 5,000 each, 1 to
+100,000), and every summary records the `limits` it used next to its `truncated` counts.
+
 ## 2026-11-03 — Home Design: one output folder for every result
 
 Every Home Design result now goes in `New Home/output/` (`renders/`, `models/`, `drawings/`,

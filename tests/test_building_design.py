@@ -140,6 +140,29 @@ def test_drawing_summary_lists_labels_dimensions_and_openings_without_inferring_
     assert summary["rooms_inferred"] is False and len(summary["sha256"]) == 64
 
 
+def test_drawing_summary_label_and_dimension_caps_are_configurable(tmp_path, monkeypatch):
+    from src.utils.cad_summary import summarize_drawing
+    from src.utils.specialists import SpecialistPolicy
+    policy = config_manager.specialist_policy
+    assert (policy.cad_summary_max_texts, policy.cad_summary_max_dimensions) == (5000, 5000)
+    source = tmp_path / "plan.dxf"
+    _plan_drawing(source)
+    full = summarize_drawing(source)
+    assert full["limits"] == {"text_labels": 5000, "dimensions": 5000}
+    assert full["truncated"] == {"text_labels": 0, "dimensions": 0}
+    monkeypatch.setattr(config_manager, "specialist_policy",
+                        policy.model_copy(update={"cad_summary_max_texts": 1, "cad_summary_max_dimensions": 1}))
+    capped = summarize_drawing(source)
+    assert [t["text"] for t in capped["text_labels"]] == ["MAJLIS"] and len(capped["dimensions"]) == 1
+    assert capped["limits"] == {"text_labels": 1, "dimensions": 1}
+    assert capped["truncated"] == {"text_labels": 1, "dimensions": 0}
+    for bad in (0, 100001):
+        with pytest.raises(ValueError):
+            SpecialistPolicy(cad_summary_max_texts=bad)
+        with pytest.raises(ValueError):
+            SpecialistPolicy(cad_summary_max_dimensions=bad)
+
+
 def test_drawing_summary_cli_writes_a_new_file_only(tmp_path):
     source = tmp_path / "plan.dxf"
     _plan_drawing(source, units=4)

@@ -35,6 +35,8 @@ class SpecialistPolicy(Contract):
     cad_max_bytes: int = Field(default=25000000, ge=1000, le=50000000)
     cad_max_entities: int = Field(default=50000, ge=1, le=100000)
     cad_max_segments: int = Field(default=5000, ge=1, le=10000)
+    cad_summary_max_texts: int = Field(default=5000, ge=1, le=100000)
+    cad_summary_max_dimensions: int = Field(default=5000, ge=1, le=100000)
     cad_wall_layers: list[str] = Field(default_factory=lambda: ['A-WALL'], min_length=1, max_length=10)
     separation_of_duties: list[list[str]] = Field(default_factory=list, max_length=100)
 
