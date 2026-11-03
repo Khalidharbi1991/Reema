@@ -274,12 +274,12 @@ the agents, the files and every package it wants to install. Nothing is written 
 you say yes. Anything bigger than a small fix starts with a PRD you confirm.
 
 Each project gets its own folder and git repo in
-`/Users/khalidalharbi/D Drive/claude/REEMA Projects/`, tagged at the start and end of
+`D:/Projects/REEMA Projects/`, tagged at the start and end of
 every job and before each risky change. To list a project's tags (replace `my-game`
 with the project's folder name):
 
 ```bash
-git -C "/Users/khalidalharbi/D Drive/claude/REEMA Projects/my-game" tag --list
+git -C "D:/Projects/REEMA Projects/my-game" tag --list
 ```
 
 A job finishes only when its tests pass and the security review has no open Critical

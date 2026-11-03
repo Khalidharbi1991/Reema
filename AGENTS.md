@@ -274,7 +274,7 @@ Ahmad follows the `reema-agent11-dev-lead` skill; Agent 11 is not a separate ses
   files, every package to be installed (name, version, manager) and the tags. A new
   package or a change of scope needs a new yes. Never skip Khalid.
 - **PRD first** (`docs/PRD.md`, confirmed by Khalid) for anything bigger than a small fix.
-- **Own repo per project** under `/Users/khalidalharbi/D Drive/claude/REEMA Projects/`
+- **Own repo per project** under `D:/Projects/REEMA Projects/`
   (added to the session in `.claude/settings.json`). Tags `job-<short>-<date>-start` and
   `-done` (or `-stopped`) on every job, and `pre-<short>-<date-time>` before each risky
   change. Only Ahmad commits and tags; rollback, reset or tag deletion only on Khalid's yes.
