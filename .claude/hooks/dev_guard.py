@@ -5,12 +5,18 @@ Blocks pushing, adding or changing remotes, publishing, deploying, sudo and netw
 when wrapped (sh -c, bash -c, eval, env, xargs, command substitution, powershell -Command, pwsh -c,
 cmd /c, Invoke-Expression), and commands that name REEMA's output/assistant/ or REEMA's references/
 through a path from outside the repository, written with either kind of slash.
+Home Design section: Blender, FreeCAD and ODA File Converter run only from reema-agent22-3d-modeler
+(the hook input's agent_type), one program per command by its installed path, with every path inside
+the New Home project and each script's SHA-256 recorded as reviewed; Agent 22 runs nothing else, and
+the home-design subagents write only inside their New Home folders.
 Exit code 2 blocks the call and the message goes back to Claude. The prefix deny rules in
 .claude/settings.json stay the first line; this catches wrapped forms they miss. It is not
 airtight: a program can still open a connection itself.
 """
 
+import hashlib
 import json
+import ntpath
 import re
 import shlex
 import sys
@@ -29,6 +35,36 @@ PS_SHELLS = {"powershell", "pwsh", "cmd", "iex", "invoke-expression"}
 OPERATORS = {";", "&&", "||", "|", "&", "|&", ";;", "(", ")", "{", "}", "$"}
 REDIRECTS = {">", ">>", "<", "<<", "<<<", ">&", "&>", "2>", "2>>"}
 GIT_VALUE_OPTIONS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
+# Home Design section: only reema-agent22-3d-modeler runs these, by these installed paths (checked
+# 2026-11-03), with every path inside the New Home project; they are blocked for everyone else.
+AGENT22 = "reema-agent22-3d-modeler"
+AGENT22_PROGRAMS = {
+    "blender": r"C:\Program Files\Blender Foundation\Blender 4.5\blender.exe",
+    "freecadcmd": r"C:\Users\Khali\AppData\Local\Programs\FreeCAD 1.1\bin\freecadcmd.exe",
+    "odafileconverter": r"C:\Program Files\ODA\ODAFileConverter 27.10.0\ODAFileConverter.exe",
+}
+HOME_PROGRAMS = set(AGENT22_PROGRAMS) | {"freecad", "blender-launcher"}
+LAUNCHERS = {"start-process", "saps", "start", "invoke-item", "ii"}
+HOME_PROJECT = r"D:\Projects\REEMA Projects\New Home"
+SCRIPT_LEDGER = HOME_PROJECT + r"\reviews\script_reviews.json"
+HOME_AGENT_WRITES = {
+    "reema-agent19-blueprint": ("docs",), "reema-agent20-space-planner": ("docs",),
+    "reema-agent21-interior": ("docs",), "reema-agent23-design-reviewer": ("docs",),
+    AGENT22: ("scripts", "models", "renders", "docs"),
+}
+WRITE_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit"}
+BLENDER_REQUIRED = {"--factory-startup", "--offline-mode", "--disable-autoexec"}
+BLENDER_SWITCHES = BLENDER_REQUIRED | {"-b", "--background", "-noaudio", "-a", "--render-anim"}
+NUMBER = re.compile(r"\d{1,5}")
+BLENDER_VALUES = {
+    "--python-exit-code": NUMBER, "-t": NUMBER, "--threads": NUMBER, "-f": NUMBER, "--render-frame": NUMBER,
+    "-x": re.compile(r"[01]"), "--use-extension": re.compile(r"[01]"),
+    "-E": re.compile(r"CYCLES|BLENDER_EEVEE_NEXT|BLENDER_EEVEE|BLENDER_WORKBENCH"),
+    "--engine": re.compile(r"CYCLES|BLENDER_EEVEE_NEXT|BLENDER_EEVEE|BLENDER_WORKBENCH"),
+    "-F": re.compile(r"PNG|JPEG|OPEN_EXR|TIFF"), "--render-format": re.compile(r"PNG|JPEG|OPEN_EXR|TIFF"),
+}
+ODA_VERSIONS = {"ACAD9", "ACAD10", "ACAD12", "ACAD13", "ACAD14", "ACAD2000", "ACAD2004", "ACAD2007",
+                "ACAD2010", "ACAD2013", "ACAD2018"}
 BLOCKED_WORDS = re.compile(r"\b(" + "|".join(sorted(SINGLE)) + r")\b|\bgit\s+push\b|\bremote\s+(add|set-url)\b"
                            r"|\b(npm|yarn|pnpm|uv|poetry|cargo)\s+publish\b|\btwine\s+upload\b")
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
@@ -131,6 +167,11 @@ def _check(words, depth, powershell=False):
     if i >= len(words):
         return None
     name, rest = _name(words[i]), words[i + 1:]
+    if name in HOME_PROGRAMS or any(_name(word) in HOME_PROGRAMS
+                                    and (re.search(r"\.(exe|com|bat|cmd)$", word.lower())
+                                         or _name(words[i + k]) in LAUNCHERS)
+                                    for k, word in enumerate(rest)):
+        return f"Blender, FreeCAD and ODA File Converter run only from Agent 22 ({AGENT22})"
     if name in SINGLE:
         return f"`{name}` is blocked (network, remote access or elevated rights)"
     if name in PS_SHELLS:
@@ -180,16 +221,139 @@ def reason(command, depth=0, powershell=False):
     return None
 
 
+def _win(path):
+    return ntpath.normcase(ntpath.normpath(str(path).replace("/", "\\")))
+
+
+def _in_home(path, *folders):
+    """True when path is absolute, on a drive, and inside New Home (or one of its folders)."""
+    path, home = _win(path), _win(HOME_PROJECT)
+    if not re.match(r"[a-z]:\\", path):
+        return False
+    return any(path.startswith(root + "\\") for root in [ntpath.join(home, f) for f in folders] or [home])
+
+
+def _approved(script, folder):
+    """Why this script may not run, or None when its current SHA-256 is recorded as reviewed."""
+    if not _in_home(script, ntpath.join("scripts", folder)) or not script.lower().endswith(".py"):
+        return f"the script must be a .py file in New Home\\scripts\\{folder}\\"
+    try:
+        digest = hashlib.sha256(Path(script).read_bytes()).hexdigest()
+        approved = json.loads(Path(SCRIPT_LEDGER).read_text(encoding="utf-8"))["approved"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return "the script or reviews\\script_reviews.json could not be read"
+    for entry in approved if isinstance(approved, list) else []:
+        if (isinstance(entry, dict) and _win(ntpath.join(HOME_PROJECT, str(entry.get("script", "")))) == _win(script)
+                and str(entry.get("sha256", "")).lower() == digest
+                and _in_home(ntpath.join(HOME_PROJECT, str(entry.get("review", ""))), "reviews")):
+            return None
+    return "this version of the script has no Agent 16 review recorded in reviews\\script_reviews.json"
+
+
+def _pathlike(word):
+    return "\\" in word or "/" in word or bool(re.match(r"[A-Za-z]:", word))
+
+
+def _blender(args):
+    scripts, switches, k = [], set(), 0
+    while k < len(args) and args[k] != "--":
+        word = args[k]
+        if word in ("--python", "-P"):
+            if k + 1 == len(args):
+                return "--python needs a script"
+            scripts.append(args[k + 1])
+            k += 2
+        elif word in ("-o", "--render-output"):
+            if k + 1 == len(args) or not _in_home(args[k + 1], "renders"):
+                return "render output must be inside New Home\\renders\\"
+            k += 2
+        elif word in BLENDER_VALUES:
+            if k + 1 == len(args) or not BLENDER_VALUES[word].fullmatch(args[k + 1]):
+                return f"`{word}` needs an allowed value"
+            k += 2
+        elif word in BLENDER_SWITCHES:
+            switches.add(word)
+            k += 1
+        elif word.startswith("-"):
+            return f"Blender option `{word}` is not allowed for Agent 22"
+        elif not (word.lower().endswith(".blend") and _in_home(word, "models")):
+            return "a .blend file must be inside New Home\\models\\"
+        else:
+            k += 1
+    if not switches & {"-b", "--background"} or not BLENDER_REQUIRED <= switches:
+        return "Blender must run with -b --factory-startup --offline-mode --disable-autoexec"
+    if len(scripts) != 1:
+        return "Blender must run exactly one reviewed --python script"
+    if any(_pathlike(word) and not _in_home(word) for word in args[k + 1:]):
+        return "script arguments that are paths must be inside New Home"
+    return _approved(scripts[0], "blender")
+
+
+def _oda(args):
+    if len(args) not in (6, 7) or not all(_in_home(folder) for folder in args[:2]):
+        return "ODA File Converter takes: input folder, output folder (both in New Home), version, type, recurse, audit, [filter]"
+    if args[2] not in ODA_VERSIONS or args[3] not in {"DWG", "DXF", "DXB"} or args[4] not in ("0", "1") \
+            or args[5] not in ("0", "1"):
+        return "ODA File Converter needs an ACAD version, DWG/DXF/DXB, and 0 or 1 for recurse and audit"
+    if len(args) == 7 and not re.fullmatch(r"[\w .*?-]+", args[6]):
+        return "the ODA file filter must be a plain name or wildcard"
+    return None
+
+
+def agent22_reason(command, tool):
+    """Why Agent 22 may not run this, or None: one allowed program, by its installed path, paths in New Home."""
+    if tool != "PowerShell":
+        return "Agent 22 runs its programs only through PowerShell"
+    command = command.strip()
+    if command.startswith("&"):
+        command = command[1:].lstrip()
+    if re.search(r"[;|&`<>$(){}@\r\n]", command):
+        return "Agent 22 runs one program per command: no ;, |, &&, redirection, variables or subexpressions"
+    lexer = shlex.shlex(command, posix=True)
+    lexer.whitespace_split, lexer.escape = True, ""
+    try:
+        words = list(lexer)
+    except ValueError:
+        return "command could not be parsed"
+    program = next((key for key, path in AGENT22_PROGRAMS.items() if words and _win(words[0]) == _win(path)), None)
+    if program == "blender":
+        return _blender(words[1:])
+    if program == "freecadcmd":
+        if len(words) != 2:
+            return "FreeCAD runs exactly one reviewed script and no other arguments"
+        return _approved(words[1], "freecad")
+    if program == "odafileconverter":
+        return _oda(words[1:])
+    return "Agent 22 may run only Blender, FreeCAD (freecadcmd) and ODA File Converter, by their full installed paths"
+
+
+def write_reason(tool_input, agent):
+    """Why this subagent may not write this file, or None."""
+    path = str(tool_input.get("file_path") or tool_input.get("notebook_path") or "")
+    if agent and _win(path) == _win(SCRIPT_LEDGER):
+        return "only Ahmad records script approvals in reviews\\script_reviews.json"
+    if agent in HOME_AGENT_WRITES and not _in_home(path, *HOME_AGENT_WRITES[agent]):
+        folders = ", ".join(f"New Home\\{f}\\" for f in HOME_AGENT_WRITES[agent])
+        return f"{agent} writes only inside {folders}"
+    return None
+
+
 def main():
     try:
         event = json.load(sys.stdin)
     except ValueError:
         print("dev_guard: unreadable hook input; blocked", file=sys.stderr)
         return 2
-    tool = event.get("tool_name")
-    if tool not in ("Bash", "PowerShell"):
+    tool, agent = event.get("tool_name"), event.get("agent_type")
+    tool_input = event.get("tool_input") or {}
+    if tool in WRITE_TOOLS:
+        found = write_reason(tool_input, agent)
+    elif tool not in ("Bash", "PowerShell"):
         return 0
-    found = reason(str((event.get("tool_input") or {}).get("command", "")), powershell=tool == "PowerShell")
+    elif agent == AGENT22:
+        found = agent22_reason(str(tool_input.get("command", "")), tool)
+    else:
+        found = reason(str(tool_input.get("command", "")), powershell=tool == "PowerShell")
     if found:
         print(f"Blocked by REEMA's guard (.claude/hooks/dev_guard.py): {found}. Ask Khalid to run it himself if it is really needed.",
               file=sys.stderr)
