@@ -5,6 +5,30 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md). The [finite ledger](PENDING_LEDGER.md) records external
 requirements as they stood before the no-API migration below.
 
+## 2026-11-03 — Home Design section (Agent 9, Agents 19–23)
+
+Built on branch `feature/home-design` after tag `pre-homedesign-20261103-1940`, following
+Khalid's choices A1, B1, C1+b, D2, E1 (Agent 16), F1, G1, H2, I, J1 and K1:
+
+- **Agent 9** is now the `reema-agent9-design-lead` skill, Ahmad's playbook; the old
+  subagent's rules are kept word for word, with a note on how they apply to Ahmad. Every
+  job asks which part of the home first and waits for Khalid's yes to the plan and agents.
+- **Agents 19–23** subagents: blueprint reader, space planner, interior designer,
+  3D modeler (Read, Write, PowerShell) and design reviewer. Agent 16 also reviews
+  Agent 22's scripts.
+- **Guard:** the hook input's `agent_type` (checked first with a probe) lets only Agent 22
+  run Blender 4.5 LTS, `freecadcmd` and ODA File Converter, by installed path, one program
+  per command, paths inside New Home, Blender offline with auto-run off, and only scripts
+  whose SHA-256 is recorded as reviewed. The programs are blocked for everyone else; a new
+  `Write|Edit` hook keeps Agents 19–23 in their New Home folders and lets only Ahmad
+  record approvals.
+- `drawing summary`: a local DXF summary (layers, text labels, dimensions, door and
+  window candidates; no room inferred) for Agent 19.
+- New Home project at `../REEMA Projects/New Home/`: local repo, no remote, DWG, DXF,
+  models and renders ignored; tag `job-newhome-20261103-start`.
+- Installed: Blender 4.5.10 LTS, FreeCAD 1.1.4, Sweet Home 3D 7.5 (winget) and ODA File
+  Converter 27.10.0 (signed MSI from opendesign.com).
+
 ## 2026-11-01 — Development section (Agents 11–18)
 
 The Development section is working in Claude Code, built on branch `feature/dev-section`

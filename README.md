@@ -4,7 +4,8 @@
 routes work to sections. The main section is Documentation, led by Abdullah:
 writing, reviewing and revising SOPs, and later reports and presentations. The
 first new feature, not yet built, will turn SCCM and Intune data into a patch
-report PowerPoint. Agent 9 supports home design as a side service. The Development
+report PowerPoint. The Home Design section, led by Agent 9, designs one part of
+Khalid's home at a time in a local project. The Development
 section, led by Agent 11, builds software, apps and games in separate project repos.
 
 Everything that needs writing or judgment runs in a Claude Code session: talk to
@@ -68,7 +69,7 @@ decision authority. Run `python3 scripts/dev.py run agents` for the active roste
 | Agent 6 | Access and identity security (role only; IAM checks on supplied data) |
 | Agent 7 | Problem management and root-cause analysis (role only; case checks on supplied data) |
 | Agent 8 | Analytics and KPI design (role only; metric checks on supplied data) |
-| Agent 9 | Building-design advice, local DWG intake, and assumption-labeled concept meshes from selected DXF wall linework |
+| Agent 9 | Home Design section head; local DWG intake, DXF summaries, and assumption-labeled concept meshes from selected DXF wall linework |
 | Agent 10 | End-user computing advice: patching and deployment rings, OS images, software packaging, Intune/MECM, endpoint compliance, change requests and runbooks; endpoint appendix for patch and device-batch SOPs |
 | Agent 11 | Development section head: sizes each job, picks the agents, gets your yes |
 | Agent 12 | Requirements (PRD) |
@@ -78,6 +79,11 @@ decision authority. Run `python3 scripts/dev.py run agents` for the active roste
 | Agent 16 | Security review |
 | Agent 17 | UI design |
 | Agent 18 | Game writer and designer |
+| Agent 19 | Blueprint reader |
+| Agent 20 | Space planner |
+| Agent 21 | Interior designer |
+| Agent 22 | 3D modeler (Blender, FreeCAD, ODA File Converter) |
+| Agent 23 | Design reviewer |
 
 ## Installation
 
@@ -259,9 +265,10 @@ words, for example "Ahmad, what's on my work list today?" or "Ahmad, review my
 incident SOP", or `/abdullah-docs` to go straight to the Documentation section.
 Ahmad works with the work area only, asks your yes once per session before reading
 work tasks or memory and before reading each SOP, and never approves or pushes.
-Building or home-design questions go to Agent 9 and endpoint questions (patching,
-imaging, packaging, Intune/MECM) to Agent 10, as Claude Code subagents that only
-read files you allow and save drafts under `output/claude_code/advice/`. The
+Building or home-design questions and jobs go to the Home Design section (below), and
+endpoint questions (patching, imaging, packaging, Intune/MECM) to Agent 10, a Claude
+Code subagent that only reads files you allow and saves drafts under
+`output/claude_code/advice/`. The
 org chart and rules are in AGENTS.md under "REEMA company in Claude Code".
 
 #### Development section
@@ -288,6 +295,32 @@ REEMA's `references/` or `output/assistant/`. `.claude/settings.json` blocks pus
 remotes, publishing, deploy tools, `sudo` and network tools such as `curl` and `wget`
 for the whole session, and its hook (`.claude/hooks/dev_guard.py`) also catches them
 inside `sh -c`, `eval` and similar.
+
+#### Home Design section
+
+Ask Ahmad in plain words, for example "Ahmad, design the majlis", or type
+`/reema-agent9-design-lead`. Agent 9's playbook first asks which part of the home to
+design (never the whole land unless you ask), then shows the plan and the agents it
+picked (19 blueprint reader, 20 space planner, 21 interior designer, 22 3D modeler,
+23 design reviewer) and waits for your yes. The work goes in
+`D:/Projects/REEMA Projects/New Home/`, a local git repo with no remote whose
+`.gitignore` keeps the DWG, DXF, models and renders out of Git.
+
+Agent 22 converts the DWG with ODA File Converter, and Ahmad summarizes the DXF locally:
+
+```bash
+python3 scripts/dev.py run drawing summary "D:/Projects/REEMA Projects/New Home/input/plan.dxf" --output "D:/Projects/REEMA Projects/New Home/docs/majlis-drawing-summary.json"
+```
+
+The summary lists layers, text labels, dimension values and door or window candidates
+as the drawing stores them; it infers no rooms. Agent 22 is the only agent that runs
+commands: Blender 4.5 LTS, `freecadcmd` and ODA File Converter, by their installed
+paths and only inside New Home. Each Blender or FreeCAD script runs only after Agent 16
+reviewed it and Ahmad recorded its SHA-256 in `reviews/script_reviews.json`; the hook
+checks this and blocks the three programs for everyone else. Renders run on the CPU,
+previews first. Apps: Blender (`BlenderFoundation.Blender.LTS.4.5`), FreeCAD
+(`FreeCAD.FreeCAD`) and Sweet Home 3D (`eTeks.SweetHome3D`, for your own use) from
+winget, and ODA File Converter (`ODA.ODAFileConverter`, or the MSI from opendesign.com).
 
 To find a finished SOP by file name without opening it:
 

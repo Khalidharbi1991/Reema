@@ -18,7 +18,8 @@ Claude Code session = Ahmad (coordinator)              .claude/skills, .claude/a
   ├─ abdullah-docs ─┬─ reema-generate ─ reema-writer (+ reema-agent10-euc appendix)
   │                 ├─ reema-review  ─ reema-reviewer, reema-consistency-reviewer
   │                 └─ reema-revise  ─ reema-reviser, reema-rechecker
-  ├─ reema-agent9-design, reema-agent10-euc (advice)
+  ├─ reema-agent10-euc (advice)
+  ├─ reema-agent9-design-lead ─ reema-agent19…23 subagents ─▶ ../REEMA Projects/New Home/ (own git repo)
   ├─ reema-agent11-dev-lead ─ reema-agent12…18 subagents ─▶ ../REEMA Projects/<name>/ (own git repo)
   └─ local commands: task, memory, find-sop, drawing
          │
@@ -70,7 +71,7 @@ src/
 │   ├── review_agent.py  Agent 4: review brief, located review, recheck
 │   ├── format_agent.py  Agent 5: export to Markdown, HTML, DOCX, PDF
 │   ├── euc_agent.py     Agent 10: protocol (shared with its subagent), appendix outline/check
-│   ├── building_design_agent.py  Agent 9: DWG intake, DXF concept mesh
+│   ├── building_design_agent.py  Agent 9: DWG intake, DXF concept mesh (DXF summary: utils/cad_summary.py)
 │   ├── secretary_agent.py        Ahmad: local task store and communication log
 │   ├── file_workers.py  Claude Code file-backed workers
 │   └── base_agent.py    config, knowledge text, the _reply hook

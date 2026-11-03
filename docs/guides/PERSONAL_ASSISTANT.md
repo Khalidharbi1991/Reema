@@ -11,14 +11,15 @@ that advice is unverified and Khalid decides. He routes the rest:
 
 - **Documentation** (Abdullah, `abdullah-docs` skill): a new SOP (`reema-generate`),
   a review (`reema-review`) or a revision (`reema-revise`) of a finished one.
-- **Building and home design**: the `reema-agent9-design` subagent.
+- **Home Design** (Agent 9, `reema-agent9-design-lead` skill): one part of the home
+  at a time, by Agents 19–23 in the local New Home project, after Khalid's yes to the plan.
 - **End-user computing and endpoints**: the `reema-agent10-euc` subagent.
 - **Development** (Agent 11, `reema-agent11-dev-lead` skill): software, apps and
   games built by Agents 12–18 in separate project repos, after Khalid's yes to the plan.
 - **Tasks and memory**: the local `task` and `memory` commands below.
 
-There are twenty agent roles; Agents 11–18 (Development) exist only as a
-Claude Code skill and subagents. Agents 1, 2, 6, 7 and 8 have no class any more: they
+There are twenty-five agent roles; Agents 11–18 (Development) and Agent 9's Home
+Design team (Agents 19–23) exist only as Claude Code skills and subagents. Agents 1, 2, 6, 7 and 8 have no class any more: they
 remain roles in the roster (`reema agents`), and their knowledge files remain source
 material. Khalid remains the decision authority.
 
@@ -43,11 +44,24 @@ marked "[to confirm]". The draft still needs human approval.
 
 ## Agent 9: building and home design
 
-Ahmad passes building layout, interior, exterior and modeling questions to the
-`reema-agent9-design` subagent, which reads only files Ahmad names after Khalid's yes.
-It cannot read DWG geometry and never invents dimensions; structural, electrical,
-plumbing and permit questions need a licensed professional. When a mesh or preview
-would help, Ahmad runs the local drawing commands, which make no model call.
+Ahmad follows the `reema-agent9-design-lead` skill, which keeps the old Agent 9
+subagent's rules word for word. Every job starts by asking Khalid which part of the
+home to design, then shows the plan and the chosen agents (19 blueprint reader, 20
+space planner, 21 interior designer, 22 3D modeler, 23 design reviewer) and waits for
+his yes. The agents read only files Ahmad names after Khalid's yes, never invent
+dimensions and mark unknowns [to confirm]; structural, electrical, plumbing and permit
+questions need a licensed professional. Project files live in
+`D:/Projects/REEMA Projects/New Home/` and never leave this computer. Agent 22 is the
+only agent that runs commands (Blender, `freecadcmd`, ODA File Converter), within the
+hook's rules and only for scripts Agent 16 reviewed. Ahmad runs the local drawing
+commands, which make no model call.
+
+To summarize a converted DXF for Agent 19 (layers, text labels, dimensions, door and
+window candidates, with no room inferred):
+
+```bash
+python3 scripts/dev.py run drawing summary "D:/Projects/REEMA Projects/New Home/input/plan.dxf" --output "D:/Projects/REEMA Projects/New Home/docs/plan-drawing-summary.json"
+```
 
 To check a local AutoCAD drawing:
 
