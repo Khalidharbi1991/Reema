@@ -53,7 +53,7 @@ def load_sop(path) -> SopSource:
     digest = hashlib.sha256(data).hexdigest()
     if kind == "markdown":
         try:
-            content = data.decode("utf-8")
+            content = data.decode("utf-8").replace("\r\n", "\n")
         except UnicodeDecodeError:
             raise ValueError("Markdown SOP must be UTF-8 text") from None
         blocks = []

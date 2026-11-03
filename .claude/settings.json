@@ -1,18 +1,24 @@
 {
   "permissions": {
     "additionalDirectories": [
-      "/Users/khalidalharbi/D Drive/claude/REEMA Projects"
+      "D:/Projects/REEMA Projects"
     ],
     "deny": [
       "Bash(reema approve:*)",
       "Bash(reema reject:*)",
       "Bash(python3 -m src.main approve:*)",
+      "Bash(python -m src.main approve:*)",
       "Bash(python3 -m src.main reject:*)",
+      "Bash(python -m src.main reject:*)",
       "Bash(python3 scripts/dev.py run approve:*)",
+      "Bash(python scripts/dev.py run approve:*)",
       "Bash(python3 scripts/dev.py run reject:*)",
+      "Bash(python scripts/dev.py run reject:*)",
       "Bash(reema publish:*)",
       "Bash(python3 -m src.main publish:*)",
+      "Bash(python -m src.main publish:*)",
       "Bash(python3 scripts/dev.py run publish:*)",
+      "Bash(python scripts/dev.py run publish:*)",
       "Bash(git push:*)",
       "Bash(git remote add:*)",
       "Bash(git remote set-url:*)",
@@ -22,6 +28,7 @@
       "Bash(pnpm publish:*)",
       "Bash(twine upload:*)",
       "Bash(python3 -m twine:*)",
+      "Bash(python -m twine:*)",
       "Bash(uv publish:*)",
       "Bash(poetry publish:*)",
       "Bash(cargo publish:*)",
@@ -41,6 +48,50 @@
       "Bash(sftp:*)",
       "Bash(rsync:*)",
       "Bash(nc:*)",
+      "PowerShell(reema approve:*)",
+      "PowerShell(reema reject:*)",
+      "PowerShell(python3 -m src.main approve:*)",
+      "PowerShell(python -m src.main approve:*)",
+      "PowerShell(python3 -m src.main reject:*)",
+      "PowerShell(python -m src.main reject:*)",
+      "PowerShell(python3 scripts/dev.py run approve:*)",
+      "PowerShell(python scripts/dev.py run approve:*)",
+      "PowerShell(python3 scripts/dev.py run reject:*)",
+      "PowerShell(python scripts/dev.py run reject:*)",
+      "PowerShell(reema publish:*)",
+      "PowerShell(python3 -m src.main publish:*)",
+      "PowerShell(python -m src.main publish:*)",
+      "PowerShell(python3 scripts/dev.py run publish:*)",
+      "PowerShell(python scripts/dev.py run publish:*)",
+      "PowerShell(git push:*)",
+      "PowerShell(git remote add:*)",
+      "PowerShell(git remote set-url:*)",
+      "PowerShell(gh:*)",
+      "PowerShell(npm publish:*)",
+      "PowerShell(yarn publish:*)",
+      "PowerShell(pnpm publish:*)",
+      "PowerShell(twine upload:*)",
+      "PowerShell(python3 -m twine:*)",
+      "PowerShell(python -m twine:*)",
+      "PowerShell(uv publish:*)",
+      "PowerShell(poetry publish:*)",
+      "PowerShell(cargo publish:*)",
+      "PowerShell(gem push:*)",
+      "PowerShell(docker push:*)",
+      "PowerShell(vercel:*)",
+      "PowerShell(netlify:*)",
+      "PowerShell(firebase deploy:*)",
+      "PowerShell(fly deploy:*)",
+      "PowerShell(flyctl:*)",
+      "PowerShell(heroku:*)",
+      "PowerShell(sudo:*)",
+      "PowerShell(curl:*)",
+      "PowerShell(wget:*)",
+      "PowerShell(ssh:*)",
+      "PowerShell(scp:*)",
+      "PowerShell(sftp:*)",
+      "PowerShell(rsync:*)",
+      "PowerShell(nc:*)",
       "Read(./output/assistant/**)",
       "Edit(./output/assistant/**)",
       "Write(./output/assistant/**)",
@@ -56,7 +107,16 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/dev_guard.py\""
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/dev_guard.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/dev_guard.py\""
           }
         ]
       }

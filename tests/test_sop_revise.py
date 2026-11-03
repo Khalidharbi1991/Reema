@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 from pathlib import Path
 from unittest.mock import AsyncMock
 
@@ -277,7 +278,7 @@ async def test_unparsable_revision_reply_is_saved_locally_for_diagnosis(tmp_path
         await leader.revise_existing(source, findings, local_author=True)
     run = Path(leader.context["run_dir"])
     saved = run / "unparsed_reply.txt"
-    assert saved.read_text() == wrapped and (saved.stat().st_mode & 0o777) == 0o600
+    assert saved.read_text() == wrapped and (os.name == "nt" or (saved.stat().st_mode & 0o777) == 0o600)
     state = json.loads((run / "run.json").read_text())
     assert state["status"] == "failed" and state["unparsed_reply"] == "unparsed_reply.txt"
     assert "Here is the patch" not in caplog.text and "Here is the patch" not in (run / "run.json").read_text()

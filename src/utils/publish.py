@@ -40,7 +40,7 @@ def read_publish(record_path):
 def _write_publish(record_path, state):
     path = publish_path(record_path)
     temporary = path.with_suffix(".json.tmp")
-    temporary.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+    temporary.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8", newline="\n")
     temporary.replace(path)
 
 

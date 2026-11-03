@@ -49,7 +49,7 @@ def run_suite():
     """Grade every case's expected answer: proves the fixtures and the grader, never a model."""
     dataset,_=read_suite()
     answers=[grade(json.dumps(case['expected'],ensure_ascii=False),case) for case in dataset['cases']]
-    files={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in [DATASET,PROMPTS,Path(__file__).resolve()]}
+    files={p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in [DATASET,PROMPTS,Path(__file__).resolve()]}
     return {'version':1,'recorded_at':datetime.now(timezone.utc).isoformat(),'mode':'offline_fixture','files':files,
             'status':'complete','passed':sum(a['passed'] for a in answers),'total':len(dataset['cases']),'results':answers,
             'interpretation':'Offline results verify the expected-answer fixtures and the grader only. They do not measure any model or agent. Rubrics need human review.'}

@@ -162,7 +162,7 @@ def generate_concept_model(source: Path, output_dir: Path, bounds: tuple[float, 
     if any(path.exists() for path in (obj_path, mtl_path, preview_path, manifest_path)):
         raise FileExistsError("Concept output already exists; choose a fresh output directory")
 
-    with mtl_path.open("w", encoding="utf-8") as target:
+    with mtl_path.open("w", encoding="utf-8", newline="\n") as target:
         target.write("newmtl walls\nKd 0.76 0.79 0.82\n"
                      "newmtl furniture_proxies\nKd 0.34 0.58 0.45\n"
                      "newmtl fixture_proxies\nKd 0.65 0.78 0.87\n"
@@ -170,7 +170,7 @@ def generate_concept_model(source: Path, output_dir: Path, bounds: tuple[float, 
                      "newmtl suggested_sofa\nKd 0.84 0.62 0.42\n"
                      "newmtl suggested_tv\nKd 0.18 0.20 0.25\n"
                      "newmtl suggested_planter\nKd 0.23 0.57 0.34\n")
-    with obj_path.open("w", encoding="utf-8") as target:
+    with obj_path.open("w", encoding="utf-8", newline="\n") as target:
         target.write("# Concept mesh from configured wall linework; not construction accurate\n"
                      "mtllib building-concept.mtl\n")
         vertex_index = 1
@@ -246,7 +246,7 @@ def generate_concept_model(source: Path, output_dir: Path, bounds: tuple[float, 
                         "Not a BIM, structural, permit, or construction model"],
         "files": [path.name for path in (obj_path, mtl_path, preview_path)],
     }
-    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n")
     if obj_path.stat().st_size == 0 or preview_path.stat().st_size == 0:
         raise RuntimeError("Concept model export failed verification")
     return manifest | {"obj_path": obj_path, "preview_path": preview_path,

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""PreToolUse guard for Bash in REEMA's Claude Code sessions (Development section, decision D3).
+"""PreToolUse guard for Bash and PowerShell in REEMA's Claude Code sessions (Development section, decision D3).
 
 Blocks pushing, adding or changing remotes, publishing, deploying, sudo and network tools, also
-when wrapped (sh -c, bash -c, eval, env, xargs, command substitution), and commands that name
-REEMA's output/assistant/ or REEMA's references/ through a path from outside the repository.
+when wrapped (sh -c, bash -c, eval, env, xargs, command substitution, powershell -Command, pwsh -c,
+cmd /c, Invoke-Expression), and commands that name REEMA's output/assistant/ or REEMA's references/
+through a path from outside the repository, written with either kind of slash.
 Exit code 2 blocks the call and the message goes back to Claude. The prefix deny rules in
 .claude/settings.json stay the first line; this catches wrapped forms they miss. It is not
 airtight: a program can still open a connection itself.
@@ -24,6 +25,7 @@ PAIRS = {("git", "push"), ("npm", "publish"), ("yarn", "publish"), ("pnpm", "pub
          ("fly", "deploy")}
 WRAPPERS = {"env", "command", "exec", "nohup", "time", "nice", "xargs", "builtin", "timeout", "caffeinate"}
 SHELLS = {"sh", "bash", "zsh", "dash", "ksh"}
+PS_SHELLS = {"powershell", "pwsh", "cmd", "iex", "invoke-expression"}
 OPERATORS = {";", "&&", "||", "|", "&", "|&", ";;", "(", ")", "{", "}", "$"}
 REDIRECTS = {">", ">>", "<", "<<", "<<<", ">&", "&>", "2>", "2>>"}
 GIT_VALUE_OPTIONS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
@@ -53,9 +55,21 @@ def _split_heredocs(command):
     return "\n".join(kept), shell_bodies
 
 
-def _segments(command):
-    lexer = shlex.shlex(command.replace("`", " ; ").replace("\n", " ; "), posix=True, punctuation_chars=True)
+def _name(word):
+    """Command name from a / or \\ path, lower case and without .exe/.cmd/.bat/.com/.ps1 (Windows ignores both)."""
+    return re.sub(r"\.(exe|cmd|bat|com|ps1)$", "", re.split(r"[\\/]", word)[-1].lower())
+
+
+def _segments(command, powershell=False):
+    if powershell:
+        # In PowerShell ` escapes the next character or continues the line, and \ is literal.
+        command = re.sub(r"`\r?\n", " ", command).replace("`", "")
+    else:
+        command = command.replace("`", " ; ")
+    lexer = shlex.shlex(command.replace("\n", " ; "), posix=True, punctuation_chars=True)
     lexer.whitespace_split = True
+    if powershell:
+        lexer.escape = ""
     segment = []
     for token in lexer:
         if token in OPERATORS or set(token) <= set(";&|()"):
@@ -76,7 +90,8 @@ def _first_operand(words):
 
 
 def _path_reason(word):
-    root, name = str(ROOT), ROOT.name
+    word = word.replace("\\", "/").lower()
+    root, name = ROOT.as_posix().lower(), ROOT.name.lower()
     if re.match(r"(\./)?output/assistant(/|$)", word) or f"{name}/output/assistant" in word \
             or word.startswith(f"{root}/output/assistant"):
         return "REEMA's output/assistant/ is used only through the task and memory commands"
@@ -85,16 +100,24 @@ def _path_reason(word):
     return None
 
 
-def _check(words, depth):
+def _after_options(words, depth):
+    """powershell, pwsh, cmd and Invoke-Expression take their command after any options: check each tail."""
+    for k, word in enumerate(words):
+        if not re.fullmatch(r"[-/][A-Za-z]+", word) and (why := reason(" ".join(words[k:]), depth + 1, True)):
+            return why
+    return None
+
+
+def _check(words, depth, powershell=False):
     words = [w for i, w in enumerate(words) if w not in REDIRECTS and (i == 0 or words[i - 1] not in REDIRECTS)]
     for word in words:
         if why := _path_reason(word):
             return why
-        if "$(" in word and (why := reason(word[word.index("$(") + 2:].rstrip(")"), depth + 1)):
+        if "$(" in word and (why := reason(word[word.index("$(") + 2:].rstrip(")"), depth + 1, powershell)):
             return why
     i = 0
     while i < len(words):
-        name = Path(words[i]).name
+        name = _name(words[i])
         if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", words[i]):
             i += 1
         elif name in WRAPPERS:
@@ -107,9 +130,11 @@ def _check(words, depth):
             break
     if i >= len(words):
         return None
-    name, rest = Path(words[i]).name, words[i + 1:]
+    name, rest = _name(words[i]), words[i + 1:]
     if name in SINGLE:
         return f"`{name}` is blocked (network, remote access or elevated rights)"
+    if name in PS_SHELLS:
+        return _after_options(rest, depth)
     if name in SHELLS or name == "eval":
         if name == "eval":
             inner = " ".join(rest)
@@ -134,22 +159,23 @@ def _check(words, depth):
     return None
 
 
-def reason(command, depth=0):
-    """Why this Bash command is blocked, or None when it may run."""
+def reason(command, depth=0, powershell=False):
+    """Why this Bash (or, with powershell=True, PowerShell) command is blocked, or None when it may run."""
     if depth > 5:
         return "command is nested too deeply to check"
-    command, shell_bodies = _split_heredocs(command)
-    for body in shell_bodies:
-        if why := reason(body, depth + 1):
-            return why
+    if not powershell:
+        command, shell_bodies = _split_heredocs(command)
+        for body in shell_bodies:
+            if why := reason(body, depth + 1):
+                return why
     try:
-        segments = list(_segments(command))
+        segments = list(_segments(command, powershell))
     except ValueError:
         if BLOCKED_WORDS.search(command):
             return "command could not be parsed and names a blocked command"
         return None
     for words in segments:
-        if found := _check(words, depth):
+        if found := _check(words, depth, powershell):
             return found
     return None
 
@@ -160,9 +186,10 @@ def main():
     except ValueError:
         print("dev_guard: unreadable hook input; blocked", file=sys.stderr)
         return 2
-    if event.get("tool_name") != "Bash":
+    tool = event.get("tool_name")
+    if tool not in ("Bash", "PowerShell"):
         return 0
-    found = reason(str((event.get("tool_input") or {}).get("command", "")))
+    found = reason(str((event.get("tool_input") or {}).get("command", "")), powershell=tool == "PowerShell")
     if found:
         print(f"Blocked by REEMA's guard (.claude/hooks/dev_guard.py): {found}. Ask Khalid to run it himself if it is really needed.",
               file=sys.stderr)

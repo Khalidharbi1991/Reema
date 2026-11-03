@@ -11,17 +11,29 @@ import os
 def deny_network(monkeypatch):
     """No test can reach a network host (loopback included), so no prompt could leave this computer."""
     import socket
+    import threading
+
+    real_socketpair, pairing = socket.socketpair, threading.local()
+
+    def socketpair(*args, **kwargs):
+        """Windows builds socket pairs (asyncio's self-pipe) by connecting to its own loopback listener."""
+        pairing.active = True
+        try:
+            return real_socketpair(*args, **kwargs)
+        finally:
+            pairing.active = False
 
     def guarded(name):
         real = getattr(socket.socket, name)
 
         def call(self, address, *args):
-            if self.family in (socket.AF_INET, socket.AF_INET6):
+            if self.family in (socket.AF_INET, socket.AF_INET6) and not getattr(pairing, "active", False):
                 raise AssertionError(f"Network access is forbidden in tests: {address!r}")
             return real(self, address, *args)
         return call
     for name in ("connect", "connect_ex"):
         monkeypatch.setattr(socket.socket, name, guarded(name))
+    monkeypatch.setattr(socket, "socketpair", socketpair)
 
 
 @pytest.fixture

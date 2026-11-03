@@ -54,7 +54,7 @@ class HTMLFormatter:
             )
 
             # Write to file
-            with open(output_path, 'w', encoding='utf-8') as f:
+            with open(output_path, 'w', encoding='utf-8', newline='\n') as f:
                 f.write(html_output)
 
             logger.info(f"HTML file created: {output_path}", agent=self.name)
