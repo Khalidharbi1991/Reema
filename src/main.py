@@ -76,6 +76,26 @@ def drawing_concept(
         raise typer.Exit(code=2)
 
 
+@drawing_app.command("summary")
+def drawing_summary(
+    path: Path = typer.Argument(..., help="Local DXF working copy"),
+    output: Path = typer.Option(..., "--output", help="New local JSON file for the summary"),
+):
+    """List a DXF's layers, text labels, dimensions and block inserts; no room is inferred."""
+    from .utils.cad_summary import write_summary
+    try:
+        summary = write_summary(path, output)
+        console.print(f"Drawing summary: {output}", markup=False)
+        console.print(
+            f"Units: {summary['units']['name']}; text labels: {len(summary['text_labels'])}; "
+            f"dimensions: {len(summary['dimensions'])}; door or window candidates: "
+            f"{len(summary['door_window_candidates'])}", markup=False)
+        console.print("Values as stored in the drawing; rooms and openings need Khalid's confirmation.")
+    except (ValueError, OSError, FileExistsError) as error:
+        console.print(str(error), markup=False)
+        raise typer.Exit(code=2)
+
+
 def _task_agent(area: str):
     if area not in AREAS:
         raise ValueError("Area must be work or personal")
