@@ -19,8 +19,8 @@ def _point(vector):
     return [round(vector.x, 4), round(vector.y, 4)]
 
 
-def summarize_drawing(source: Path) -> dict:
-    """Summarize one local DXF working copy without changing it."""
+def open_drawing(source: Path):
+    """Load one local DXF working copy under the CAD policy: (bytes, drawing, policy)."""
     import ezdxf
     from .config import config_manager
 
@@ -35,6 +35,31 @@ def summarize_drawing(source: Path) -> dict:
         drawing = ezdxf.readfile(source)
     except ezdxf.DXFError as error:
         raise ValueError("File is not a readable DXF drawing") from error
+    return data, drawing, policy
+
+
+def units_of(drawing) -> dict:
+    code = drawing.header.get("$INSUNITS", 0)
+    return {"insunits_code": code, "name": UNIT_NAMES.get(code, "other [to confirm]")}
+
+
+def write_new_json(output: Path, result: dict) -> None:
+    """Write a result to a new .json file in an existing folder; never overwrite."""
+    output = Path(output)
+    if output.suffix.casefold() != ".json":
+        raise ValueError("Output must be a .json file")
+    if output.exists():
+        raise FileExistsError(f"{output} already exists")
+    if not output.parent.is_dir():
+        raise ValueError("Output folder must exist")
+    with output.open("x", encoding="utf-8") as handle:
+        json.dump(result, handle, ensure_ascii=False, indent=2)
+
+
+def summarize_drawing(source: Path) -> dict:
+    """Summarize one local DXF working copy without changing it."""
+    source = Path(source)
+    data, drawing, policy = open_drawing(source)
     units_code = drawing.header.get("$INSUNITS", 0)
     layers, texts, dimensions, inserts = {}, [], [], {}
     entities = skipped_texts = skipped_dimensions = 0
@@ -75,7 +100,7 @@ def summarize_drawing(source: Path) -> dict:
     return {
         "filename": source.name,
         "sha256": hashlib.sha256(data).hexdigest(),
-        "units": {"insunits_code": units_code, "name": UNIT_NAMES.get(units_code, "other [to confirm]")},
+        "units": units_of(drawing),
         "entities": entities,
         "layers": {name: dict(sorted(kinds.items())) for name, kinds in sorted(layers.items())},
         "text_labels": texts,

@@ -63,6 +63,8 @@ date and area to use. The guard refuses agent writes outside these places or wit
 - Ahmad runs `python3 scripts/dev.py run drawing summary "<New Home>/output/drawings/<date>_<area>_plan.dxf" --output "<New Home>/output/summaries/<date>_<area>_drawing-summary.json"`
   locally. It lists layers, text labels, dimension values, block inserts and door or window
   candidates, with no room purpose inferred.
+- For one area's openings or walls, Ahmad runs `python3 scripts/dev.py run drawing extract "<file.dxf>" --layers A-DOOR,WINDOW --xmin --ymin --xmax --ymax --output "<New Home>/output/summaries/<date>_<area>_<what>.json"`
+  locally: only those layers, only that area, values as stored.
 - Agent 19 reads that summary only after Khalid's yes for it. Agent 19 reads the raw DXF only on
   a separate yes for that file. What a session reads goes to Anthropic through Claude Code; say so
   when you ask.

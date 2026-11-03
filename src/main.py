@@ -96,6 +96,31 @@ def drawing_summary(
         raise typer.Exit(code=2)
 
 
+@drawing_app.command("extract")
+def drawing_extract(
+    path: Path = typer.Argument(..., help="Local DXF working copy"),
+    layers: str = typer.Option(..., "--layers", help="Comma-separated layer names, for example A-DOOR,WINDOW"),
+    xmin: float = typer.Option(..., "--xmin"),
+    ymin: float = typer.Option(..., "--ymin"),
+    xmax: float = typer.Option(..., "--xmax"),
+    ymax: float = typer.Option(..., "--ymax"),
+    output: Path = typer.Option(..., "--output", help="New local JSON file for the extract"),
+):
+    """Extract the entities of chosen layers inside one plan area, as the drawing stores them."""
+    from .utils.cad_extract import write_extract
+    try:
+        result = write_extract(path, layers.split(","), (xmin, ymin, xmax, ymax), output)
+        console.print(f"Drawing extract: {output}", markup=False)
+        console.print(f"Entities: {len(result['entities'])}; " + "; ".join(
+            f"{key}: {count}" for key, count in result["counts"].items()), markup=False)
+        if result["layers_not_in_drawing"]:
+            console.print("Layers not in the drawing: " + ", ".join(result["layers_not_in_drawing"]), markup=False)
+        console.print("Values as stored in the drawing; nothing is inferred.")
+    except (ValueError, OSError, FileExistsError) as error:
+        console.print(str(error), markup=False)
+        raise typer.Exit(code=2)
+
+
 def _task_agent(area: str):
     if area not in AREAS:
         raise ValueError("Area must be work or personal")

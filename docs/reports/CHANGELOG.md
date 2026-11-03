@@ -5,6 +5,14 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md). The [finite ledger](PENDING_LEDGER.md) records external
 requirements as they stood before the no-API migration below.
 
+## 2026-11-03 — `drawing extract`
+
+`drawing extract FILE.dxf --layers A,B --xmin --ymin --xmax --ymax --output NEW.json` writes the
+LINE, ARC, CIRCLE, LWPOLYLINE and INSERT entities of the named layers (1 to 20) that have a
+point inside one area (at most 500 by 500 units), as the drawing stores them, with counts,
+skipped types and named layers that no entity uses. It replaces the one-off script used for the
+master suite's doors and windows (same 64 entities). DXF loading is shared with `drawing summary`.
+
 ## 2026-11-03 — Configurable drawing summary caps
 
 `drawing summary` kept at most 500 text labels and 500 dimensions, which left out 945 of

@@ -163,6 +163,62 @@ def test_drawing_summary_label_and_dimension_caps_are_configurable(tmp_path, mon
             SpecialistPolicy(cad_summary_max_dimensions=bad)
 
 
+def _openings_drawing(path):
+    drawing = ezdxf.new("R2010")
+    drawing.header["$INSUNITS"] = 6
+    msp = drawing.modelspace()
+    msp.add_line((0, 0), (0.9, 0), dxfattribs={"layer": "A-DOOR"})
+    msp.add_arc((0, 0), 0.9, 0, 90, dxfattribs={"layer": "A-DOOR"})
+    msp.add_lwpolyline([(2, 0), (3.4, 0), (3.4, 0.2)], dxfattribs={"layer": "WINDOW"})
+    drawing.blocks.new("WIN-1.40-20CM")
+    msp.add_blockref("WIN-1.40-20CM", (2.7, 0.1), dxfattribs={"layer": "WINDOW", "rotation": 40.75})
+    msp.add_line((50, 50), (51, 50), dxfattribs={"layer": "A-DOOR"})
+    msp.add_line((0, 0), (5, 0), dxfattribs={"layer": "A-WALL"})
+    msp.add_text("D1", dxfattribs={"layer": "A-DOOR", "insert": (0.5, 0.5)})
+    drawing.saveas(path)
+
+
+def test_drawing_extract_keeps_only_the_named_layers_inside_the_area(tmp_path):
+    from src.utils.cad_extract import extract_layers
+    source = tmp_path / "plan.dxf"
+    _openings_drawing(source)
+    result = extract_layers(source, ["A-DOOR", "WINDOW", "A-Glaz"], (-1, -1, 4, 1))
+    assert result["counts"] == {"A-DOOR/ARC": 1, "A-DOOR/LINE": 1, "WINDOW/INSERT": 1, "WINDOW/LWPOLYLINE": 1}
+    arc = next(e for e in result["entities"] if e["type"] == "ARC")
+    assert arc["radius"] == 0.9 and (arc["start_angle"], arc["end_angle"]) == (0, 90)
+    window = next(e for e in result["entities"] if e["type"] == "INSERT")
+    assert window["block"] == "WIN-1.40-20CM" and window["rotation"] == 40.75
+    assert all(e["layer"] != "A-WALL" for e in result["entities"])
+    assert result["layers_not_in_drawing"] == ["A-Glaz"] and result["skipped_types"] == {"TEXT": 1}
+    assert result["units"]["name"] == "metres" and len(result["sha256"]) == 64
+
+
+def test_drawing_extract_refuses_bad_layers_and_bounds(tmp_path):
+    from src.utils.cad_extract import extract_layers
+    source = tmp_path / "plan.dxf"
+    _openings_drawing(source)
+    with pytest.raises(ValueError, match="layers"):
+        extract_layers(source, [" ", ""], (0, 0, 1, 1))
+    with pytest.raises(ValueError, match="layers"):
+        extract_layers(source, [f"L{n}" for n in range(21)], (0, 0, 1, 1))
+    for bounds in ((1, 0, 0, 1), (0, 0, 600, 1), (0, 0, float("nan"), 1)):
+        with pytest.raises(ValueError):
+            extract_layers(source, ["A-DOOR"], bounds)
+
+
+def test_drawing_extract_cli_writes_a_new_file_only(tmp_path):
+    source = tmp_path / "plan.dxf"
+    _openings_drawing(source)
+    output = tmp_path / "extract.json"
+    args = ["drawing", "extract", str(source), "--layers", "A-DOOR,WINDOW,MISSING", "--xmin", "-1", "--ymin", "-1",
+            "--xmax", "4", "--ymax", "1", "--output", str(output)]
+    result = CliRunner().invoke(app, args)
+    assert result.exit_code == 0 and "Entities: 4" in result.output and "Layers not in the drawing: MISSING" in result.output
+    assert json.loads(output.read_text(encoding="utf-8"))["bounds"] == [-1, -1, 4, 1]
+    again = CliRunner().invoke(app, args)
+    assert again.exit_code == 2 and "already exists" in again.output
+
+
 def test_drawing_summary_cli_writes_a_new_file_only(tmp_path):
     source = tmp_path / "plan.dxf"
     _plan_drawing(source, units=4)

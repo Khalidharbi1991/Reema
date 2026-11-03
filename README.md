@@ -315,7 +315,12 @@ python3 scripts/dev.py run drawing summary "D:/Projects/REEMA Projects/New Home/
 ```
 
 The summary lists layers, text labels, dimension values and door or window candidates
-as the drawing stores them; it infers no rooms. Agent 22 is the only agent that runs
+as the drawing stores them; it infers no rooms. To pull only some layers inside one
+area (for example a suite's doors and windows):
+
+```bash
+python3 scripts/dev.py run drawing extract "D:/Projects/REEMA Projects/New Home/output/drawings/20261103_house_architectural-plan.dxf" --layers A-DOOR,WINDOW --xmin 513200 --ymin 2412889 --xmax 513212 --ymax 2412899 --output "D:/Projects/REEMA Projects/New Home/output/summaries/20261103_master-suite_door-window-extract.json"
+``` Agent 22 is the only agent that runs
 commands: Blender 4.5 LTS, `freecadcmd` and ODA File Converter, by their installed
 paths and only inside New Home. Each Blender or FreeCAD script runs only after Agent 16
 reviewed it and Ahmad recorded its SHA-256 in `reviews/script_reviews.json`; the hook
