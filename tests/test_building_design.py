@@ -219,6 +219,68 @@ def test_drawing_extract_cli_writes_a_new_file_only(tmp_path):
     assert again.exit_code == 2 and "already exists" in again.output
 
 
+def _room_drawing(path, angle=0.0):
+    """A 3.8 by 3.0 m room with 0.2 m walls, rotated by angle degrees about the origin."""
+    import math
+    c, s = math.cos(math.radians(angle)), math.sin(math.radians(angle))
+    rot = lambda x, y: (x * c - y * s, x * s + y * c)
+    drawing = ezdxf.new("R2010")
+    drawing.header["$INSUNITS"] = 6
+    msp = drawing.modelspace()
+    for x in (-0.2, 0.0, 3.8, 4.0):
+        msp.add_line(rot(x, -0.2), rot(x, 3.2), dxfattribs={"layer": "A-WALL"})
+    msp.add_lwpolyline([rot(-0.2, -0.2), rot(4.0, -0.2), rot(4.0, 0.0), rot(-0.2, 0.0)], close=True,
+                       dxfattribs={"layer": "A-WALL"})
+    msp.add_line(rot(-0.2, 3.0), rot(1.0, 3.0), dxfattribs={"layer": "A-WALL"})
+    msp.add_line(rot(1.9, 3.0), rot(4.0, 3.0), dxfattribs={"layer": "A-WALL"})
+    msp.add_line(rot(-0.2, 3.2), rot(4.0, 3.2), dxfattribs={"layer": "A-WALL"})
+    msp.add_line(rot(1.0, 1.0), rot(2.0, 1.0), dxfattribs={"layer": "FURNITER"})
+    drawing.saveas(path)
+    return rot
+
+
+@pytest.mark.parametrize("angle", [0.0, 40.75])
+def test_drawing_measure_finds_wall_thickness_and_clear_spans(tmp_path, angle):
+    from src.utils.cad_extract import measure_lines
+    source = tmp_path / "room.dxf"
+    rot = _room_drawing(source, angle)
+    result = measure_lines(source, ["A-WALL"], [rot(1.9, 1.5), rot(1.4, 1.5)], [angle, angle + 90])
+    across, up, _, up_at_opening = result["probes"]
+    assert [s["length"] for s in across["spans"]] == [0.2, 3.8, 0.2]
+    assert [s["contains_point"] for s in across["spans"]] == [False, True, False]
+    assert [s["length"] for s in up["spans"]] == [0.2, 3.0, 0.2]
+    assert [s["length"] for s in up_at_opening["spans"]] == [0.2, 3.2]
+    assert result["source"] == "measured from geometry" and result["units"]["name"] == "metres"
+    assert all(layer == "A-WALL" for probe in result["probes"] for hit in probe["hits"] for layer in hit["layers"])
+
+
+def test_drawing_measure_refuses_bad_input(tmp_path):
+    from src.utils.cad_extract import measure_lines
+    source = tmp_path / "room.dxf"
+    _room_drawing(source)
+    for points, angles, reach in (([], [0], 20), ([(0, 0)], [], 20), ([(0, float("inf"))], [0], 20),
+                                  ([(0, 0)], [0], 0), ([(0, 0)], [0], 101), ([(0, 0)] * 51, [0], 20)):
+        with pytest.raises(ValueError):
+            measure_lines(source, ["A-WALL"], points, angles, reach)
+
+
+def test_drawing_measure_cli_writes_a_new_file_only(tmp_path):
+    source = tmp_path / "room.dxf"
+    _room_drawing(source)
+    output = tmp_path / "measure.json"
+    args = ["drawing", "measure", str(source), "--layers", "A-WALL", "--point", "1.9,1.5", "--angle", "0",
+            "--angle", "90", "--output", str(output)]
+    result = CliRunner().invoke(app, args)
+    assert result.exit_code == 0 and "span through the point: 3.8" in result.output
+    assert "span through the point: 3.0" in result.output and "Measured from geometry" in result.output
+    assert json.loads(output.read_text(encoding="utf-8"))["source"] == "measured from geometry"
+    again = CliRunner().invoke(app, args)
+    assert again.exit_code == 2 and "already exists" in again.output
+    bad = CliRunner().invoke(app, ["drawing", "measure", str(source), "--layers", "A-WALL", "--point", "1.9",
+                                   "--angle", "0", "--output", str(tmp_path / "bad.json")])
+    assert bad.exit_code == 2 and not (tmp_path / "bad.json").exists()
+
+
 def test_drawing_summary_cli_writes_a_new_file_only(tmp_path):
     source = tmp_path / "plan.dxf"
     _plan_drawing(source, units=4)

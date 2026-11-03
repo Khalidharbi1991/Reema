@@ -5,6 +5,15 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md). The [finite ledger](PENDING_LEDGER.md) records external
 requirements as they stood before the no-API migration below.
 
+## 2026-11-03 — `drawing measure`
+
+`drawing measure FILE.dxf --layers A-WALL --point x,y --angle deg --reach 20 --output NEW.json`
+follows the full line through each point (1 to 50) at each angle (1 to 8), records every crossing
+with LINE and LWPOLYLINE segments on the named layers (merging crossings within 0.5 mm), and
+lists the spans between consecutive crossings, flagging the span that contains the point. Every
+result is labelled "measured from geometry", not a stated dimension. Tested on a room drawn
+straight and rotated 40.75°.
+
 ## 2026-11-03 — `drawing extract`
 
 `drawing extract FILE.dxf --layers A,B --xmin --ymin --xmax --ymax --output NEW.json` writes the

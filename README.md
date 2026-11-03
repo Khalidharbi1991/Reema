@@ -320,6 +320,14 @@ area (for example a suite's doors and windows):
 
 ```bash
 python3 scripts/dev.py run drawing extract "D:/Projects/REEMA Projects/New Home/output/drawings/20261103_house_architectural-plan.dxf" --layers A-DOOR,WINDOW --xmin 513200 --ymin 2412889 --xmax 513212 --ymax 2412899 --output "D:/Projects/REEMA Projects/New Home/output/summaries/20261103_master-suite_door-window-extract.json"
+```
+
+To measure what the drawing does not dimension, `drawing measure` follows a line through each
+`--point` at each `--angle` and lists where it crosses the named wall layers, with the spans
+between crossings (wall thicknesses and clear distances), marked "measured from geometry":
+
+```bash
+python3 scripts/dev.py run drawing measure "D:/Projects/REEMA Projects/New Home/output/drawings/20261103_house_architectural-plan.dxf" --layers A-WALL --point 513205.4,2412893.0 --angle 40.75 --angle 130.75 --output "D:/Projects/REEMA Projects/New Home/output/summaries/20261103_master-suite_wall-measurements.json"
 ``` Agent 22 is the only agent that runs
 commands: Blender 4.5 LTS, `freecadcmd` and ODA File Converter, by their installed
 paths and only inside New Home. Each Blender or FreeCAD script runs only after Agent 16

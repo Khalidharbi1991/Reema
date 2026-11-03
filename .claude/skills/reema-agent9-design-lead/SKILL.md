@@ -65,6 +65,10 @@ date and area to use. The guard refuses agent writes outside these places or wit
   candidates, with no room purpose inferred.
 - For one area's openings or walls, Ahmad runs `python3 scripts/dev.py run drawing extract "<file.dxf>" --layers A-DOOR,WINDOW --xmin --ymin --xmax --ymax --output "<New Home>/output/summaries/<date>_<area>_<what>.json"`
   locally: only those layers, only that area, values as stored.
+- For distances the drawing does not dimension, Ahmad runs `python3 scripts/dev.py run drawing measure "<file.dxf>" --layers A-WALL --point x,y --angle <deg> --output "<New Home>/output/summaries/<date>_<area>_wall-measurements.json"`
+  locally, with points inside the rooms and angles along the plan's walls. It lists where each line
+  crosses the wall lines and the spans between them (wall thicknesses and clear distances). Report
+  these as "measured from geometry", never as stated dimensions.
 - Agent 19 reads that summary only after Khalid's yes for it. Agent 19 reads the raw DXF only on
   a separate yes for that file. What a session reads goes to Anthropic through Claude Code; say so
   when you ask.

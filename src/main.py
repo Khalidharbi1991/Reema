@@ -121,6 +121,37 @@ def drawing_extract(
         raise typer.Exit(code=2)
 
 
+def _xy(value: str) -> tuple[float, float]:
+    parts = value.split(",")
+    if len(parts) != 2:
+        raise ValueError(f"Point must be x,y: {value}")
+    return float(parts[0]), float(parts[1])
+
+
+@drawing_app.command("measure")
+def drawing_measure(
+    path: Path = typer.Argument(..., help="Local DXF working copy"),
+    layers: str = typer.Option(..., "--layers", help="Comma-separated wall layer names, for example A-WALL"),
+    points: list[str] = typer.Option(..., "--point", help="x,y in drawing units; repeat for more points"),
+    angles: list[float] = typer.Option(..., "--angle", help="Direction in degrees; repeat for more"),
+    reach: float = typer.Option(20.0, "--reach", help="How far to look each way, in drawing units"),
+    output: Path = typer.Option(..., "--output", help="New local JSON file for the measurements"),
+):
+    """Measure wall-to-wall distances and wall thicknesses along lines through chosen points."""
+    from .utils.cad_extract import write_measure
+    try:
+        result = write_measure(path, layers.split(","), [_xy(p) for p in points], angles, reach, output)
+        console.print(f"Drawing measurements: {output}", markup=False)
+        for probe in result["probes"]:
+            inside = next((s["length"] for s in probe["spans"] if s["contains_point"]), None)
+            console.print(f"{probe['point']} at {probe['angle_deg']} deg: {len(probe['hits'])} crossings; "
+                          f"span through the point: {inside if inside is not None else 'none'}", markup=False)
+        console.print("Measured from geometry, not stated dimensions; confirm before use.")
+    except (ValueError, OSError, FileExistsError) as error:
+        console.print(str(error), markup=False)
+        raise typer.Exit(code=2)
+
+
 def _task_agent(area: str):
     if area not in AREAS:
         raise ValueError("Area must be work or personal")
