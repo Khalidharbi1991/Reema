@@ -102,10 +102,54 @@ def test_agent_9_generates_a_labeled_local_concept_mesh(tmp_path):
             source, tmp_path / "invalid", (-1, -1, 10, 8), design_spec=design_spec)
 
 
-def test_agent_9_subagent_names_the_local_commands_and_its_limits():
+def test_agent_9_playbook_names_the_local_commands_and_its_limits():
     from pathlib import Path
-    text = (Path(__file__).resolve().parents[1] / ".claude" / "agents" / "reema-agent9-design.md").read_text(encoding="utf-8")
-    assert "tools: Read, Write" in text and "drawing inspect" in text and "drawing concept" in text
+    text = (Path(__file__).resolve().parents[1] / ".claude" / "skills" / "reema-agent9-design-lead" / "SKILL.md").read_text(encoding="utf-8")
+    assert "drawing inspect" in text and "drawing concept" in text and "drawing summary" in text
     for guard in ("Never invent dimensions", "[to confirm]", "licensed professional", "Khalid's yes",
                   "output/claude_code/advice/", "cannot read DWG geometry", "Next step:"):
         assert guard in text
+
+
+def _plan_drawing(path, units=6):
+    drawing = ezdxf.new("R2010")
+    drawing.header["$INSUNITS"] = units
+    msp = drawing.modelspace()
+    msp.add_line((0, 0), (6, 0), dxfattribs={"layer": "A-WALL"})
+    msp.add_text("MAJLIS", dxfattribs={"layer": "A-ANNO", "insert": (3, 2)})
+    msp.add_mtext("Family\\Psitting", dxfattribs={"layer": "A-ANNO", "insert": (9, 2)})
+    msp.add_linear_dim(base=(0, -1), p1=(0, 0), p2=(6, 0), dxfattribs={"layer": "A-DIMS"}).render()
+    drawing.blocks.new("DOOR-90")
+    drawing.blocks.new("SOFA")
+    msp.add_blockref("DOOR-90", (1, 0), dxfattribs={"layer": "A-DOOR"})
+    msp.add_blockref("DOOR-90", (5, 0), dxfattribs={"layer": "A-DOOR"})
+    msp.add_blockref("SOFA", (3, 3), dxfattribs={"layer": "FURNITER"})
+    drawing.saveas(path)
+
+
+def test_drawing_summary_lists_labels_dimensions_and_openings_without_inferring_rooms(tmp_path):
+    from src.utils.cad_summary import summarize_drawing
+    source = tmp_path / "plan.dxf"
+    _plan_drawing(source)
+    summary = summarize_drawing(source)
+    assert summary["units"] == {"insunits_code": 6, "name": "metres"}
+    assert [t["text"] for t in summary["text_labels"]] == ["MAJLIS", "Family sitting"]
+    assert summary["dimensions"][0]["measured"] == 6.0 and summary["dimensions"][0]["layer"] == "A-DIMS"
+    assert summary["door_window_candidates"] == [{"block": "DOOR-90", "layer": "A-DOOR", "count": 2}]
+    assert not next(b for b in summary["block_inserts"] if b["block"] == "SOFA")["opening_candidate"]
+    assert summary["rooms_inferred"] is False and len(summary["sha256"]) == 64
+
+
+def test_drawing_summary_cli_writes_a_new_file_only(tmp_path):
+    source = tmp_path / "plan.dxf"
+    _plan_drawing(source, units=4)
+    output = tmp_path / "summary.json"
+    result = CliRunner().invoke(app, ["drawing", "summary", str(source), "--output", str(output)])
+    assert result.exit_code == 0 and "Units: millimetres" in result.output
+    assert json.loads(output.read_text(encoding="utf-8"))["filename"] == "plan.dxf"
+    again = CliRunner().invoke(app, ["drawing", "summary", str(source), "--output", str(output)])
+    assert again.exit_code == 2 and "already exists" in again.output
+    bad = tmp_path / "bad.dxf"
+    bad.write_text("not a drawing", encoding="utf-8")
+    refused = CliRunner().invoke(app, ["drawing", "summary", str(bad), "--output", str(tmp_path / "bad.json")])
+    assert refused.exit_code == 2 and not (tmp_path / "bad.json").exists()

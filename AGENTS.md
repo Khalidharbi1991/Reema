@@ -5,8 +5,8 @@
 REEMA is Khalid's IT company. Ahmad, the coordinator, talks with Khalid and routes
 work to sections. The main section is Documentation, led by Abdullah: writing,
 reviewing and revising SOPs, and later reports and presentations, starting with a
-patch report PowerPoint from SCCM and Intune data. Agent 9 supports home design as
-a side service. The Development section, led by Agent 11, builds software, apps and
+patch report PowerPoint from SCCM and Intune data. The Home Design section, led by
+Agent 9, designs one part of Khalid's home at a time in a local project. The Development section, led by Agent 11, builds software, apps and
 games in separate project repos. Generate, review, revise, development and
 coordination run inside Claude Code; REEMA's own commands make no model call.
 
@@ -49,10 +49,12 @@ commands. Change history is in `docs/reports/CHANGELOG.md`.
 - Preserve existing user changes: the worktree may be dirty.
 - Development projects live outside REEMA's git repo, each in its own repo, and
   are never pushed, deployed or published.
+- Home design files (the DWG, DXF, models, renders) stay on this computer in the
+  New Home project: never uploaded, never committed to any remote or to REEMA's repo.
 
 ## Current team
 
-There are twenty active agent roles. The user speaks to **Ahmad**, the personal
+There are twenty-five active agent roles. The user speaks to **Ahmad**, the personal
 coordinator, who is the main Claude Code session (see "REEMA company in Claude
 Code") and frames advice in the former owner agent's strategy, governance, quality,
 and business-value terms. `reema chat` is retired: it only says Ahmad now works in
@@ -72,7 +74,7 @@ planning. The former owner agent has been removed.
 | Agent 6 | Access and identity security (role only; its IAM checks run on supplied data) |
 | Agent 7 | Problem management and root-cause analysis (role only; its case checks run on supplied data) |
 | Agent 8 | Metrics and analytics design (role only; its metric checks run on supplied data) |
-| Agent 9 | Building-design advice (`reema-agent9-design` subagent), local DWG intake, and bounded DXF-to-OBJ concept meshes |
+| Agent 9 | Home Design section head (`reema-agent9-design-lead` skill): asks which part of the home, picks Agents 19–23, gets Khalid's yes; local DWG intake, DXF summaries and bounded DXF-to-OBJ concept meshes |
 | Agent 10 | End-user computing and endpoint management (patching, imaging, packaging, Intune/MECM, change records); advice (`reema-agent10-euc` subagent) and endpoint SOP appendices |
 | Agent 11 | Development section head (`reema-agent11-dev-lead` skill): sizes each job, picks the agents, gets Khalid's yes, runs it in the project's own git repo |
 | Agent 12 | Requirements: the PRD before any code (`reema-agent12-requirements`) |
@@ -82,6 +84,11 @@ planning. The former owner agent has been removed.
 | Agent 16 | Security review; an open Critical or High finding blocks a job (`reema-agent16-security`) |
 | Agent 17 | UI design: screens, flows, accessibility (`reema-agent17-ui`) |
 | Agent 18 | Game writer: game design, story, characters, dialogue (`reema-agent18-game-writer`) |
+| Agent 19 | Blueprint reader: rooms, dimensions, doors and windows from the drawing summary (`reema-agent19-blueprint`) |
+| Agent 20 | Space planner: furniture placement, clearances, circulation (`reema-agent20-space-planner`) |
+| Agent 21 | Interior designer: style, colours, materials, lighting, Saudi spaces like the majlis (`reema-agent21-interior`) |
+| Agent 22 | 3D modeler: Blender (Cycles) and FreeCAD scripts and renders, DWG-to-DXF conversion; the only agent that runs commands (`reema-agent22-3d-modeler`) |
+| Agent 23 | Design reviewer: checks the work against the drawing, flags items for a licensed professional (`reema-agent23-design-reviewer`) |
 
 The old agent knowledge files remain source material; historical references to the
 prior hierarchy inside them do not grant authority.
@@ -223,11 +230,12 @@ act as Ahmad.
 - Talk with Khalid, plan, and route: finished-SOP review or revision goes to the
   `abdullah-docs` skill, and so does a new SOP (its `reema-generate` job); tasks and memory go to the
   local commands below. Building or home-design
-  questions go to the `reema-agent9-design` subagent and endpoint questions (patching,
+  questions and jobs go to the `reema-agent9-design-lead` skill (see "Home Design
+  section" below) and endpoint questions (patching,
   imaging, packaging, Intune/MECM, change records) to `reema-agent10-euc`. Pass the
-  question; pass a file only after Khalid's yes for that file. They read and write
-  nothing else; drafts they save go under `output/claude_code/advice/`. Run the local
-  `drawing` commands yourself when Agent 9 asks for a mesh or preview.
+  question; pass a file only after Khalid's yes for that file. Agent 10 reads and writes
+  nothing else; drafts it saves go under `output/claude_code/advice/`. Run the local
+  `drawing` commands yourself when the Home Design playbook calls for them.
 - Requests to build, fix or extend software, an app or a game go to the
   `reema-agent11-dev-lead` skill (see "Development section" below). Coding or
   maintenance of REEMA itself stays coding-agent work under these rules.
@@ -259,7 +267,7 @@ Roles are described under "Current team" above; this shows what runs in Claude C
 | --- | --- | --- | --- |
 | Coordination | Ahmad (main session) | Work tasks and memory through the CLI | Working |
 | Documentation | Abdullah (`abdullah-docs` skill) | `reema-writer`, `reema-reviewer`, `reema-consistency-reviewer`, `reema-reviser`, `reema-rechecker` | Working |
-| Building Design | Agent 9 | `reema-agent9-design` | Working (advice; local `drawing` commands run offline) |
+| Home Design | Agent 9 (`reema-agent9-design-lead` skill) | `reema-agent19-blueprint`, `reema-agent20-space-planner`, `reema-agent21-interior`, `reema-agent22-3d-modeler`, `reema-agent23-design-reviewer` | Working (project in `../REEMA Projects/New Home/`; local `drawing` commands run offline) |
 | End-User Computing / Patch | Agent 10 | `reema-agent10-euc` | Working (advice and the patch appendix in reema-generate) |
 | Development | Agent 11 (`reema-agent11-dev-lead` skill) | `reema-agent12-requirements`, `reema-agent13-architect`, `reema-agent14-developer`, `reema-agent15-tester`, `reema-agent16-security`, `reema-agent17-ui`, `reema-agent18-game-writer` | Working (projects in `../REEMA Projects/`) |
 
@@ -291,6 +299,32 @@ Ahmad follows the `reema-agent11-dev-lead` skill; Agent 11 is not a separate ses
   are not blocked; the approved package list is the control. The hook is not
   airtight: a program can still open a network connection itself.
 
+### Home Design section
+
+Ahmad follows the `reema-agent9-design-lead` skill; Agent 9 is not a separate session.
+The old Agent 9 subagent's rules are kept word for word in that skill.
+
+- **Ask first:** every job starts by asking Khalid which part of the home to design;
+  never the whole land unless he asks. Then show the plan and the chosen agents and wait
+  for his yes.
+- **Project:** `D:/Projects/REEMA Projects/New Home/`, its own local repo with no remote;
+  its `.gitignore` keeps DWG, DXF, models and renders out of Git (scripts and docs only).
+  Tags as in the Development section.
+- **Drawings:** Agent 22 converts DWG to DXF; Ahmad runs `drawing summary` locally, and
+  Agent 19 reads that summary after Khalid's yes, the raw DXF only on a separate yes.
+- **Agent 22 is the only agent that runs commands**, and only Blender 4.5 LTS,
+  `freecadcmd` and ODA File Converter, by their installed paths. `.claude/hooks/dev_guard.py`
+  reads the hook input's `agent_type`: for Agent 22 it allows one program per command with
+  every path inside New Home, Blender only with `-b --factory-startup --offline-mode
+  --disable-autoexec`, and a script only when its SHA-256 is in
+  `reviews/script_reviews.json` (Agent 16 reviews it; Ahmad records it; no subagent may write
+  that file). The three programs are blocked for everyone else, Ahmad included. Agents 19–23
+  write only inside their New Home folders. A reviewed script still runs with full Python;
+  Agent 16's review is the control for what it does.
+- **Tools:** Agent 22 has Read, Write and PowerShell; 19, 20, 21 and 23 have Read and Write.
+- Structural, electrical, plumbing and permit items are flagged by Agent 23 for a licensed
+  professional; Khalid decides.
+
 ## Boundaries
 
 The CLI has local tasks and memory; conversation happens in Claude Code. It has no
@@ -298,9 +332,10 @@ connected mailbox, calendar, task cloud, background notification process, or
 deployed chat UI, and it cannot send communications or alter external accounts.
 Ahmad's legacy communication helper records locally and
 reports `not_dispatched`. Actual account integration requires the user's chosen
-provider and authorization. Agent 9 can produce a limited, editable OBJ concept
-mesh and PNG preview from a selected DXF area, but not a verified full-building
-model or detailed furnished rendering. Agent 10 advises on end-user devices and
+provider and authorization. REEMA's `drawing concept` makes a limited, editable OBJ
+concept mesh and PNG preview from a selected DXF area, not a verified full-building
+model. Agent 22's Blender renders are design concepts, not construction, structural
+or permit drawings. Agent 10 advises on end-user devices and
 drafts scripts, change requests and runbooks; it cannot run scripts or reach
 tenants, devices or directories. See `docs/guides/PERSONAL_ASSISTANT.md`.
 
