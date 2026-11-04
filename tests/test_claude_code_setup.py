@@ -371,6 +371,25 @@ def test_home_design_agents_write_only_named_results_in_output(tmp_path, monkeyp
     assert write({"file_path": str(out / "README.md")}, "reema-agent22-3d-modeler")
 
 
+def test_models_furniture_is_the_only_output_subfolder(tmp_path, monkeypatch):
+    guard, home = _home(tmp_path, monkeypatch)
+    blender, write, out = guard.AGENT22_PROGRAMS["blender"], guard.write_reason, home / "output"
+    script = home / "scripts" / "blender" / "majlis.py"
+    furniture = out / "models" / "furniture" / "20261104_master-suite_bed.blend"
+    assert write({"file_path": str(furniture)}, "reema-agent22-3d-modeler") is None
+    assert write({"file_path": str(out / "models" / "furniture" / "bed.blend")}, "reema-agent22-3d-modeler")
+    for path in (out / "models" / "other" / "20261104_master-suite_bed.blend",
+                 out / "models" / "furniture" / "x" / "20261104_master-suite_bed.blend",
+                 out / "renders" / "furniture" / "20261104_master-suite_bed.png",
+                 out / "reports" / "furniture" / "20261104_master-suite_spec.md"):
+        assert write({"file_path": str(path)}, "reema-agent22-3d-modeler"), path
+    assert guard.agent22_reason(f'& "{blender}" {BLENDER_FLAGS} "{furniture}" --python "{script}"', "PowerShell") is None
+    assert guard.agent22_reason(f'& "{blender}" {BLENDER_FLAGS} --python "{script}" -- --blend "{furniture}"',
+                                "PowerShell") is None
+    assert guard.agent22_reason(f'& "{blender}" {BLENDER_FLAGS} --python "{script}" -o '
+                                f'"{out / "renders" / "furniture" / "20261104_master-suite_bed"}"', "PowerShell")
+
+
 def test_ahmad_writes_in_new_home_only_results_readmes_and_the_approval_record(tmp_path, monkeypatch):
     guard, home = _home(tmp_path, monkeypatch)
     write, out = guard.write_reason, home / "output"

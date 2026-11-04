@@ -46,7 +46,7 @@ subfolder, named `<date>_<area>_<what>` (for example `20261103_majlis_preview.pn
 | Subfolder | Results |
 | --- | --- |
 | `output/renders/` | renders |
-| `output/models/` | `.blend`, `.FCStd`, OBJ |
+| `output/models/` | `.blend`, `.FCStd`, OBJ; single furniture pieces in `output/models/furniture/` (the only subfolder allowed) |
 | `output/drawings/` | DXF converted from the DWG |
 | `output/summaries/` | `drawing summary` results |
 | `output/reports/` | blueprint notes, space plans, style boards, design reviews, script reviews, run reports |

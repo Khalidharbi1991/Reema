@@ -5,6 +5,12 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md). The [finite ledger](PENDING_LEDGER.md) records external
 requirements as they stood before the no-API migration below.
 
+## 2026-11-04 — Home Design: `output/models/furniture/`
+
+The guard allows one subfolder below the five `output/` folders: `output/models/furniture/`, for
+single furniture pieces, with the same `<date>_<area>_<what>` names, for agent writes and for
+Blender `.blend` and script-argument paths. Any other nested folder is still refused.
+
 ## 2026-11-03 — `drawing measure`
 
 `drawing measure FILE.dxf --layers A-WALL --point x,y --angle deg --reach 20 --output NEW.json`

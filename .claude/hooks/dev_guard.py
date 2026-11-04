@@ -49,6 +49,7 @@ HOME_PROJECT = r"D:\Projects\REEMA Projects\New Home"
 SCRIPT_LEDGER = HOME_PROJECT + r"\reviews\script_reviews.json"
 # Every result goes in output\<folder>\, named <date>_<area>_<what>, e.g. 20261103_majlis_preview.png.
 OUTPUT_FOLDERS = ("renders", "models", "drawings", "summaries", "reports")
+OUTPUT_SUBFOLDERS = {"models": ("furniture",)}
 RESULT_NAME = re.compile(r"(19|20)\d\d(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])_[a-z0-9]+(-[a-z0-9]+)*"
                          r"_[a-z0-9#][a-z0-9#_-]*(\.[a-z0-9]+)*", re.I)
 REPORTS = r"output\reports"
@@ -249,8 +250,9 @@ def _result_reason(path, *folders):
     """Why path is not a correctly named result in one of output\\<folders>, or None."""
     folders = folders or OUTPUT_FOLDERS
     parent, name = ntpath.split(_win(path))
-    if not any(parent == _win(ntpath.join(HOME_PROJECT, "output", f)) for f in folders):
-        return "results go directly in New Home\\output\\" + " or output\\".join(f"{f}\\" for f in folders)
+    allowed = [ntpath.join("output", f, *sub) for f in folders for sub in [()] + [(s,) for s in OUTPUT_SUBFOLDERS.get(f, ())]]
+    if not any(parent == _win(ntpath.join(HOME_PROJECT, folder)) for folder in allowed):
+        return "results go directly in New Home\\" + " or ".join(f"{folder}\\" for folder in allowed)
     if not RESULT_NAME.fullmatch(name):
         return f"result names are <date>_<area>_<what>, for example 20261103_majlis_preview.png (got {name})"
     return None
