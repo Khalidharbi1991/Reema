@@ -5,6 +5,15 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md). The [finite ledger](PENDING_LEDGER.md) records external
 requirements as they stood before the no-API migration below.
 
+## 2026-11-07 — Home Design: Agent 22 gets Edit
+
+Agent 22 (`reema-agent22-3d-modeler`) now has Read, Write, Edit and PowerShell, so it can change
+a long reviewed script with targeted replacements instead of rewriting the whole file (the
+master-suite scene script outgrew one Write). Edit goes through the same guard check as Write:
+scripts under `scripts/blender/` or `scripts/freecad/` and named results in `output/` only, never
+`reviews/script_reviews.json`. Every script change still needs Agent 16's review and a recorded
+SHA-256 before it runs. A test checks that an Agent 22 Edit of the ledger is blocked.
+
 ## 2026-11-04 — Home Design: `output/models/furniture/`
 
 The guard allows one subfolder below the five `output/` folders: `output/models/furniture/`, for

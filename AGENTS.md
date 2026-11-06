@@ -326,7 +326,7 @@ The old Agent 9 subagent's rules are kept word for word in that skill.
   write only their named results in `output/` (Agent 22 also its scripts), and Ahmad's file
   writes in New Home follow the same rule. A reviewed script still runs with full Python;
   Agent 16's review is the control for what it does.
-- **Tools:** Agent 22 has Read, Write and PowerShell; 19, 20, 21 and 23 have Read and Write.
+- **Tools:** Agent 22 has Read, Write, Edit and PowerShell (Edit for targeted script changes; the guard checks it like Write); 19, 20, 21 and 23 have Read and Write.
 - Structural, electrical, plumbing and permit items are flagged by Agent 23 for a licensed
   professional; Khalid decides.
 

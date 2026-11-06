@@ -21,7 +21,7 @@ TOOLS = {
     "reema-agent13-architect": READ_WRITE, "reema-agent14-developer": SHELL, "reema-agent15-tester": SHELL,
     "reema-agent16-security": READ_WRITE, "reema-agent17-ui": READ_WRITE, "reema-agent18-game-writer": READ_WRITE,
     "reema-agent19-blueprint": READ_WRITE, "reema-agent20-space-planner": READ_WRITE,
-    "reema-agent21-interior": READ_WRITE, "reema-agent22-3d-modeler": "Read, Write, PowerShell",
+    "reema-agent21-interior": READ_WRITE, "reema-agent22-3d-modeler": "Read, Write, Edit, PowerShell",
     "reema-agent23-design-reviewer": READ_WRITE,
 }
 HOME_AGENTS = {19: "reema-agent19-blueprint", 20: "reema-agent20-space-planner", 21: "reema-agent21-interior",
@@ -203,6 +203,9 @@ def test_guard_hook_exit_codes():
     ledger = run({"tool_name": "Write", "agent_type": "reema-agent16-security",
                   "tool_input": {"file_path": _guard().SCRIPT_LEDGER}})
     assert ledger.returncode == 2 and "only Ahmad" in ledger.stderr
+    edit = run({"tool_name": "Edit", "agent_type": "reema-agent22-3d-modeler",
+                "tool_input": {"file_path": _guard().SCRIPT_LEDGER, "old_string": "a", "new_string": "b"}})
+    assert edit.returncode == 2 and "only Ahmad" in edit.stderr
 
 
 @pytest.mark.parametrize("number,name", HOME_AGENTS.items(), ids=HOME_AGENTS.values())
