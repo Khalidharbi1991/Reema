@@ -46,6 +46,7 @@ const en = {
     unavailable: "Sign-in is not available right now. Try again shortly.",
     notConfigured: "Supabase is not configured on this server yet. Add the keys to .env.local (see the README).",
     inviteOnly: "Snafi is invite only.",
+    insecure: "Sign-in is off on this connection: it is plain HTTP, so your password could be read on the network. Sign in on this PC (localhost) or over HTTPS.",
   },
   loading: "Loading",
 } as const;
@@ -103,6 +104,7 @@ const ar: Messages = {
     unavailable: "تسجيل الدخول غير متاح الآن. حاول بعد قليل.",
     notConfigured: "لم يُعدّ Supabase على هذا الخادم بعد. أضف المفاتيح إلى ‎.env.local (راجع README).",
     inviteOnly: "سنافي بالدعوة فقط.",
+    insecure: "تسجيل الدخول متوقف على هذا الاتصال: هو HTTP غير مشفّر، فقد تُقرأ كلمة المرور على الشبكة. سجّل الدخول من هذا الجهاز (localhost) أو عبر HTTPS.",
   },
   loading: "جارٍ التحميل",
 };

@@ -3,7 +3,7 @@ export type AuthUser = { id: string; email: string | null };
 
 export type SignInResult =
   | { ok: true; user: AuthUser }
-  | { ok: false; error: "invalid" | "missing" | "unavailable" | "not_configured" };
+  | { ok: false; error: "invalid" | "missing" | "unavailable" | "not_configured" | "insecure" };
 
 export interface AuthAdapter {
   signInWithPassword(email: string, password: string): Promise<SignInResult>;

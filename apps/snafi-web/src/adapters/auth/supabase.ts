@@ -1,5 +1,5 @@
 import "server-only";
-import { createSupabaseServerClient } from "@/adapters/supabase/server-client";
+import { createSupabaseServerClient, requestOrigin } from "@/adapters/supabase/server-client";
 import type { AuthAdapter, SignInResult } from "./types";
 import { cleanCredentials } from "./validate";
 
@@ -8,6 +8,8 @@ export class SupabaseAuthAdapter implements AuthAdapter {
   async signInWithPassword(email: string, password: string): Promise<SignInResult> {
     const creds = cleanCredentials(email, password);
     if (!creds) return { ok: false, error: "missing" };
+    // SEC-1/SEC-2: no real sign-in over plain HTTP except on this PC.
+    if (!(await requestOrigin()).secure) return { ok: false, error: "insecure" };
     const client = await createSupabaseServerClient();
     if (!client) return { ok: false, error: "not_configured" };
     try {
