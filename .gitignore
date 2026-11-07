@@ -69,6 +69,10 @@ diagrams/
 *.swo
 *~
 
+# Team folders: every team's input, output, data and nested project repos stay local.
+# Only teams/README.md is tracked.
+/teams/*/
+
 # Logs
 logs/
 *.log
