@@ -7,6 +7,8 @@ import type { SignInState } from "./actions";
 type Props = {
   t: Messages["signIn"];
   action: (prev: SignInState, form: FormData) => Promise<SignInState>;
+  /** The server's decision (HTTPS or localhost). False means the form starts switched off. */
+  serverSecure: boolean;
 };
 
 const noSubscribe = () => () => {};
@@ -14,11 +16,17 @@ const noSubscribe = () => () => {};
 /**
  * Email and password only. There is no sign-up link: Snafi is invite only.
  * Over plain HTTP (not localhost) the form is switched off, so the password is
- * never typed or sent unencrypted (SEC-1); the server refuses it too.
+ * never typed or sent unencrypted (SEC-1). The server decides first (SEC-10), so
+ * the form is off even before JavaScript loads; the browser can only switch it
+ * off further, never on. The server also refuses the attempt.
  */
-export function SignInForm({ t, action }: Props) {
+export function SignInForm({ t, action, serverSecure }: Props) {
   const [state, formAction, pending] = useActionState(action, { error: null });
-  const secure = useSyncExternalStore(noSubscribe, () => window.isSecureContext, () => true);
+  const secure = useSyncExternalStore(
+    noSubscribe,
+    () => serverSecure && window.isSecureContext,
+    () => serverSecure,
+  );
   const error = secure ? state.error : "insecure";
   const errorText =
     error === "invalid" ? t.invalid

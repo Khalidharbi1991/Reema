@@ -1,5 +1,6 @@
 import "server-only";
-import { createSupabaseServerClient, requestOrigin } from "@/adapters/supabase/server-client";
+import { createSupabaseServerClient } from "@/adapters/supabase/server-client";
+import { requestOrigin } from "@/core/request-origin";
 import type { AuthAdapter, SignInResult } from "./types";
 import { cleanCredentials } from "./validate";
 

@@ -6,6 +6,9 @@ import { sessionCookieOptions } from "./cookie-policy";
 /** Refreshes the Supabase session cookie on each request and reports whether someone is signed in. */
 export async function refreshSession(request: NextRequest, config: SupabaseConfig) {
   let response = NextResponse.next({ request });
+  // SEC-11: these headers come from the client as sent. Use them ONLY to flag the
+  // session cookies; NEVER for the sign-in throttle, redirect or callback URLs, or
+  // any access decision. (The redirects in proxy.ts use request.url's fixed paths.)
   const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? request.nextUrl.host;
   const client = createServerClient(config.url, config.publishableKey, {
     cookieOptions: sessionCookieOptions(host),

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Orb } from "@/components/Orb";
 import { TopBar } from "@/components/TopBar";
 import { isPreviewMode } from "@/config/env";
+import { requestOrigin } from "@/core/request-origin";
 import { getPreferences } from "@/core/server-preferences";
 import { messages } from "@/i18n/messages";
 import { signIn } from "./actions";
@@ -11,6 +12,8 @@ export default async function SignInPage() {
   const { theme, lang } = await getPreferences();
   const t = messages(lang);
   const preview = isPreviewMode();
+  // SEC-10: decided here on the server, so the first HTML already has the form off over plain HTTP.
+  const { secure } = await requestOrigin();
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col">
       <TopBar
@@ -35,7 +38,7 @@ export default async function SignInPage() {
               </Link>
             </div>
           ) : (
-            <SignInForm t={t.signIn} action={signIn} />
+            <SignInForm t={t.signIn} action={signIn} serverSecure={secure} />
           )}
         </div>
         <p className="mt-6 text-center text-xs text-muted">{t.signIn.inviteOnly}</p>
