@@ -10,7 +10,14 @@ Agent 9, designs one part of Khalid's home at a time in a local project. The Dev
 games in separate project repos. Generate, review, revise, development and
 coordination run inside Claude Code; REEMA's own commands make no model call.
 
-Not yet built: patch report PowerPoint (PPTX export) and SCCM/Intune export intake.
+Snafi, Khalid's personal assistant web app, is part of REEMA: a Next.js app in
+`apps/snafi-web/` that talks to a Supabase mailbox (messages and jobs) which a REEMA
+worker on the PC will read from step 2. Its plan is `docs/snafi/PRD.md` (source of
+truth). Step 1, the skeleton, is built: sign-in, Today and Chat screens with
+placeholder data, and no model call.
+
+Not yet built: patch report PowerPoint (PPTX export), SCCM/Intune export intake, and
+Snafi steps 2–8.
 
 It is a Python CLI that makes no model call: Claude Code writes the text, and REEMA
 plans, checks, exports and records it. It has no model settings and has not moved
@@ -51,6 +58,12 @@ commands. Change history is in `docs/reports/CHANGELOG.md`.
   which REEMA's repo ignores, and are never pushed, deployed or published. Each one's
   `.claude/settings.json` excludes this folder's CLAUDE.md and AGENTS.md (see the
   `reema-agent11-dev-lead` skill), so a session started there does not inherit them.
+- Snafi (`apps/snafi-web/`) is REEMA code, not a Development-section project. Every
+  Vercel deploy, preview included, needs Khalid's explicit yes for that deploy; never
+  push without his yes. Supabase and Vercel keys go only in the gitignored
+  `apps/snafi-web/.env.local` (or the Vercel dashboard); the web app holds only the
+  publishable key, never the secret/service_role key. Every outside service sits
+  behind its own adapter in `apps/snafi-web/src/adapters/`.
 - Home design files (the DWG, DXF, models, renders) stay on this computer in the
   New Home project (`teams/home-design/New Home/`, its own repo with the same
   exclusion): never uploaded, never committed to any remote or to REEMA's repo.
@@ -372,6 +385,9 @@ records the earlier external requirements as they stood before the no-API migrat
 - `teams/`: each section's local input, output and data (ignored); the paths come
   from `src/utils/config.py` and `.claude/hooks/dev_guard.py`.
 - `tests/`: offline tests with stand-in workers; no model call.
+- `apps/snafi-web/`: the Snafi web app (Next.js, Tailwind, Supabase adapters,
+  `supabase/migrations/`). Its offline tests run with `npm test` inside that folder
+  (Vitest; the RLS tests run the migration in PGlite). See its README.
 - `docs/guides/RELIABILITY_AND_SOURCES.md`: model and source safeguards.
 
 ## Start here
