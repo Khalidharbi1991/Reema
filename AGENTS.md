@@ -54,6 +54,11 @@ commands. Change history is in `docs/reports/CHANGELOG.md`.
   prepare step asks for one, in addition to the reference manifest rule.
   Do not weaken or bypass that consent.
 - Preserve existing user changes: the worktree may be dirty.
+- Never put undo, rollback or reset commands (`git reset`, `git revert`, `git
+  checkout`/`switch` to an old tag, branch or tag deletion, and the like) in a
+  runnable code block or Run button. Describe how to undo in plain text only, for
+  example "reset main to the tag before-snafi-step1", and give the command only when
+  Khalid asks for it.
 - Development projects live in `teams/development/projects/`, each in its own repo,
   which REEMA's repo ignores, and are never pushed, deployed or published. Each one's
   `.claude/settings.json` excludes this folder's CLAUDE.md and AGENTS.md (see the
