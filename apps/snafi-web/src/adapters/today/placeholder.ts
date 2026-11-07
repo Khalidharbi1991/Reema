@@ -1,3 +1,4 @@
+import { APP_SETTINGS } from "@/config/app";
 import type { Lang } from "@/i18n/messages";
 import type { TodaySnapshot, TodaySource } from "./types";
 
@@ -34,7 +35,7 @@ export class PlaceholderTodaySource implements TodaySource {
   async getToday(lang: Lang, now: Date): Promise<TodaySnapshot> {
     const s = SAMPLE[lang];
     const gregorianDate = new Intl.DateTimeFormat(lang === "ar" ? "ar-SA-u-ca-gregory-nu-latn" : "en-GB", {
-      weekday: "long", day: "numeric", month: "long", year: "numeric",
+      weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: APP_SETTINGS.timeZone,
     }).format(now);
     return {
       placeholder: true,
