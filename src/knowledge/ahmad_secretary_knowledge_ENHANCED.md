@@ -483,7 +483,7 @@ Phase 2: RESEARCH & STANDARDS (Days 2-5)
       - ITIL/ITOM research for process
       - Industry best practices
       - ITOM.pdf reference extraction
-      - ITOM alignment (if applicable)
+      - Client framework alignment (if applicable)
     Stream B: Abdullah → Mohammad (Standards)
       - Applicable standards identification
       - Compliance requirements mapping

@@ -574,7 +574,7 @@ Date: _________________________
 ### 9.1 Agent Knowledge Inventory
 | Agent | Knowledge File | Size | Coverage | Last Updated | Status |
 |-------|---------------|------|----------|-------------|--------|
-| Taif | taif_research_knowledge_ENHANCED.md | 97 KB | ITIL, ITOM, ITOM | 2026-01 | Current |
+| Taif | taif_research_knowledge_ENHANCED.md | 97 KB | ITIL, ITOM | 2026-01 | Current |
 | Mohammad | mohammad_standards_knowledge_ENHANCED.md | 86 KB | ISO, COBIT, SOC 2 | 2026-01 | Current |
 | Saad | saad_content_knowledge_ENHANCED.md | 74 KB | Technical writing, SOP | 2026-01 | Current |
 | Faisal | faisal_review_knowledge_ENHANCED.md | 75+ KB | QA, validation, scoring | 2026-01 | Current |
