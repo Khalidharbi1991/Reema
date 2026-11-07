@@ -162,6 +162,13 @@ Each step is built and tested on a real phone before the next starts. Khalid sta
 7. **Extra features and family messaging:** a few at a time, including Telegram for family.
 8. **Voice:** faster-whisper for listening and Voice Studio for speaking, both on the PC.
 
+### Required before the first Vercel deploy
+
+From the step 1 security review (`apps/snafi-web/docs/SECURITY_REVIEW.md`). No Vercel deploy, preview included, until both are done and Agent 16 has re-checked them:
+
+- **SEC-3:** a nonce-based Content-Security-Policy (`default-src 'self'`, `frame-ancestors 'none'`) and `Strict-Transport-Security`.
+- **SEC-4:** an app-side sign-in throttle per email and per client IP (for example 5 failures in 15 minutes, then a delay), a check of Supabase's Auth rate limits, and TOTP MFA before family accounts arrive.
+
 ## Later
 
 - Real iPhone and Android apps (Capacitor wrap of the same code) for home-screen widgets: Today, next prayer, top tasks.
