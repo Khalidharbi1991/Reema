@@ -48,15 +48,15 @@ class SystemConfig(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
     project_root: Path = Field(default_factory=lambda: PACKAGE_ROOT if SOURCE_CHECKOUT else Path.cwd())
     output_dir: Path = Field(
-        default=Path("output"),
+        default=Path("teams/documentation/output"),
         validation_alias=AliasChoices("output_dir", "REEMA_OUTPUT_DIR"),
     )
     config_dir: Path = Path("config")
     templates_dir: Path = Path("src/templates")
     knowledge_dir: Path = Path("src/knowledge")
-    references_dir: Path = Path("references")
+    references_dir: Path = Path("teams/documentation/input/references")
     log_dir: Path = Path("logs")
-    task_data_dir: Path = Path("output/assistant")
+    task_data_dir: Path = Path("teams/coordination/data")
     user_timezone: str = "Asia/Riyadh"
     default_formats: List[OutputFormat] = Field(
         default_factory=lambda: ["pdf", "docx", "markdown", "html"], min_length=1
@@ -64,7 +64,7 @@ class SystemConfig(BaseSettings):
     page_target: tuple[int, int] = (15, 30)
     review_chunk_chars: int = Field(default=24_000, ge=1000, le=100_000)
     knowledge_context_chars: int = Field(default=12_000, ge=1000, le=50_000)
-    reference_manifest: Path = Path("references/manifest.yaml")
+    reference_manifest: Path = Path("teams/documentation/input/references/manifest.yaml")
     enforce_page_target: bool = False
 
     @model_validator(mode="after")

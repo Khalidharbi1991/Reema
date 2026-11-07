@@ -2538,7 +2538,7 @@ def build_sop(out_path, update_fields=True):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
-    parser.add_argument("--output", default=os.path.join("output", OUTPUT_NAME),
+    parser.add_argument("--output", default=os.path.join("teams", "documentation", "output", OUTPUT_NAME),
                         help="Output .docx path (default: output/%(default)s)")
     parser.add_argument("--no-update-fields", action="store_true",
                         help="Do not ask Word to refresh fields (TOC) when the document opens")

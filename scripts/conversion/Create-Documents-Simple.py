@@ -48,7 +48,7 @@ from pathlib import Path
 from datetime import datetime
 
 # Read the markdown file
-md_file = Path("output/Workstation_Security_Patches_SOP.md")
+md_file = Path("teams/documentation/output/Workstation_Security_Patches_SOP.md")
 if not md_file.exists():
     print(f"\n❌ ERROR: {md_file} not found!")
     exit(1)
@@ -57,8 +57,8 @@ with open(md_file, 'r', encoding='utf-8') as f:
     content = f.read()
 
 # Create output directories
-Path("output/docx").mkdir(parents=True, exist_ok=True)
-Path("output/pdf").mkdir(parents=True, exist_ok=True)
+Path("teams/documentation/output/docx").mkdir(parents=True, exist_ok=True)
+Path("teams/documentation/output/pdf").mkdir(parents=True, exist_ok=True)
 
 # ==================== CREATE DOCX ====================
 if docx_available:
@@ -117,7 +117,7 @@ if docx_available:
     note.add_run('please refer to the Markdown file: Workstation_Security_Patches_SOP.md')
 
     # Save DOCX
-    docx_path = Path("output/docx/Workstation_Security_Patches_SOP.docx")
+    docx_path = Path("teams/documentation/output/docx/Workstation_Security_Patches_SOP.docx")
     doc.save(str(docx_path))
     print(f"✅ DOCX created: {docx_path}")
 
@@ -125,7 +125,7 @@ if docx_available:
 if reportlab_available:
     print("\n📄 Creating PDF file...")
 
-    pdf_path = Path("output/pdf/Workstation_Security_Patches_SOP.pdf")
+    pdf_path = Path("teams/documentation/output/pdf/Workstation_Security_Patches_SOP.pdf")
     doc = SimpleDocTemplate(str(pdf_path), pagesize=letter)
 
     styles = getSampleStyleSheet()

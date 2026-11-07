@@ -110,7 +110,7 @@ def test_paths_follow_project_root_and_environment(tmp_path, monkeypatch):
     monkeypatch.delenv("OUTPUT_DIR", raising=False)
     settings = SystemConfig(_env_file=None, project_root=tmp_path)
     assert settings.output_dir == tmp_path / "container-output"
-    assert settings.references_dir == tmp_path / "references"
+    assert settings.references_dir == tmp_path / "teams" / "documentation" / "input" / "references"
 
 
 @pytest.mark.asyncio

@@ -1,6 +1,6 @@
 """Local gate before a Claude Code session reads a document; no model call.
 
-A prepare step copies document text into output/claude_code/, where the session's subagents read it.
+A prepare step copies document text into teams/documentation/output/claude_code/, where the session's subagents read it.
 It refuses until it is given --confirm-read with the token printed for this exact file, which Ahmad
 passes only after Khalid's yes. The token is the start of the file's SHA-256, so the yes covers those
 bytes only. The gate makes the step deliberate and binds it to the file; it cannot prove who said yes.

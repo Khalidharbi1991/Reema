@@ -1,8 +1,8 @@
-"""Publish an approved SOP revision: copy its drafts into output/ and archive older versions.
+"""Publish an approved SOP revision: copy its drafts into teams/documentation/output/ and archive older versions.
 
 Runs only after a human approval is recorded, and only for revise runs with versioned names
-(X_V2.1). Every lower version of the same SOP at the top of output/, in a published format, is
-moved to output/archive/<run-id>/. Nothing is ever overwritten; every copy and move is checked by
+(X_V2.1). Every lower version of the same SOP at the top of teams/documentation/output/, in a published format, is
+moved to teams/documentation/output/archive/<run-id>/. Nothing is ever overwritten; every copy and move is checked by
 SHA-256. The outcome goes to publish.json in the run folder; approval.json is never changed, so a
 failed publish leaves the approval recorded.
 """

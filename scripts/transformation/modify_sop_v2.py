@@ -10,8 +10,8 @@ from docx import Document
 from copy import deepcopy
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SOURCE = PROJECT_ROOT / "output" / "SOP_User_Incident_Management_V1_Full_Detail.docx"
-DEST = PROJECT_ROOT / "output" / "SOP_User_Incident_Management_V2.docx"
+SOURCE = PROJECT_ROOT / "teams" / "documentation" / "output" / "SOP_User_Incident_Management_V1_Full_Detail.docx"
+DEST = PROJECT_ROOT / "teams" / "documentation" / "output" / "SOP_User_Incident_Management_V2.docx"
 
 # Namespace for Word XML
 W_NS = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'

@@ -337,7 +337,7 @@ def find_sop(
     words: List[str] = typer.Argument(..., help="Words from the SOP's file name, e.g. incident management"),
     output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Output root (default: ./output)"),
 ):
-    """List finished SOPs in output/ whose file names best match the words, newest first. Reads no file."""
+    """List finished SOPs in teams/documentation/output/ whose file names best match the words, newest first. Reads no file."""
     import re
     from datetime import datetime
     from .utils.existing_sops import find_sops
@@ -358,7 +358,7 @@ def _warn_if_output_unignored(directory: Path):
     if root is not None:
         console.print(f"Warning: output folder {directory} is inside the Git repository at {root} and is not "
                       "ignored by .gitignore. Drafts, run checkpoints and source excerpts written there could be "
-                      "committed. Use a folder under output/ or add it to .gitignore.", markup=False)
+                      "committed. Use a folder under teams/documentation/output/ or add it to .gitignore.", markup=False)
 
 
 @app.command()
@@ -560,7 +560,7 @@ def approve(
     reviewer: str = typer.Option(..., "--reviewer", help="Human reviewer's name"),
     notes: str = typer.Option("", "--notes"),
     publish: bool = typer.Option(True, "--publish/--no-publish",
-                                 help="Copy an approved revision into output/ and archive older versions"),
+                                 help="Copy an approved revision into teams/documentation/output/ and archive older versions"),
 ):
     """Record explicit human approval of an unchanged set of draft outputs, then publish a revision."""
     _human_decision(record, reviewer, "approved", notes, publish=publish)

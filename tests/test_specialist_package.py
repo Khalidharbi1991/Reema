@@ -94,7 +94,7 @@ def test_research_rejects_invented_evidence_or_invalid_assessment_date(change):
 @pytest.mark.parametrize("published", ["2026-10-14", None])
 def test_manifest_preserves_optional_declared_dates_and_permissions(catalog, published):
     root = catalog.system_config.references_dir
-    root.mkdir()
+    root.mkdir(parents=True)
     path = root / "policy.md"
     path.write_text("Change Management decision record")
     item = {"path": "policy.md", "sha256": hashlib.sha256(path.read_bytes()).hexdigest(), "classification": "public", "external_ai_allowed": True, "published_on": published}

@@ -20,11 +20,21 @@ class TestSystemConfig:
         assert str(config.knowledge_dir).endswith("src/knowledge") or \
                str(config.knowledge_dir).endswith("src\\knowledge")
 
-    def test_references_dir_points_to_references(self):
+    def test_references_dir_points_to_the_documentation_input(self):
         """Verify local source documents have a dedicated directory."""
         from src.utils.config import SystemConfig
         config = SystemConfig()
-        assert config.references_dir == config.project_root / "references"
+        assert config.references_dir == config.project_root / "teams" / "documentation" / "input" / "references"
+
+    def test_team_folders_hold_output_task_data_and_the_manifest(self, tmp_path, monkeypatch):
+        from src.utils.config import SystemConfig
+        monkeypatch.delenv("REEMA_OUTPUT_DIR", raising=False)
+        config = SystemConfig(_env_file=None, project_root=tmp_path)
+        teams = tmp_path / "teams"
+        assert config.output_dir == teams / "documentation" / "output"
+        assert config.task_data_dir == teams / "coordination" / "data"
+        assert config.reference_manifest == teams / "documentation" / "input" / "references" / "manifest.yaml"
+        assert config.log_dir == tmp_path / "logs"
 
     def test_system_config_defaults(self):
         """Verify default paths are set correctly."""

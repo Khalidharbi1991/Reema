@@ -9,8 +9,8 @@ from src.utils.quality import quality_report, validate_quality
 
 
 def manifest_settings(tmp_path, **overrides):
-    root = tmp_path / "references"
-    root.mkdir()
+    root = tmp_path / "teams" / "documentation" / "input" / "references"
+    root.mkdir(parents=True)
     source = root / "policy.md"
     source.write_text("# Unrelated heading\n" + "Boilerplate " * 300 + "Incident tail evidence")
     entry = {"path": "policy.md", "classification": "confidential", "external_ai_allowed": True,

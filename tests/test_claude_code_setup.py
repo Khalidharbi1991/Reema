@@ -103,13 +103,15 @@ def test_settings_deny_remotes_publishing_deploys_network_and_protected_folders(
             "Bash(netlify:*)", "Bash(firebase deploy:*)", "Bash(sudo:*)", "Bash(curl:*)", "Bash(wget:*)",
             "Bash(ssh:*)", "Bash(scp:*)", "Bash(rsync:*)", "Bash(nc:*)",
             "Read(./references/**)", "Edit(./references/**)", "Write(./references/**)",
-            "Edit(./output/assistant/**)", "Write(./output/assistant/**)"} <= deny
+            "Edit(./output/assistant/**)", "Write(./output/assistant/**)",
+            *(f"{tool}(./teams/{folder}/**)" for tool in ("Read", "Edit", "Write")
+              for folder in ("coordination/data", "documentation/input/references"))} <= deny
     assert not any(re.match(r"Bash\((pip|npm|uv|yarn|pnpm) (install|add)", rule) for rule in deny)
 
 
-def test_settings_add_the_projects_folder_and_the_bash_guard_hook():
+def test_settings_need_no_extra_folder_and_add_the_bash_guard_hook():
     settings = json.loads((CLAUDE / "settings.json").read_text())
-    assert settings["permissions"]["additionalDirectories"] == [PROJECTS]
+    assert settings["permissions"]["additionalDirectories"] == []  # the team folders are inside the repo
     hooks = settings["hooks"]["PreToolUse"]
     for matcher in ("Bash", "PowerShell", "Write|Edit|MultiEdit|NotebookEdit"):
         assert any(h["matcher"] == matcher and any(".claude/hooks/dev_guard.py" in c["command"] for c in h["hooks"])
@@ -171,6 +173,9 @@ def _guard():
     "rsync -a . host:", "cat output/assistant/work.db", "bash <<EOF\ngit push\nEOF",
     "cat <<'EOF' | sh\ncurl x\nEOF", "echo 'unbalanced curl x",
     f"ls '{PROJECTS}/../IT Consultant/references'",
+    "cat teams/coordination/data/work.db", "cat ./teams/coordination/data/personal.db",
+    "ls 'D:/Projects/IT Consultant/teams/documentation/input/references'",
+    "dir \"D:\\Projects\\IT Consultant\\teams\\coordination\\data\"",
 ])
 def test_guard_blocks_push_remotes_publish_deploy_network_and_protected_paths(command):
     assert _guard().reason(command)
@@ -185,6 +190,13 @@ def test_guard_blocks_push_remotes_publish_deploy_network_and_protected_paths(co
 ])
 def test_guard_allows_local_work_and_package_installs(command):
     assert _guard().reason(command) is None
+
+
+def test_guard_finds_new_home_in_the_home_design_team_folder():
+    guard = _guard()
+    assert Path(guard.HOME_PROJECT) == ROOT / "teams" / "home-design" / "New Home"
+    assert guard.SCRIPT_LEDGER.endswith(r"New Home\reviews\script_reviews.json")
+    assert r".claude\settings.json" in guard.AHMAD_HOME_FILES
 
 
 def test_guard_hook_exit_codes():

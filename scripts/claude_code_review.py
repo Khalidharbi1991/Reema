@@ -5,9 +5,9 @@ template-gap check, quote location, finding IDs, hash binding and the run folder
 only read, and a review has no approval record.
 
     prepare FILE         refuse and print the confirm-read token for FILE
-    prepare FILE --confirm-read TOKEN   after Khalid's yes, write output/claude_code/<id>/review_request.json
+    prepare FILE --confirm-read TOKEN   after Khalid's yes, write teams/documentation/output/claude_code/<id>/review_request.json
     check   ID           validate excerpts.json (and consistency.json); write consistency_request.json
-    finish  ID           run the review job into a NEW output/runs/ folder
+    finish  ID           run the review job into a NEW teams/documentation/output/runs/ folder
     compare RUN_A RUN_B  compare two review runs of the same SOP
 
 Run from the repository root with: python3 scripts/dev.py python scripts/claude_code_review.py ...

@@ -6,14 +6,14 @@ from pathlib import Path
 from datetime import datetime
 
 # Read the markdown file
-md_file = Path("output/Workstation_Security_Patches_SOP.md")
+md_file = Path("teams/documentation/output/Workstation_Security_Patches_SOP.md")
 with open(md_file, 'r', encoding='utf-8') as f:
     content = f.read()
 
 # Create output directories
-Path("output/html").mkdir(parents=True, exist_ok=True)
-Path("output/docx").mkdir(parents=True, exist_ok=True)
-Path("output/pdf").mkdir(parents=True, exist_ok=True)
+Path("teams/documentation/output/html").mkdir(parents=True, exist_ok=True)
+Path("teams/documentation/output/docx").mkdir(parents=True, exist_ok=True)
+Path("teams/documentation/output/pdf").mkdir(parents=True, exist_ok=True)
 
 print("=" * 80)
 print("BEE (FORMAT AGENT) - Converting to multiple formats...")
@@ -211,7 +211,7 @@ html_output = html_template.format(
 )
 
 # Write HTML file
-html_file = Path("output/html/Workstation_Security_Patches_SOP.html")
+html_file = Path("teams/documentation/output/html/Workstation_Security_Patches_SOP.html")
 with open(html_file, 'w', encoding='utf-8') as f:
     f.write(html_output)
 

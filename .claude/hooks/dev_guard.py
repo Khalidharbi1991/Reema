@@ -3,11 +3,12 @@
 
 Blocks pushing, adding or changing remotes, publishing, deploying, sudo and network tools, also
 when wrapped (sh -c, bash -c, eval, env, xargs, command substitution, powershell -Command, pwsh -c,
-cmd /c, Invoke-Expression), and commands that name REEMA's output/assistant/ or REEMA's references/
-through a path from outside the repository, written with either kind of slash.
+cmd /c, Invoke-Expression), and commands that name REEMA's task store (teams/coordination/data/,
+formerly output/assistant/) or REEMA's references (teams/documentation/input/references/, formerly
+references/) through a path from outside the repository, written with either kind of slash.
 Home Design section: Blender, FreeCAD and ODA File Converter run only from reema-agent22-3d-modeler
 (the hook input's agent_type), one program per command by its installed path, with every path inside
-the New Home project and each script's SHA-256 recorded as reviewed; Agent 22 runs nothing else, and
+the New Home project (teams/home-design/New Home/) and each script's SHA-256 recorded as reviewed; Agent 22 runs nothing else, and
 the home-design subagents write only inside their New Home folders.
 Exit code 2 blocks the call and the message goes back to Claude. The prefix deny rules in
 .claude/settings.json stay the first line; this catches wrapped forms they miss. It is not
@@ -45,7 +46,10 @@ AGENT22_PROGRAMS = {
 }
 HOME_PROGRAMS = set(AGENT22_PROGRAMS) | {"freecad", "blender-launcher"}
 LAUNCHERS = {"start-process", "saps", "start", "invoke-item", "ii"}
-HOME_PROJECT = r"D:\Projects\REEMA Projects\New Home"
+HOME_PROJECT = str(ROOT / "teams" / "home-design" / "New Home")
+# The current folders first, then the folders they were moved from on 2026-11-07.
+TASK_STORES = ("teams/coordination/data", "output/assistant")
+REFERENCE_DIRS = ("teams/documentation/input/references", "references")
 SCRIPT_LEDGER = HOME_PROJECT + r"\reviews\script_reviews.json"
 # Every result goes in output\<folder>\, named <date>_<area>_<what>, e.g. 20261103_majlis_preview.png.
 OUTPUT_FOLDERS = ("renders", "models", "drawings", "summaries", "reports")
@@ -59,7 +63,8 @@ HOME_AGENT_WRITES = {
     AGENT22: (r"scripts\blender", r"scripts\freecad", r"output\renders", r"output\models", r"output\drawings",
               REPORTS),
 }
-AHMAD_HOME_FILES = ("README.md", ".gitignore", r"output\README.md", r"reviews\script_reviews.json")
+AHMAD_HOME_FILES = ("README.md", ".gitignore", r".claude\settings.json", r"output\README.md",
+                    r"reviews\script_reviews.json")
 WRITE_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit"}
 BLENDER_REQUIRED = {"--factory-startup", "--offline-mode", "--disable-autoexec"}
 BLENDER_SWITCHES = BLENDER_REQUIRED | {"-b", "--background", "-noaudio", "-a", "--render-anim"}
@@ -136,11 +141,13 @@ def _first_operand(words):
 def _path_reason(word):
     word = word.replace("\\", "/").lower()
     root, name = ROOT.as_posix().lower(), ROOT.name.lower()
-    if re.match(r"(\./)?output/assistant(/|$)", word) or f"{name}/output/assistant" in word \
-            or word.startswith(f"{root}/output/assistant"):
-        return "REEMA's output/assistant/ is used only through the task and memory commands"
-    if f"{name}/references" in word or word.startswith(f"{root}/references"):
-        return "REEMA's references/ cannot be reached from outside the repository"
+    for store in TASK_STORES:
+        if re.match(rf"(\./)?{re.escape(store)}(/|$)", word) or f"{name}/{store}" in word \
+                or word.startswith(f"{root}/{store}"):
+            return "REEMA's task store (teams/coordination/data/) is used only through the task and memory commands"
+    for refs in REFERENCE_DIRS:
+        if f"{name}/{refs}" in word or word.startswith(f"{root}/{refs}"):
+            return "REEMA's references (teams/documentation/input/references/) cannot be reached from outside the repository"
     return None
 
 

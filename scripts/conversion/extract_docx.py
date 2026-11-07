@@ -7,7 +7,7 @@ from pathlib import Path
 import sys
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DOC_PATH = PROJECT_ROOT / "output" / "SOP_User_Incident_Management_V1_Full_Detail.docx"
+DOC_PATH = PROJECT_ROOT / "teams" / "documentation" / "output" / "SOP_User_Incident_Management_V1_Full_Detail.docx"
 
 def extract_full_content(path):
     doc = Document(path)

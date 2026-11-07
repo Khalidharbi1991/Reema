@@ -11,7 +11,7 @@ print("GENERATING COMPLETE HTML VERSION")
 print("=" * 80)
 
 # Read the complete markdown file
-md_file = Path("output/Workstation_Security_Patches_SOP.md")
+md_file = Path("teams/documentation/output/Workstation_Security_Patches_SOP.md")
 if not md_file.exists():
     print(f"ERROR: {md_file} not found!")
     exit(1)
@@ -397,7 +397,7 @@ html_content = '\n'.join(new_lines)
 final_html = html_template.format(content=html_content)
 
 # Write output file
-output_file = Path("output/html/Workstation_Security_Patches_SOP_FULL.html")
+output_file = Path("teams/documentation/output/html/Workstation_Security_Patches_SOP_FULL.html")
 output_file.parent.mkdir(parents=True, exist_ok=True)
 
 with open(output_file, 'w', encoding='utf-8') as f:

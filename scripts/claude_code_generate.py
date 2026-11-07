@@ -9,10 +9,10 @@ data specialists add no appendix.
 
     prepare PROCESS [--format F] [--objective TEXT] [--constraint TEXT] [--acceptance TEXT] [--custom]
             [--specialist S] [--specialist-input FILE]
-                                 write output/claude_code/<id>/generate_request.json
+                                 write teams/documentation/output/claude_code/<id>/generate_request.json
     prepare ... --confirm-read TOKEN   needed when reference excerpts or a specialist input file are included
     check   ID                   check the section files; write draft_preview.md
-    finish  ID                   run the generate job into a NEW output/runs/ folder
+    finish  ID                   run the generate job into a NEW teams/documentation/output/runs/ folder
 
 Run from the repository root with: python3 scripts/dev.py python scripts/claude_code_generate.py ...
 This script never approves anything; the reviewer runs `reema approve` themselves.

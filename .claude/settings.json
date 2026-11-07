@@ -1,8 +1,6 @@
 {
   "permissions": {
-    "additionalDirectories": [
-      "D:/Projects/REEMA Projects"
-    ],
+    "additionalDirectories": [],
     "deny": [
       "Bash(reema approve:*)",
       "Bash(reema reject:*)",
@@ -103,7 +101,13 @@
       "Write(./output/assistant/**)",
       "Read(./references/**)",
       "Edit(./references/**)",
-      "Write(./references/**)"
+      "Write(./references/**)",
+      "Read(./teams/coordination/data/**)",
+      "Edit(./teams/coordination/data/**)",
+      "Write(./teams/coordination/data/**)",
+      "Read(./teams/documentation/input/references/**)",
+      "Edit(./teams/documentation/input/references/**)",
+      "Write(./teams/documentation/input/references/**)"
     ]
   },
   "hooks": {

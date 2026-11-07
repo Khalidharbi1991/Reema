@@ -5,11 +5,11 @@ section choice, hash binding, the "only the target section changed" and "no new 
 the Word splice and re-read, export and the pending human approval record.
 
     prepare FILE --section TITLE --instruction TEXT   refuse and print the confirm-read token for FILE
-    prepare ... --confirm-read TOKEN                  after Khalid's yes, write output/claude_code/<id>/request.json
+    prepare ... --confirm-read TOKEN                  after Khalid's yes, write teams/documentation/output/claude_code/<id>/request.json
     prepare FILE --from-review RUN --finding ID       the same, from 1-5 findings of a review run of FILE
     prepare ... --major                               name the revision with the next major version (V2.3 -> V3.0)
     check   ID                                        validate patch.json; write recheck_request.json
-    finish  ID                                        run the revise job into a NEW output/runs/ folder
+    finish  ID                                        run the revise job into a NEW teams/documentation/output/runs/ folder
     compare RUN_A RUN_B                               compare two revise runs of the same SOP
 
 Run from the repository root with: python3 scripts/dev.py python scripts/claude_code_revise.py ...
