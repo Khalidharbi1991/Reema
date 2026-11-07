@@ -100,7 +100,7 @@ record. Automated checks explicitly say visual inspection was not performed: rea
 deliverables still need inspection for overlap, font substitution and layout.
 
 ```bash
-python3 scripts/dev.py python -m scripts.verify_document_package --output output/qa/new-example
+python3 scripts/dev.py python -m scripts.verify_document_package --output teams/documentation/output/qa/new-example
 ```
 
 Use a fresh ignored directory. DOCX visual QA uses the document skill's bundled

@@ -70,8 +70,15 @@ diagrams/
 *~
 
 # Team folders: every team's input, output, data and nested project repos stay local.
-# Only teams/README.md is tracked.
+# Only teams/README.md and the explanatory references README are tracked.
 /teams/*/
+!/teams/documentation/
+/teams/documentation/*
+!/teams/documentation/input/
+/teams/documentation/input/*
+!/teams/documentation/input/references/
+/teams/documentation/input/references/*
+!/teams/documentation/input/references/README.md
 
 # Logs
 logs/

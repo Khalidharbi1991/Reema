@@ -27,12 +27,13 @@ TOOLS = {
 HOME_AGENTS = {19: "reema-agent19-blueprint", 20: "reema-agent20-space-planner", 21: "reema-agent21-interior",
                22: "reema-agent22-3d-modeler", 23: "reema-agent23-design-reviewer"}
 DESIGN_LEAD = CLAUDE / "skills" / "reema-agent9-design-lead" / "SKILL.md"
-NEW_HOME = "D:/Projects/REEMA Projects/New Home"
+NEW_HOME = "D:/Projects/IT Consultant/teams/home-design/New Home"
 DEV_AGENTS = {12: "reema-agent12-requirements", 13: "reema-agent13-architect", 14: "reema-agent14-developer",
               15: "reema-agent15-tester", 16: "reema-agent16-security", 17: "reema-agent17-ui",
               18: "reema-agent18-game-writer"}
 DEV_LEAD = CLAUDE / "skills" / "reema-agent11-dev-lead" / "SKILL.md"
-PROJECTS = "D:/Projects/REEMA Projects"
+PROJECTS = "D:/Projects/IT Consultant/teams/development/projects"
+REFERENCES, TASK_STORE = "teams/documentation/input/references/", "teams/coordination/data/"
 
 
 def frontmatter(path):
@@ -134,7 +135,7 @@ def test_development_subagents_name_their_agent_and_boundaries(number, name):
     meta, body = frontmatter(CLAUDE / "agents" / f"{name}.md")
     assert f"Agent {number}," in meta["description"] and body.startswith(f"You are Agent {number},")
     assert "reema-agent11-dev-lead" in meta["description"]
-    assert PROJECTS in body and "references/" in body and "output/assistant/" in body
+    assert PROJECTS in body and REFERENCES in body and TASK_STORE in body
     assert "Never push, add a remote, deploy, publish" in body
 
 
@@ -154,7 +155,8 @@ def test_dev_lead_skill_holds_khalids_rules():
     assert "Before every risky change" in flat and "pre-<short>-<YYYYMMDD-HHMM>" in flat
     assert "no open Critical or High finding" in flat and "No online scanner" in flat
     assert "Push, add or change a remote, deploy, or publish" in flat
-    assert "`references/`" in flat and "`output/assistant/`" in flat
+    assert f"`{REFERENCES}`" in flat and f"`{TASK_STORE}`" in flat
+    assert "claudeMdExcludes" in body and "D:/Projects/IT Consultant/CLAUDE.md" in body
 
 
 def _guard():
@@ -172,7 +174,7 @@ def _guard():
     "python3 -m twine upload dist/*", "docker push image", "vercel deploy", "sudo ls", "gh pr create",
     "rsync -a . host:", "cat output/assistant/work.db", "bash <<EOF\ngit push\nEOF",
     "cat <<'EOF' | sh\ncurl x\nEOF", "echo 'unbalanced curl x",
-    f"ls '{PROJECTS}/../IT Consultant/references'",
+    "ls 'D:/Projects/REEMA Projects/../IT Consultant/references'",
     "cat teams/coordination/data/work.db", "cat ./teams/coordination/data/personal.db",
     "ls 'D:/Projects/IT Consultant/teams/documentation/input/references'",
     "dir \"D:\\Projects\\IT Consultant\\teams\\coordination\\data\"",
@@ -225,7 +227,7 @@ def test_home_design_subagents_name_their_agent_and_keep_agent_9s_rules(number, 
     meta, body = frontmatter(CLAUDE / "agents" / f"{name}.md")
     assert f"Agent {number}," in meta["description"] and body.startswith(f"You are Agent {number},")
     assert "reema-agent9-design-lead" in meta["description"]
-    assert NEW_HOME in body and "references/" in body and "output/assistant/" in body
+    assert NEW_HOME in body and REFERENCES in body and TASK_STORE in body
     for rule in ("Never invent dimensions", '"[to confirm]"', "licensed professional",
                  "Never upload, push, publish or send anything off this computer"):
         assert rule in body
@@ -344,7 +346,7 @@ def test_guard_blocks_the_home_programs_for_everyone_but_agent22(command):
 
 
 def test_guard_still_lets_ahmad_name_the_home_folders():
-    for command in ("ls scripts/blender", "grep -rn blender src", "git -C 'D:/Projects/REEMA Projects/New Home' status"):
+    for command in ("ls scripts/blender", "grep -rn blender src", "git -C 'D:/Projects/IT Consultant/teams/home-design/New Home' status"):
         assert _guard().reason(command) is None
 
 

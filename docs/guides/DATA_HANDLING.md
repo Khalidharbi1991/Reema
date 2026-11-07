@@ -2,24 +2,24 @@
 
 ## Classification and scope
 
-Treat everything in `references/`, `diagrams/`, generated `output/`, and `logs/`
+Treat everything in `teams/documentation/input/references/`, `teams/documentation/input/diagrams/`, generated `teams/documentation/output/`, and `logs/`
 as private unless the owner has explicitly classified it otherwise. This is a
 conservative handling rule, not a legal classification or a content audit.
 
 | Location | Material | Handling |
 | --- | --- | --- |
-| `references/itom/` | Optional ITOM PDF/DOCX sources | Local; manifest permission and Khalid's yes before a session reads excerpts |
-| `references/access-management/` | Policies and procedures | Local customer material |
-| `references/process-documents/` | Process sources, templates, backups | Local customer material |
-| `references/customer/` | Supplied organizational references | Local customer material |
-| `diagrams/` | Working architecture/process diagrams | Local private source |
-| `output/` | Generated drafts, Claude Code work folders and approval records | Private, reviewed before distribution |
+| `teams/documentation/input/references/itom/` | Optional ITOM PDF/DOCX sources | Local; manifest permission and Khalid's yes before a session reads excerpts |
+| `teams/documentation/input/references/access-management/` | Policies and procedures | Local customer material |
+| `teams/documentation/input/references/process-documents/` | Process sources, templates, backups | Local customer material |
+| `teams/documentation/input/references/customer/` | Supplied organizational references | Local customer material |
+| `teams/documentation/input/diagrams/` | Working architecture/process diagrams | Local private source |
+| `teams/documentation/output/` | Generated drafts, Claude Code work folders and approval records | Private, reviewed before distribution |
 | `logs/` | Runtime messages/errors | Potentially sensitive; inspect before sharing |
 | `.claude/settings.local.json`, `.env*` | Machine settings | Local only; `.env.example` must contain no secrets |
 | `.local-baseline/` | Pre-change recovery snapshot | Private local backup; not encrypted |
 | `src/knowledge/` | Curated agent knowledge shipped with code | Source material; review before sharing code or images |
 
-Git ignores the private locations, except the explanatory `references/README.md`.
+Git ignores the private locations, except the explanatory `teams/documentation/input/references/README.md`.
 Ignoring does not remove previous Git history or encrypt data. Keep authoritative
 copies in approved storage; choose retention/access controls before multi-user use.
 
@@ -33,12 +33,12 @@ what the session is allowed to read:
 - **A finished SOP** (review, revise): Ahmad asks Khalid's yes first. The prepare
   step refuses until it is given `--confirm-read` with the token it prints for that
   exact file (the start of its SHA-256), and copies nothing into
-  `output/claude_code/` before that. The token binds the yes to the file's bytes;
+  `teams/documentation/output/claude_code/` before that. The token binds the yes to the file's bytes;
   it cannot prove who said yes.
 - **Reference excerpts** (generate): only files listed in the local manifest with
   permission and a matching SHA-256 are searched, restricted sources are always
   denied, and one confirm-read token covers exactly the files the excerpts come
-  from. A file under `references/` used as an SOP must pass the same manifest check.
+  from. A file under `teams/documentation/input/references/` used as an SOP must pass the same manifest check.
 - **A `--specialist-input` file** (IAM snapshots, incident observations, metric
   rows): it joins the same confirm-read token. Its local checks are written into the
   request as data. Strict fields reject credential-shaped keys, but free text and
@@ -53,12 +53,12 @@ prompt injection. Automated redaction and data residency guarantees are not
 implemented. A yes to read does not approve distribution. See
 [source setup and limits](RELIABILITY_AND_SOURCES.md).
 
-Claude Code work folders (`output/claude_code/<id>/`) hold the copied SOP text,
+Claude Code work folders (`teams/documentation/output/claude_code/<id>/`) hold the copied SOP text,
 excerpts and the subagents' files; run folders hold checkpoints and drafts. Protect
 the whole output directory.
 
 Personal-assistant memory is explicit user-supplied text in separate work/personal
-SQLite databases under `output/assistant/` (or `TASK_DATA_DIR`). The files have
+SQLite databases under `teams/coordination/data/` (or `TASK_DATA_DIR`). The files have
 restricted local permissions where supported, but are not encrypted. Saving memory
 does not send it anywhere. Use `memory list` to inspect entries, repeat `memory set`
 to edit, and `memory forget` with the exact kind/project to delete; deletion cannot
@@ -67,7 +67,7 @@ retract what an earlier session read or erase database backups. See
 
 ## Human approval
 
-Each successful generate, revise or export job creates a new `output/runs/<run-id>/`
+Each successful generate, revise or export job creates a new `teams/documentation/output/runs/<run-id>/`
 directory. After its checks and export pass, `approval.json` records the drafts'
 absolute paths, SHA-256 hashes, a quality score (null when no model reviewed the
 draft, as for a Claude Code generate run) and the creation timestamp. Its status is
@@ -80,7 +80,7 @@ draft, as for a Claude Code generate run) and the creation timestamp. Its status
    decisions cannot be replaced through the CLI. Rejection remains possible for
    missing or damaged artifacts.
 
-Approving a revise run also publishes it into `output/` (see the README). Approval
+Approving a revise run also publishes it into `teams/documentation/output/` (see the README). Approval
 changes the record, not the original draft document bytes. Recheck hashes before
 distribution if files might have changed after approval. Moving a run to another
 machine changes absolute paths and is not a supported approval transfer.

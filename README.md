@@ -90,7 +90,7 @@ decision authority. Run `python3 scripts/dev.py run agents` for the active roste
 ### Prerequisites
 
 - Python 3.11–3.14
-- Optional references explicitly permitted in `references/manifest.yaml`
+- Optional references explicitly permitted in `teams/documentation/input/references/manifest.yaml`
 - Native Pango libraries for PDF output (see the development setup guide)
 
 ### Setup
@@ -144,7 +144,7 @@ Custom output directory:
 python3 scripts/dev.py run generate "Service Request Management" --output ./output/my-docs
 ```
 
-Keep custom output folders under `output/` or another Git-ignored path. Drafts,
+Keep custom output folders under `teams/documentation/output/` or another Git-ignored path. Drafts,
 run checkpoints and source excerpts are written there; `generate` and `export`
 print a warning when the folder is inside the repository but not ignored.
 
@@ -159,12 +159,12 @@ when PDF is not needed.
 
 #### Human approval
 
-Outputs are isolated in `output/runs/<run-id>/` with an `approval.json` record.
+Outputs are isolated in `teams/documentation/output/runs/<run-id>/` with an `approval.json` record.
 Review every exported document, then record your decision using the printed path:
 
 ```bash
-python3 scripts/dev.py run approve output/runs/<run-id>/approval.json --reviewer "Your name"
-python3 scripts/dev.py run reject output/runs/<run-id>/approval.json --reviewer "Your name" --notes "Required changes"
+python3 scripts/dev.py run approve teams/documentation/output/runs/<run-id>/approval.json --reviewer "Your name"
+python3 scripts/dev.py run reject teams/documentation/output/runs/<run-id>/approval.json --reviewer "Your name" --notes "Required changes"
 ```
 
 Both commands require interactive confirmation. Approval verifies that files
@@ -178,12 +178,12 @@ The original draft files are not rewritten after approval.
 
 Existing `.md` or `.docx` SOPs can be checked and fixed without regenerating
 them. The original file is only read; every job writes a new
-`output/runs/<run-id>/` folder. The full review and revisions run in Claude Code
+`teams/documentation/output/runs/<run-id>/` folder. The full review and revisions run in Claude Code
 (see "Claude Code revise" below); REEMA itself calls no model for them. From the
 command line you can run the template-gap check, which needs no model:
 
 ```bash
-python3 scripts/dev.py run review output/SOP_User_Incident_Management_V2.docx
+python3 scripts/dev.py run review teams/documentation/output/SOP_User_Incident_Management_V2.docx
 ```
 
 Review saves `findings.md`/`findings.json` and has no approval record. Revise
@@ -195,29 +195,29 @@ images, tracked changes, fields or content controls must be edited in Word.
 
 The revised file is named with the next version: `..._V2` becomes `..._V2.1`, then
 `..._V2.2`; a name with no version becomes `_V1.1`. Add `--major` when you decide the
-change is big (`V2.3` becomes `V3.0`). Every existing draft in `output/` and its run
+change is big (`V2.3` becomes `V3.0`). Every existing draft in `teams/documentation/output/` and its run
 folders counts, rejected ones too, so a number is never used twice; old `_revised`
 files keep their names and count as their plain version. Only the file name changes:
 update the version in Document Control yourself before approving (`changes.md` says so).
 
 In Claude Code, ask Ahmad in plain words, for example "fix the escalation part in my
-incident SOP". He lists matching files in `output/` for you to choose, names the
+incident SOP". He lists matching files in `teams/documentation/output/` for you to choose, names the
 section, and asks for your yes before the session reads the file. He cannot approve
 the result.
 
 #### Publishing an approved revision
 
 `reema approve` on a revise run also publishes it: the approved
-`.md`/`.docx` drafts are copied to the top of `output/`, and every older version of the
+`.md`/`.docx` drafts are copied to the top of `teams/documentation/output/`, and every older version of the
 same SOP there (same name, lower version, same format) moves to
-`output/archive/<run-id>/`. Before you confirm, the command shows what it will copy and
+`teams/documentation/output/archive/<run-id>/`. Before you confirm, the command shows what it will copy and
 archive, or warns that publishing will be refused. It never overwrites a file and checks
 each copy and move by SHA-256; the result is in the run's `publish.json`. If publishing
 is refused or stops halfway, the approval stays recorded, the command exits 1 with
 "approved, not published", and you can retry:
 
 ```bash
-reema publish output/runs/RUN_ID/approval.json
+reema publish teams/documentation/output/runs/RUN_ID/approval.json
 ```
 
 `reema approve --no-publish` records the approval only; `reema publish` can publish it
@@ -232,7 +232,7 @@ and prepares the 11-section skeleton; the `reema-writer` subagent writes one fil
 standards named, citations, diagrams, control coverage), exports the formats you asked for and
 creates the pending approval record. No model reviews the draft, so the approval record has no
 quality score; ask Ahmad to review the Markdown draft first if you want a review. Excerpts from
-`references/` are included only when the reference manifest allows them, and only after your yes
+`teams/documentation/input/references/` are included only when the reference manifest allows them, and only after your yes
 (a `--confirm-read` token). For patch processes (Workstation Security Patches, Devices Batch
 Management) Agent 10 writes the "Endpoint Deployment & Rollback Plan" appendix. Access, problem and
 data specialists add no appendix; their local checks on a JSON input file you name (IAM snapshot,
@@ -247,7 +247,7 @@ subagent) and the recheck (`reema-rechecker` subagent); `scripts/claude_code_rev
 runs the gates, Word splice, export and pending approval record. The SOP is still
 sent to Anthropic through the Claude Code session, so you are asked for your yes
 first: the prepare step prints a `--confirm-read` token for that exact file and
-copies nothing until it is given back. A file under `references/` must also be
+copies nothing until it is given back. A file under `teams/documentation/input/references/` must also be
 allowed in the reference manifest. It takes either `--instruction` or 1–5
 findings from a review run of the same SOP (`--from-review RUN --finding ID`), and it
 never approves: run the printed `reema approve` command yourself.
@@ -268,7 +268,7 @@ work tasks or memory and before reading each SOP, and never approves or pushes.
 Building or home-design questions and jobs go to the Home Design section (below), and
 endpoint questions (patching, imaging, packaging, Intune/MECM) to Agent 10, a Claude
 Code subagent that only reads files you allow and saves drafts under
-`output/claude_code/advice/`. The
+`teams/documentation/output/claude_code/advice/`. The
 org chart and rules are in AGENTS.md under "REEMA company in Claude Code".
 
 #### Development section
@@ -281,17 +281,17 @@ the agents, the files and every package it wants to install. Nothing is written 
 you say yes. Anything bigger than a small fix starts with a PRD you confirm.
 
 Each project gets its own folder and git repo in
-`D:/Projects/REEMA Projects/`, tagged at the start and end of
+`D:/Projects/IT Consultant/teams/development/projects/`, tagged at the start and end of
 every job and before each risky change. To list a project's tags (replace `my-game`
 with the project's folder name):
 
 ```bash
-git -C "D:/Projects/REEMA Projects/my-game" tag --list
+git -C "D:/Projects/IT Consultant/teams/development/projects/my-game" tag --list
 ```
 
 A job finishes only when its tests pass and the security review has no open Critical
 or High finding. The section never pushes, deploys or publishes, and never touches
-REEMA's `references/` or `output/assistant/`. `.claude/settings.json` blocks push,
+REEMA's `teams/documentation/input/references/` or `teams/coordination/data/`. `.claude/settings.json` blocks push,
 remotes, publishing, deploy tools, `sudo` and network tools such as `curl` and `wget`
 for the whole session, and its hook (`.claude/hooks/dev_guard.py`) also catches them
 inside `sh -c`, `eval` and similar.
@@ -303,7 +303,7 @@ Ask Ahmad in plain words, for example "Ahmad, design the majlis", or type
 design (never the whole land unless you ask), then shows the plan and the agents it
 picked (19 blueprint reader, 20 space planner, 21 interior designer, 22 3D modeler,
 23 design reviewer) and waits for your yes. The work goes in
-`D:/Projects/REEMA Projects/New Home/`, a local git repo with no remote whose
+`D:/Projects/IT Consultant/teams/home-design/New Home/`, a local git repo with no remote whose
 `.gitignore` keeps the DWG, DXF and `output/` out of Git. Every result goes in
 `New Home/output/` (`renders/`, `models/`, `drawings/`, `summaries/`, `reports/`), named
 `<date>_<area>_<what>`, for example `20261103_majlis_preview.png`.
@@ -311,7 +311,7 @@ picked (19 blueprint reader, 20 space planner, 21 interior designer, 22 3D model
 Agent 22 converts the DWG with ODA File Converter, and Ahmad summarizes the DXF locally:
 
 ```bash
-python3 scripts/dev.py run drawing summary "D:/Projects/REEMA Projects/New Home/output/drawings/20261103_majlis_plan.dxf" --output "D:/Projects/REEMA Projects/New Home/output/summaries/20261103_majlis_drawing-summary.json"
+python3 scripts/dev.py run drawing summary "D:/Projects/IT Consultant/teams/home-design/New Home/output/drawings/20261103_majlis_plan.dxf" --output "D:/Projects/IT Consultant/teams/home-design/New Home/output/summaries/20261103_majlis_drawing-summary.json"
 ```
 
 The summary lists layers, text labels, dimension values and door or window candidates
@@ -319,7 +319,7 @@ as the drawing stores them; it infers no rooms. To pull only some layers inside 
 area (for example a suite's doors and windows):
 
 ```bash
-python3 scripts/dev.py run drawing extract "D:/Projects/REEMA Projects/New Home/output/drawings/20261103_house_architectural-plan.dxf" --layers A-DOOR,WINDOW --xmin 513200 --ymin 2412889 --xmax 513212 --ymax 2412899 --output "D:/Projects/REEMA Projects/New Home/output/summaries/20261103_master-suite_door-window-extract.json"
+python3 scripts/dev.py run drawing extract "D:/Projects/IT Consultant/teams/home-design/New Home/output/drawings/20261103_house_architectural-plan.dxf" --layers A-DOOR,WINDOW --xmin 513200 --ymin 2412889 --xmax 513212 --ymax 2412899 --output "D:/Projects/IT Consultant/teams/home-design/New Home/output/summaries/20261103_master-suite_door-window-extract.json"
 ```
 
 To measure what the drawing does not dimension, `drawing measure` follows a line through each
@@ -327,7 +327,7 @@ To measure what the drawing does not dimension, `drawing measure` follows a line
 between crossings (wall thicknesses and clear distances), marked "measured from geometry":
 
 ```bash
-python3 scripts/dev.py run drawing measure "D:/Projects/REEMA Projects/New Home/output/drawings/20261103_house_architectural-plan.dxf" --layers A-WALL --point 513205.4,2412893.0 --angle 40.75 --angle 130.75 --output "D:/Projects/REEMA Projects/New Home/output/summaries/20261103_master-suite_wall-measurements.json"
+python3 scripts/dev.py run drawing measure "D:/Projects/IT Consultant/teams/home-design/New Home/output/drawings/20261103_house_architectural-plan.dxf" --layers A-WALL --point 513205.4,2412893.0 --angle 40.75 --angle 130.75 --output "D:/Projects/IT Consultant/teams/home-design/New Home/output/summaries/20261103_master-suite_wall-measurements.json"
 ``` Agent 22 is the only agent that runs
 commands: Blender 4.5 LTS, `freecadcmd` and ODA File Converter, by their installed
 paths and only inside New Home. Each Blender or FreeCAD script runs only after Agent 16
@@ -349,7 +349,7 @@ Each run saves phase checkpoints and usage metadata in its own directory. If a
 run reached `ready.json` but export failed, regenerate the exports offline:
 
 ```bash
-python3 scripts/dev.py run export output/runs/<run-id> -f markdown -f docx
+python3 scripts/dev.py run export teams/documentation/output/runs/<run-id> -f markdown -f docx
 ```
 
 This validates the checkpoint hash, runs the local checks again on a Claude Code draft,
@@ -365,8 +365,8 @@ python3 scripts/dev.py run generate "Incident Management" -f pdf -f docx
 ```
 
 Then, in Claude Code, ask Ahmad to write the printed work id. Output after finish:
-- `output/runs/<run-id>/pdf/Incident_Management_SOP.pdf`
-- `output/runs/<run-id>/docx/Incident_Management_SOP.docx`
+- `teams/documentation/output/runs/<run-id>/pdf/Incident_Management_SOP.pdf`
+- `teams/documentation/output/runs/<run-id>/docx/Incident_Management_SOP.docx`
 
 ### Example 2: Custom Device Management Process
 
@@ -378,8 +378,8 @@ python3 scripts/dev.py run generate "Devices Batch Management" -f pdf -f html
 
 ### ITOM.pdf Not Found
 
-Placing a file in `references/itom/` does not authorize it. Add its relative path,
-classification, SHA-256, and explicit permission to `references/manifest.yaml`.
+Placing a file in `teams/documentation/input/references/itom/` does not authorize it. Add its relative path,
+classification, SHA-256, and explicit permission to `teams/documentation/input/references/manifest.yaml`.
 See the [source setup guide](docs/guides/RELIABILITY_AND_SOURCES.md).
 
 ### Import Errors
@@ -393,7 +393,7 @@ python3 scripts/dev.py doctor
 
 ### Permission Errors
 
-Make sure your user owns `output/` (`ls -ld output`). Do not widen its
+Make sure your user owns `teams/documentation/output/` (`ls -ld teams/documentation/output`). Do not widen its
 permissions: REEMA keeps the task and memory stores owner-only.
 
 ## Advanced Usage

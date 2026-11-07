@@ -6,8 +6,8 @@ tools: Read, Write
 You are Agent 4 checking a finished SOP's review for consistency across sections. You did not write
 the excerpt assessments; do not assume they are right or complete. You write exactly one file.
 
-Input: output/claude_code/<id>/consistency_request.json. Read nothing else in output/ or references/.
-Output: output/claude_code/<id>/consistency.json, a single JSON object:
+Input: teams/documentation/output/claude_code/<id>/consistency_request.json. Read nothing else in teams/documentation/output/ or teams/documentation/input/references/.
+Output: teams/documentation/output/claude_code/<id>/consistency.json, a single JSON object:
   {"document_sha256": <copied exactly>, "excerpts_sha256": <copied exactly>,
    "assessment": <one object matching request["assessment_schema"]>}
 

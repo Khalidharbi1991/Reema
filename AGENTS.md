@@ -34,7 +34,7 @@ commands. Change history is in `docs/reports/CHANGELOG.md`.
   happens in Claude Code. Tests use stand-in workers only.
 - Never add API keys, generated documents, logs, local editor settings, or source
   customer documents to Git.
-- Reference material stays in ignored `references/`. Only files explicitly
+- Reference material stays in ignored `teams/documentation/input/references/`. Only files explicitly
   listed with permission and a matching SHA-256 in the local manifest may be
   read into a Claude Code session, and only after Khalid's yes, given as the
   `--confirm-read` token for those exact files. A yes to read does not approve
@@ -47,10 +47,16 @@ commands. Change history is in `docs/reports/CHANGELOG.md`.
   prepare step asks for one, in addition to the reference manifest rule.
   Do not weaken or bypass that consent.
 - Preserve existing user changes: the worktree may be dirty.
-- Development projects live outside REEMA's git repo, each in its own repo, and
-  are never pushed, deployed or published.
+- Development projects live in `teams/development/projects/`, each in its own repo,
+  which REEMA's repo ignores, and are never pushed, deployed or published. Each one's
+  `.claude/settings.json` excludes this folder's CLAUDE.md and AGENTS.md (see the
+  `reema-agent11-dev-lead` skill), so a session started there does not inherit them.
 - Home design files (the DWG, DXF, models, renders) stay on this computer in the
-  New Home project: never uploaded, never committed to any remote or to REEMA's repo.
+  New Home project (`teams/home-design/New Home/`, its own repo with the same
+  exclusion): never uploaded, never committed to any remote or to REEMA's repo.
+- Each section keeps its local files under `teams/` (see `teams/README.md`); code
+  stays shared in `src/`. Everything under `teams/` is ignored by Git except the
+  READMEs.
 
 ## Current team
 
@@ -93,12 +99,12 @@ planning. The former owner agent has been removed.
 The old agent knowledge files remain source material; historical references to the
 prior hierarchy inside them do not grant authority.
 
-Work and personal task lists are stored separately under `output/assistant/` by
+Work and personal task lists are stored separately under `teams/coordination/data/` by
 default and are used only through the local `task` and `memory` commands, which
 make no model call. Explicit preferences, profile facts, project context,
 correction lessons and short examples persist in those area-specific databases.
 Memory is editable/deletable and never saved by model inference. `reema find-sop
-WORDS` lists finished SOPs in `output/` by file-name words, newest first, without
+WORDS` lists finished SOPs in `teams/documentation/output/` by file-name words, newest first, without
 reading them.
 
 ## Documentation pipeline
@@ -117,7 +123,7 @@ and PDF. The 15–30 rendered PDF page target warns by default and can be enforc
 by configuration. Standards names and source citations do not certify factual or
 regulatory compliance; control applicability stays undetermined for a human to
 judge. Successful generation produces drafts in
-`output/runs/<run-id>/` and ends at `awaiting_human_approval`. No agent can
+`teams/documentation/output/runs/<run-id>/` and ends at `awaiting_human_approval`. No agent can
 approve a document as a human reviewer.
 
 Finished SOPs (`.md` or `.docx`) can be reviewed and revised; the source file is
@@ -130,17 +136,17 @@ only the named sections through `ContentAgent.revise_sections`, the shared prese
 gate and the targeted recheck, then ends at `awaiting_human_approval`; its record's score
 is the share of findings the recheck marked resolved. Revised drafts are named with the next file version (`_V2` → `_V2.1`;
 no version → `_V1.1`; `--major` → `_V3.0`, never automatic), counting every draft in
-`output/`, its runs and `output/archive/`, rejected ones included; old `_revised` files are not
+`teams/documentation/output/`, its runs and `teams/documentation/output/archive/`, rejected ones included; old `_revised` files are not
 renamed and count as their plain version. Document Control inside the document is not changed.
 When Khalid approves a revise run, `reema approve` publishes it (`src/utils/publish.py`): the
-approved drafts are copied to the top of `output/`, and every lower version of the same SOP there,
-in a published format, moves to `output/archive/<run-id>/`. The plan is previewed before the
+approved drafts are copied to the top of `teams/documentation/output/`, and every lower version of the same SOP there,
+in a published format, moves to `teams/documentation/output/archive/<run-id>/`. The plan is previewed before the
 confirm prompt; nothing is overwritten and every copy and move is SHA-256 checked. The outcome
 is in the run's `publish.json` (`approval.json` is never changed), so a refused or half-finished
 publish leaves the approval recorded, exits 1 with "approved, not published", and `reema publish
 <record>` retries it. Generate runs, old `_revised` drafts and runs approved before publishing
 existed are not published; `approve --no-publish` skips it. Ahmad's file search lists a published
-draft only as its `output/` copy. Non-template SOPs use relaxed section checks; generate keeps the
+draft only as its `teams/documentation/output/` copy. Non-template SOPs use relaxed section checks; generate keeps the
 full profile. DOCX revisions splice only the target sections into a copy of the
 original; sections with images, tracked changes, fields or content controls are
 refused. Ahmad finds the file with `find-sop`, lists several matches for Khalid to
@@ -149,7 +155,7 @@ choose, and never approves.
 Both Claude Code prepare steps (`src/utils/read_gate.py`) refuse until given
 `--confirm-read` with the token they print for that exact file (the start of its
 SHA-256), which Ahmad passes only after Khalid's yes; nothing is copied into
-`output/claude_code/` before that. A file under `references/` must also be allowed,
+`teams/documentation/output/claude_code/` before that. A file under `teams/documentation/input/references/` must also be allowed,
 unrestricted and unchanged in the reference manifest. The token binds the yes to the
 file's bytes; it cannot prove who said yes.
 
@@ -182,7 +188,7 @@ re-runs the `--from-review` checks (findings checksum, same source and document
 SHA-256) at prepare, check and finish, and refuses if the review run's findings
 checkpoint or `request.json` changed since prepare. The `reema-reviser` and
 `reema-rechecker` subagents write `patch.json` and `recheck.json` under
-`output/claude_code/<id>/`; `scripts/claude_code_revise.py` (prepare/check/finish/
+`teams/documentation/output/claude_code/<id>/`; `scripts/claude_code_revise.py` (prepare/check/finish/
 compare) feeds them through `src/agents/file_workers.py` into the unchanged
 `LeaderAgent.revise_existing` gates (which accept only these file workers), with the key
 and consent cleared while it runs. Khalid's yes, passed as the confirm-read token, is
@@ -234,7 +240,7 @@ act as Ahmad.
   section" below) and endpoint questions (patching,
   imaging, packaging, Intune/MECM, change records) to `reema-agent10-euc`. Pass the
   question; pass a file only after Khalid's yes for that file. Agent 10 reads and writes
-  nothing else; drafts it saves go under `output/claude_code/advice/`. Run the local
+  nothing else; drafts it saves go under `teams/documentation/output/claude_code/advice/`. Run the local
   `drawing` commands yourself when the Home Design playbook calls for them.
 - Requests to build, fix or extend software, an app or a game go to the
   `reema-agent11-dev-lead` skill (see "Development section" below). Coding or
@@ -242,7 +248,7 @@ act as Ahmad.
 - Answer strategy, prioritization, governance and business-value questions
   yourself; that advice is unverified and Khalid decides.
 - **Work area only.** Never read or change personal tasks or personal memory.
-  Use the stores only through the CLI, never by opening `output/assistant/`:
+  Use the stores only through the CLI, never by opening `teams/coordination/data/`:
   `python3 scripts/dev.py run task list --area work` (also `today`, `upcoming`,
   `show`, `add`, `edit`, `set-status`) and
   `python3 scripts/dev.py run memory list --area work` (also `set`, `forget`).
@@ -267,9 +273,9 @@ Roles are described under "Current team" above; this shows what runs in Claude C
 | --- | --- | --- | --- |
 | Coordination | Ahmad (main session) | Work tasks and memory through the CLI | Working |
 | Documentation | Abdullah (`abdullah-docs` skill) | `reema-writer`, `reema-reviewer`, `reema-consistency-reviewer`, `reema-reviser`, `reema-rechecker` | Working |
-| Home Design | Agent 9 (`reema-agent9-design-lead` skill) | `reema-agent19-blueprint`, `reema-agent20-space-planner`, `reema-agent21-interior`, `reema-agent22-3d-modeler`, `reema-agent23-design-reviewer` | Working (project in `../REEMA Projects/New Home/`; local `drawing` commands run offline) |
+| Home Design | Agent 9 (`reema-agent9-design-lead` skill) | `reema-agent19-blueprint`, `reema-agent20-space-planner`, `reema-agent21-interior`, `reema-agent22-3d-modeler`, `reema-agent23-design-reviewer` | Working (project in `teams/home-design/New Home/`; local `drawing` commands run offline) |
 | End-User Computing / Patch | Agent 10 | `reema-agent10-euc` | Working (advice and the patch appendix in reema-generate) |
-| Development | Agent 11 (`reema-agent11-dev-lead` skill) | `reema-agent12-requirements`, `reema-agent13-architect`, `reema-agent14-developer`, `reema-agent15-tester`, `reema-agent16-security`, `reema-agent17-ui`, `reema-agent18-game-writer` | Working (projects in `../REEMA Projects/`) |
+| Development | Agent 11 (`reema-agent11-dev-lead` skill) | `reema-agent12-requirements`, `reema-agent13-architect`, `reema-agent14-developer`, `reema-agent15-tester`, `reema-agent16-security`, `reema-agent17-ui`, `reema-agent18-game-writer` | Working (projects in `teams/development/projects/`) |
 
 ### Development section
 
@@ -282,8 +288,9 @@ Ahmad follows the `reema-agent11-dev-lead` skill; Agent 11 is not a separate ses
   files, every package to be installed (name, version, manager) and the tags. A new
   package or a change of scope needs a new yes. Never skip Khalid.
 - **PRD first** (`docs/PRD.md`, confirmed by Khalid) for anything bigger than a small fix.
-- **Own repo per project** under `D:/Projects/REEMA Projects/`
-  (added to the session in `.claude/settings.json`). Tags `job-<short>-<date>-start` and
+- **Own repo per project** under `D:/Projects/IT Consultant/teams/development/projects/`
+  (inside the working directory and ignored by REEMA's repo), started with the
+  `claudeMdExcludes` settings file. Tags `job-<short>-<date>-start` and
   `-done` (or `-stopped`) on every job, and `pre-<short>-<date-time>` before each risky
   change. Only Ahmad commits and tags; rollback, reset or tag deletion only on Khalid's yes.
 - **Tools:** Agents 14 and 15 have Read, Write, Edit, Glob, Grep and Bash; 12, 13, 16,
@@ -292,8 +299,8 @@ Ahmad follows the `reema-agent11-dev-lead` skill; Agent 11 is not a separate ses
   passing in Agent 15's report, and no open Critical or High finding in Agent 16's
   review. Medium and Low findings are listed for Khalid to decide. No online scanner
   is used; the review is not a certification.
-- **Never** push, add a remote, deploy or publish; never touch REEMA's `references/` or
-  `output/assistant/` from a project; no secrets, customer or Customer data in a project;
+- **Never** push, add a remote, deploy or publish; never touch REEMA's `teams/documentation/input/references/` or
+  `teams/coordination/data/` from a project; no secrets, customer or Customer data in a project;
   no paid API or model call in a project unless Khalid asks.
 - Deny rules and the hook bind the whole session (Ahmad included). Package installs
   are not blocked; the approved package list is the control. The hook is not
@@ -307,7 +314,7 @@ The old Agent 9 subagent's rules are kept word for word in that skill.
 - **Ask first:** every job starts by asking Khalid which part of the home to design;
   never the whole land unless he asks. Then show the plan and the chosen agents and wait
   for his yes.
-- **Project:** `D:/Projects/REEMA Projects/New Home/`, its own local repo with no remote;
+- **Project:** `D:/Projects/IT Consultant/teams/home-design/New Home/`, its own local repo with no remote;
   its `.gitignore` keeps DWG, DXF and `output/` out of Git (scripts, READMEs and the
   approval record only). Tags as in the Development section.
 - **One output folder:** every result from any Home Design agent or from Ahmad goes in
@@ -362,6 +369,8 @@ records the earlier external requirements as they stood before the no-API migrat
 - `src/utils/runs.py`, `quality.py`, `approvals.py`, `publish.py`: run checkpoints
   and lock, quality checks, human approval records and publishing.
 - `config/*.yaml`: agent roles, process catalog, standards, document profile.
+- `teams/`: each section's local input, output and data (ignored); the paths come
+  from `src/utils/config.py` and `.claude/hooks/dev_guard.py`.
 - `tests/`: offline tests with stand-in workers; no model call.
 - `docs/guides/RELIABILITY_AND_SOURCES.md`: model and source safeguards.
 
@@ -375,8 +384,8 @@ records the earlier external requirements as they stood before the no-API migrat
   configuration-driven.
 - One-off document generators and converters live in `scripts/`; run them from
   the repository root unless their help text states otherwise.
-- Local source documents live in `references/` and generated artifacts belong in
-  `output/`.
+- Local source documents live in `teams/documentation/input/references/` and generated artifacts belong in
+  `teams/documentation/output/`.
 - Curated `src/knowledge/` files are preserved as source material; keep their
   names and character encoding unless the task specifically concerns them.
 

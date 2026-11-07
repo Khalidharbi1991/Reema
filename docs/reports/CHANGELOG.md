@@ -5,6 +5,24 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md). The [finite ledger](PENDING_LEDGER.md) records external
 requirements as they stood before the no-API migration below.
 
+## 2026-11-07 — Team folders under `teams/`
+
+IT Consultant is now the single main folder. Each section keeps its local files under `teams/`
+(`teams/README.md`); code stays shared in `src/`, and logs stay in `logs/`:
+`teams/coordination/data/` (task and memory stores, was `output/assistant/`),
+`teams/documentation/input/references/` (was `references/`), `teams/documentation/input/diagrams/`
+(was `diagrams/`), `teams/documentation/input/handover/` (the three root handover documents),
+`teams/documentation/output/` (was `output/`), `teams/home-design/New Home/` (was
+`D:/Projects/REEMA Projects/New Home/`), `teams/home-design/legacy-output/` (was `output/agent9/`) and
+`teams/development/projects/` (was `D:/Projects/REEMA Projects/`). Git ignores everything under
+`teams/` except the READMEs. The config defaults, the guard (New Home is found relative to the repo;
+the task-store and references checks cover the new and the old folders) and the deny rules (old ones
+kept, new ones added) follow. New Home and every new dev project carry a `.claude/settings.json` with
+`claudeMdExcludes`, because Claude Code loads CLAUDE.md from every parent folder: a verification
+session started in New Home loaded no CLAUDE.md, AGENTS.md, REEMA skill or REEMA subagent. Old run
+records keep their absolute paths unchanged. The old locations were copied, not deleted, and a
+backup is in `D:/Backups/REEMA-before-reorg-20261107/`.
+
 ## 2026-11-07 — Home Design: Agent 22 gets Edit
 
 Agent 22 (`reema-agent22-3d-modeler`) now has Read, Write, Edit and PowerShell, so it can change

@@ -18,12 +18,12 @@ Use the optional `--specialist-input` JSON file for supplied environment/inciden
 metric records. It must be a regular local file no larger than 2 MB. Unknown fields
 are rejected; credential fields at the top level or in strict snapshot objects are
 unsupported. Metric rows and free text are not automatically scrubbed for secrets.
-Keep private inputs in ignored `references/` or `output/` and inspect them first: the
+Keep private inputs in ignored `teams/documentation/input/references/` or `teams/documentation/output/` and inspect them first: the
 file joins the confirm-read token, and a Claude Code session reads it after
 Khalid's yes.
 
 ```bash
-python3 scripts/dev.py run generate "Change Management" -f markdown --specialist-input output/my-specialist-input.json
+python3 scripts/dev.py run generate "Change Management" -f markdown --specialist-input teams/documentation/output/my-specialist-input.json
 ```
 
 IAM input selects Access, incident input selects Problem, and metric specifications

@@ -32,7 +32,7 @@ and blast radius first, and every endpoint change states a pilot ring, rollback 
 kill switch and any irreversible step. It plans around Asia/Riyadh time, the
 Sunday–Thursday week and seasonal change freezes. It drafts PowerShell with a
 `-WhatIf` mode, change requests, runbooks, KB articles and RCA records for human
-review, saved only under `output/claude_code/advice/` when Ahmad asks. It cannot
+review, saved only under `teams/documentation/output/claude_code/advice/` when Ahmad asks. It cannot
 browse documentation, run scripts or reach tenants, devices or directories, so
 version- and licensing-dependent statements are marked for verification. It reads
 only files Ahmad names after Khalid's yes.
@@ -51,7 +51,7 @@ space planner, 21 interior designer, 22 3D modeler, 23 design reviewer) and wait
 his yes. The agents read only files Ahmad names after Khalid's yes, never invent
 dimensions and mark unknowns [to confirm]; structural, electrical, plumbing and permit
 questions need a licensed professional. Project files live in
-`D:/Projects/REEMA Projects/New Home/` and never leave this computer. Agent 22 is the
+`D:/Projects/IT Consultant/teams/home-design/New Home/` and never leave this computer. Agent 22 is the
 only agent that runs commands (Blender, `freecadcmd`, ODA File Converter), within the
 hook's rules and only for scripts Agent 16 reviewed. Ahmad runs the local drawing
 commands, which make no model call.
@@ -60,13 +60,13 @@ To summarize a converted DXF for Agent 19 (layers, text labels, dimensions, door
 window candidates, with no room inferred):
 
 ```bash
-python3 scripts/dev.py run drawing summary "D:/Projects/REEMA Projects/New Home/output/drawings/20261103_majlis_plan.dxf" --output "D:/Projects/REEMA Projects/New Home/output/summaries/20261103_majlis_drawing-summary.json"
+python3 scripts/dev.py run drawing summary "D:/Projects/IT Consultant/teams/home-design/New Home/output/drawings/20261103_majlis_plan.dxf" --output "D:/Projects/IT Consultant/teams/home-design/New Home/output/summaries/20261103_majlis_drawing-summary.json"
 ```
 
 To check a local AutoCAD drawing:
 
 ```bash
-python3 scripts/dev.py run drawing inspect "references/your-building.dwg"
+python3 scripts/dev.py run drawing inspect "D:/Projects/IT Consultant/teams/home-design/New Home/input/your-building.dwg"
 ```
 
 This validates the DWG header only. It does not read rooms, dimensions, walls, or
@@ -74,7 +74,7 @@ floors. For a DXF already exported from CAD, select one plan area in metre
 coordinates and create a fresh local output directory:
 
 ```bash
-python3 scripts/dev.py run drawing concept "references/your-building.dxf" --output-dir output/agent9/my-concept --xmin 0 --ymin 0 --xmax 60 --ymax 40 --wall-height 3
+python3 scripts/dev.py run drawing concept "D:/Projects/IT Consultant/teams/home-design/New Home/output/drawings/your-building.dxf" --output-dir "D:/Projects/IT Consultant/teams/home-design/New Home/output/models/20261107_area_concept" --xmin 0 --ymin 0 --xmax 60 --ymax 40 --wall-height 3
 ```
 
 The output includes an editable `.obj` with its `.mtl`, a `.png` preview, and a
@@ -90,7 +90,7 @@ construction model.
 ## Local task management
 
 Tasks are stored on this computer in separate SQLite databases under
-`output/assistant/` by default. The folder is ignored by Git. Use `TASK_DATA_DIR`
+`teams/coordination/data/` by default. The folder is ignored by Git. Use `TASK_DATA_DIR`
 to choose another private directory. File permissions are restricted to the local
 user on systems that support them. The files are **not encrypted**. `USER_TIMEZONE`
 defaults to `Asia/Riyadh` for the `today` view and task timestamps.
@@ -148,8 +148,8 @@ explicitly asks. Do not store passwords or secret tokens.
 python3 scripts/dev.py run find-sop incident management
 ```
 
-It lists the SOP files in `output/` whose names best match the words, newest first,
-without opening them. A published draft is listed once, as its `output/` copy.
+It lists the SOP files in `teams/documentation/output/` whose names best match the words, newest first,
+without opening them. A published draft is listed once, as its `teams/documentation/output/` copy.
 
 ## External services
 

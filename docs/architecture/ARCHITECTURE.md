@@ -19,11 +19,11 @@ Claude Code session = Ahmad (coordinator)              .claude/skills, .claude/a
   │                 ├─ reema-review  ─ reema-reviewer, reema-consistency-reviewer
   │                 └─ reema-revise  ─ reema-reviser, reema-rechecker
   ├─ reema-agent10-euc (advice)
-  ├─ reema-agent9-design-lead ─ reema-agent19…23 subagents ─▶ ../REEMA Projects/New Home/ (own git repo)
-  ├─ reema-agent11-dev-lead ─ reema-agent12…18 subagents ─▶ ../REEMA Projects/<name>/ (own git repo)
+  ├─ reema-agent9-design-lead ─ reema-agent19…23 subagents ─▶ teams/home-design/New Home/ (own git repo)
+  ├─ reema-agent11-dev-lead ─ reema-agent12…18 subagents ─▶ teams/development/projects/<name>/ (own git repo)
   └─ local commands: task, memory, find-sop, drawing
          │
-         │  writes JSON / Markdown under output/claude_code/<id>/
+         │  writes JSON / Markdown under teams/documentation/output/claude_code/<id>/
          ▼
 REEMA (Python, no model call, no network)
   prepare → request file (plan, skeleton, rules, approved excerpts)
@@ -31,14 +31,14 @@ REEMA (Python, no model call, no network)
   finish  → LeaderAgent job → checks → FormatAgent export → approval.json (pending)
          │
          ▼
-output/runs/<run-id>/  ──  reema approve / reject (human)  ──  publish into output/
+teams/documentation/output/runs/<run-id>/  ──  reema approve / reject (human)  ──  publish into teams/documentation/output/
 ```
 
 Subagents cannot call each other, so Ahmad routes everything. They have only Read and
 Write tools, except the Development developer and tester (Agents 14 and 15), which also
 have Edit, Glob, Grep and Bash for their project folder. Every prepare step that copies document text needs Khalid's yes as a
 `--confirm-read` token for those exact files (`src/utils/read_gate.py`), plus the
-reference manifest for anything under `references/`.
+reference manifest for anything under `teams/documentation/input/references/`.
 
 ## Jobs
 
@@ -99,13 +99,13 @@ and their knowledge files remain in `src/knowledge/`.
 
 ## Data and storage
 
-- `references/` (ignored): customer sources; only manifest-allowed, hash-matching
+- `teams/documentation/input/references/` (ignored): customer sources; only manifest-allowed, hash-matching
   files can be searched, and only after the confirm-read token.
-- `output/claude_code/<id>/` (ignored): a job's request and the subagents' files.
-- `output/runs/<run-id>/` (ignored): `run.json`, checkpoints, drafts, `approval.json`,
+- `teams/documentation/output/claude_code/<id>/` (ignored): a job's request and the subagents' files.
+- `teams/documentation/output/runs/<run-id>/` (ignored): `run.json`, checkpoints, drafts, `approval.json`,
   `publish.json`; locked while a job writes it.
-- `output/assistant/` (ignored): work and personal SQLite stores; not encrypted.
-- `output/archive/<run-id>/`: older versions moved aside when a revision is published.
+- `teams/coordination/data/` (ignored): work and personal SQLite stores; not encrypted.
+- `teams/documentation/output/archive/<run-id>/`: older versions moved aside when a revision is published.
 
 ## Security boundaries
 

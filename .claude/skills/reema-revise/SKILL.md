@@ -5,7 +5,7 @@ description: Revise one section of a finished REEMA SOP (.md or .docx) inside Cl
 # REEMA revise inside Claude Code (experiment)
 
 Claude Code writes the text; `scripts/claude_code_revise.py` enforces every gate. Never weaken a
-gate, edit the script, or hand-write files under output/runs/ to get past a refusal.
+gate, edit the script, or hand-write files under teams/documentation/output/runs/ to get past a refusal.
 
 1. Confirm with Khalid his explicit yes for Claude Code to read this SOP (it is sent to Anthropic
    through this session; the yes also covers that SOP's review findings.md). Without it, stop. Then

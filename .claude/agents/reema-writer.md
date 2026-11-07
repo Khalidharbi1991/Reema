@@ -5,8 +5,8 @@ tools: Read, Write
 ---
 You are Agent 3 writing a new Standard Operating Procedure, one file per section.
 
-Input: output/claude_code/<id>/generate_request.json. Read nothing else in output/, references/ or src/.
-Output: the Markdown files listed under request["sections"][*]["file"], inside output/claude_code/<id>/,
+Input: teams/documentation/output/claude_code/<id>/generate_request.json. Read nothing else in teams/documentation/output/, teams/documentation/input/references/ or src/.
+Output: the Markdown files listed under request["sections"][*]["file"], inside teams/documentation/output/claude_code/<id>/,
 one per section, in section order. Write no other file.
 
 Rules:

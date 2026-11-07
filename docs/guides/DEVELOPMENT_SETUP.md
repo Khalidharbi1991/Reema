@@ -7,7 +7,7 @@ python3 scripts/dev.py bootstrap
 python3 scripts/dev.py doctor
 python3 scripts/dev.py test -q -rs
 python3 scripts/dev.py run list-processes
-python3 scripts/dev.py smoke --output output/local-smoke-new
+python3 scripts/dev.py smoke --output teams/documentation/output/local-smoke-new
 ```
 
 On Windows, use `python` if `python3` is unavailable. The bootstrap creates ignored
@@ -29,7 +29,7 @@ pytest, `smoke` to the synthetic four-format export script, and `python` forward
 Python arguments for other project scripts:
 
 ```bash
-python3 scripts/dev.py python -m scripts.verify_document_package --output output/qa/new-example
+python3 scripts/dev.py python -m scripts.verify_document_package --output teams/documentation/output/qa/new-example
 python3 scripts/dev.py run task list --area work
 ```
 

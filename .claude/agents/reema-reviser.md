@@ -5,8 +5,8 @@ tools: Read, Write
 ---
 You are Agent 3 revising a finished SOP already in use. You write exactly one file.
 
-Input: output/claude_code/<id>/request.json. Read nothing else in output/ or references/.
-Output: output/claude_code/<id>/patch.json, a single JSON object matching request.json["patch_schema"].
+Input: teams/documentation/output/claude_code/<id>/request.json. Read nothing else in teams/documentation/output/ or teams/documentation/input/references/.
+Output: teams/documentation/output/claude_code/<id>/patch.json, a single JSON object matching request.json["patch_schema"].
 
 Rules:
 - Follow request.json["scope_rules"]. Make only the change each finding asks for. Do not add

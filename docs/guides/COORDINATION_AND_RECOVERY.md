@@ -27,7 +27,7 @@ Drafting is fine; sending, purchasing, booking, deploying or approving is not do
 
 ## Job phases and status
 
-Each job runs in a new `output/runs/<run-id>/` folder, and `run.json` records the
+Each job runs in a new `teams/documentation/output/runs/<run-id>/` folder, and `run.json` records the
 phases as they happen:
 
 - generate: `planning`, `content`, `checks`, `formatting`, `human_review_record`
@@ -41,7 +41,7 @@ writes it, so two jobs cannot write the same folder.
 
 ## What can be recovered
 
-The Claude Code work folder (`output/claude_code/<id>/`) is the recovery point for
+The Claude Code work folder (`teams/documentation/output/claude_code/<id>/`) is the recovery point for
 unfinished work: the request and the files the subagents already wrote stay there.
 Run `check` again after fixing a file, or `finish` once every check passes; a job
 that failed at finish can simply be finished again into a new run.
@@ -49,7 +49,7 @@ that failed at finish can simply be finished again into a new run.
 A run that reached `ready.json` can be exported again with no model call:
 
 ```bash
-python3 scripts/dev.py run export output/runs/<run-id> -f markdown -f docx
+python3 scripts/dev.py run export teams/documentation/output/runs/<run-id> -f markdown -f docx
 ```
 
 This checks the checkpoint's SHA-256, runs a Claude Code draft through every local

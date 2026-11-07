@@ -5,7 +5,7 @@ description: Review a finished REEMA SOP (.md or .docx) inside Claude Code, with
 # REEMA review inside Claude Code (experiment)
 
 Claude Code writes the findings; `scripts/claude_code_review.py` enforces every check. Never weaken a
-check, edit the script, or hand-write files under output/runs/ to get past a refusal. The SOP file is
+check, edit the script, or hand-write files under teams/documentation/output/runs/ to get past a refusal. The SOP file is
 only read, and a review has nothing to approve.
 
 1. Confirm with Khalid: the file, and his explicit yes for Claude Code to read this SOP (it is sent to

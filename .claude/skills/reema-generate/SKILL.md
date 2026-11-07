@@ -5,7 +5,7 @@ description: Write a new REEMA SOP inside Claude Code, with no Anthropic API cal
 # REEMA generate inside Claude Code
 
 Claude Code writes the section text; `scripts/claude_code_generate.py` enforces every check. Never
-weaken a check, edit the script, or hand-write files under output/runs/ to get past a refusal. No
+weaken a check, edit the script, or hand-write files under teams/documentation/output/runs/ to get past a refusal. No
 model reviews the draft, and nothing is approved here.
 
 1. Confirm with Khalid the process (a catalog name, or `--custom` for a new one), the formats, and any

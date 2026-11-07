@@ -8,9 +8,9 @@ metadata, claim freshness and supplied environment/data checks.
 
 ## Authorize reference files
 
-Files are not authorized just because they exist in `references/`. Copy the
+Files are not authorized just because they exist in `teams/documentation/input/references/`. Copy the
 structure from `config/reference_manifest.example.yaml` into the local, ignored
-`references/manifest.yaml`. Each source entry needs:
+`teams/documentation/input/references/manifest.yaml`. Each source entry needs:
 
 - `path`: a relative file path inside `REFERENCES_DIR` (no traversal or escaping symlinks).
 - `classification`: `public`, `internal`, `confidential`, or `restricted`.
@@ -20,14 +20,14 @@ structure from `config/reference_manifest.example.yaml` into the local, ignored
 
 Restricted files are never read, even if marked allowed. Other classifications still
 require permission. Changed bytes fail validation; review the changes before updating
-the digest. On macOS/Linux use `shasum -a 256 references/itom/ITOM.pdf`; on Windows
-use PowerShell's `Get-FileHash references/itom/ITOM.pdf -Algorithm SHA256` (store
+the digest. On macOS/Linux use `shasum -a 256 teams/documentation/input/references/itom/ITOM.pdf`; on Windows
+use PowerShell's `Get-FileHash teams/documentation/input/references/itom/ITOM.pdf -Algorithm SHA256` (store
 lowercase). No manifest means no customer sources.
 
 Manifest permission is necessary but not enough: before a generate request includes
 excerpts, `prepare` prints a `--confirm-read` token for exactly those files, and Ahmad
 passes it only after Khalid's yes (see [Data handling](DATA_HANDLING.md)). A finished
-SOP under `references/` needs the same manifest check before review or revision.
+SOP under `teams/documentation/input/references/` needs the same manifest check before review or revision.
 
 PDF, DOCX, Markdown, and plain-text sources are supported. Search uses bounded
 lexical ranking across extracted body content (`KNOWLEDGE_CONTEXT_CHARS`), preserving
@@ -72,13 +72,13 @@ Every check runs locally, on the text the session wrote:
 The [document quality guide](DOCUMENT_QUALITY.md) describes control coverage,
 located findings, section patches and correction rechecks.
 
-Each `output/runs/<run-id>/` contains `run.json` and its checkpoints (for a generate
+Each `teams/documentation/output/runs/<run-id>/` contains `run.json` and its checkpoints (for a generate
 run: `planned`, `generated`, `ready`, `exported`). Checkpoints contain private
 content and need the same protections as source documents. If `ready.json` exists
 with a matching checkpoint digest, re-export it offline:
 
 ```bash
-python3 scripts/dev.py run export output/runs/<run-id> -f markdown -f docx
+python3 scripts/dev.py run export teams/documentation/output/runs/<run-id> -f markdown -f docx
 ```
 
 A Claude Code draft passes every local check again; a run made by the removed API
@@ -92,7 +92,7 @@ also rewrite the records. Model-phase recovery, its signed journal and the
 
 ```bash
 python3 scripts/dev.py test -q -rs
-python3 scripts/dev.py python -m scripts.verify_exports --output output/local-smoke
+python3 scripts/dev.py python -m scripts.verify_exports --output teams/documentation/output/local-smoke
 ```
 
 The tests block every network connection and fail if any file references the

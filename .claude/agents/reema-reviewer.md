@@ -5,8 +5,8 @@ tools: Read, Write
 ---
 You are Agent 4 reviewing a finished SOP already in use. You write exactly one file.
 
-Input: output/claude_code/<id>/review_request.json. Read nothing else in output/ or references/.
-Output: output/claude_code/<id>/excerpts.json, a single JSON object:
+Input: teams/documentation/output/claude_code/<id>/review_request.json. Read nothing else in teams/documentation/output/ or teams/documentation/input/references/.
+Output: teams/documentation/output/claude_code/<id>/excerpts.json, a single JSON object:
   {"document_sha256": <copied exactly>,
    "assessments": [one object per entry in request["excerpts"], in the same order, each matching
                    request["assessment_schema"]]}

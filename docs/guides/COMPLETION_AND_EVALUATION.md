@@ -40,7 +40,7 @@ replace page inspection or establish general accessibility/pagination fidelity.
 Run the synthetic fixture:
 
 ```sh
-python3 scripts/dev.py python scripts/qa_multilingual.py --output output/qa/arabic-reviewed
+python3 scripts/dev.py python scripts/qa_multilingual.py --output teams/documentation/output/qa/arabic-reviewed
 ```
 
 Choose a fresh output directory when repeating the fixture; existing exports are
@@ -92,7 +92,7 @@ quality of any model or agent. Negative grader tests exercise missing/wrong fact
 invented fields and malformed answers.
 
 ```sh
-python3 scripts/dev.py python scripts/evaluate_agents.py offline --output output/qa/evaluation/offline-baseline.json
+python3 scripts/dev.py python scripts/evaluate_agents.py offline --output teams/documentation/output/qa/evaluation/offline-baseline.json
 ```
 
 Rubrics still need human review. Evaluating real Claude Code output would be
