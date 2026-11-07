@@ -63,7 +63,9 @@ commands. Change history is in `docs/reports/CHANGELOG.md`.
   push without his yes. Supabase and Vercel keys go only in the gitignored
   `apps/snafi-web/.env.local` (or the Vercel dashboard); the web app holds only the
   publishable key, never the secret/service_role key. Every outside service sits
-  behind its own adapter in `apps/snafi-web/src/adapters/`.
+  behind its own adapter in `apps/snafi-web/src/adapters/`. Agent 16 reviews every
+  Snafi change before it merges to main (its `.claude/agents` file lists the Snafi
+  scope); an open Critical or High finding blocks the merge.
 - Home design files (the DWG, DXF, models, renders) stay on this computer in the
   New Home project (`teams/home-design/New Home/`, its own repo with the same
   exclusion): never uploaded, never committed to any remote or to REEMA's repo.

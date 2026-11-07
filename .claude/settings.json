@@ -107,7 +107,10 @@
       "Write(./teams/coordination/data/**)",
       "Read(./teams/documentation/input/references/**)",
       "Edit(./teams/documentation/input/references/**)",
-      "Write(./teams/documentation/input/references/**)"
+      "Write(./teams/documentation/input/references/**)",
+      "Read(./apps/snafi-web/.env.local)",
+      "Edit(./apps/snafi-web/.env.local)",
+      "Write(./apps/snafi-web/.env.local)"
     ]
   },
   "hooks": {
