@@ -6,6 +6,12 @@ next-env.d.ts
 *.tsbuildinfo
 .vercel/
 .reema/
-# Keys live only here; never commit them.
+# Keys live only in .env.local; never commit any env file (SEC-5).
+.env
 .env.local
+.env.development
+.env.production
+.env.test
 .env*.local
+.env.*
+!.env.example
