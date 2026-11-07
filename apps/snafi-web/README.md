@@ -14,9 +14,24 @@ npm install          # first time only
 npm run dev          # http://localhost:3000
 ```
 
-The dev server listens on all network cards, so a phone on the same Wi-Fi can
-open `http://<this PC's Wi-Fi IPv4>:3000` (find it with `ipconfig`). Windows may
-ask once to allow Node.js on private networks.
+`npm run dev` and `npm run start` listen on this PC only (127.0.0.1).
+
+**Wi-Fi testing (opt in):** `npm run dev:lan` listens on all network cards, so a
+phone on the same Wi-Fi can open `http://<this PC's Wi-Fi IPv4>:3000` (find it
+with `ipconfig`). Windows may ask once to allow Node.js on private networks. Stop
+it when you finish testing.
+
+> **Never sign in with the real account over plain HTTP.** Over Wi-Fi HTTP the
+> password and session would cross the network unencrypted. The app enforces this:
+> off localhost and without HTTPS, the sign-in form is switched off and the server
+> refuses the attempt, and session cookies are `Secure`, so the browser would not
+> keep them anyway. With keys set, a phone over `dev:lan` therefore stops at the
+> sign-in page. To look at the screens on the phone, use preview mode (no keys
+> loaded); real sign-in on the phone waits for HTTPS (a Vercel preview, with
+> Khalid's yes).
+
+**Session cookies** are HttpOnly, SameSite=Lax, and Secure everywhere except on
+localhost (`src/adapters/supabase/cookie-policy.ts`).
 
 **Preview mode:** with no Supabase keys, the development server skips sign-in so
 the screens can be checked, and shows a banner saying so. A production build
