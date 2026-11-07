@@ -153,8 +153,8 @@ The look is a luxury-brand app: quiet, spacious, gold used sparingly. The mockup
 
 Each step is built and tested on a real phone before the next starts. Khalid starts using Snafi once steps 1–7 are done; voice comes after.
 
-1. **Skeleton:** Snafi on Vercel, Supabase mailbox, sign-in, Today and chat screens in the final design.
-2. **Ahmad's brain:** PC worker picks up jobs; Ahmad answers in Arabic and English; permission levels, approvals, honesty check, log with Undo.
+1. **Skeleton:** Supabase mailbox, sign-in, Today and chat screens in the final design, tested on the PC browser and on the phone over Wi-Fi. Vercel hosting and install-to-home-screen wait for a Vercel preview in a later step (installing needs HTTPS).
+2. **Ahmad's brain:** PC worker picks up jobs; Ahmad answers in Arabic and English; permission levels, approvals, honesty check, log with Undo. Also real Umm al-Qura prayer times and the Hijri date on the Today screen (placeholders in step 1).
 3. **Google:** Gmail, Calendar and Drive; drafts only; send and invite through approval cards.
 4. **The rest of the sources:** Yahoo, Todoist, and the swappable layer behind each service.
 5. **Proactive Ahmad:** scheduler, morning brief, mail watch, push notifications, prayer quiet times.
@@ -177,5 +177,6 @@ Each step is built and tested on a real phone before the next starts. Khalid sta
 - [ ] Gemini: which account and model, and its usage limits.
 - [ ] Google sign-in: keep the Google app in Testing (reconnect weekly) or complete Google's verification.
 - [ ] Supabase region closest to Khalid.
-- [ ] Arabic menu position: mirrored to the top left, or top right in both languages.
-- [ ] Check the Hijri date logic against the Umm al-Qura calendar.
+- [x] Arabic menu position: mirrored to the top left (decided Nov 7, 2026).
+- [x] Sign-in: email and password, invite only (decided Nov 7, 2026).
+- [ ] Check the Hijri date logic against the Umm al-Qura calendar (step 2).
