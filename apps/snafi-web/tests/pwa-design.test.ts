@@ -30,6 +30,16 @@ describe("installable web app", () => {
     // Navigations go to the network; only the offline page is a fallback.
     expect(sw).toMatch(/request\.mode === "navigate"[\s\S]*fetch\(request\)\.catch/);
   });
+
+  it("keeps every precached file outside the sign-in proxy", () => {
+    const matcher = read("src/proxy.ts").match(/matcher: \["(.*)"\]/)![1].replace(/\\\\/g, "\\");
+    const guarded = new RegExp(`^${matcher}$`);
+    const sw = read("public/sw.js");
+    const precached = sw.match(/PRECACHE = \[(.*?)\]/s)![1].match(/"([^"]+)"/g)!.map((s) => s.slice(1, -1));
+    for (const path of precached) expect(guarded.test(path), path).toBe(false);
+    expect(guarded.test("/today")).toBe(true);
+    expect(guarded.test("/chat")).toBe(true);
+  });
 });
 
 describe("design tokens", () => {
