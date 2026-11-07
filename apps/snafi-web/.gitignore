@@ -15,3 +15,5 @@ next-env.d.ts
 .env*.local
 .env.*
 !.env.example
+# Written and re-added by `next dev` (Next.js agent rules); kept uncommitted.
+/AGENTS.md
