@@ -35,6 +35,16 @@ to 25), the personal assistant, coordination and architecture guides, his system
 prompt, his knowledge files and his config role were updated. No behavior or test
 changed.
 
+## 2026-11-07 — Customer material moved out of REEMA
+
+Material from an earlier customer engagement now lives outside REEMA, on this PC only: the
+reference folders, process diagrams, handover documents, the drafts, runs and Claude Code work
+folders built from them, 19 one-off scripts and one knowledge file. Each copy was checked by file
+count, bytes and SHA-256 before its original was deleted. The named `.gitignore` entries became two
+generic patterns, the content knowledge file uses a neutral amber/navy palette instead of the
+customer's brand colours, and the data-handling and team-folder docs no longer list the moved
+folders. The consent rules and deny rules are unchanged. Git history was not rewritten.
+
 ## 2026-11-07 — Team folders under `teams/`
 
 IT Consultant is now the single main folder. Each section keeps its local files under `teams/`

@@ -159,7 +159,7 @@ Abdullah (Team Leader)
 - Industry standards research
 - Analysis of manifest-authorized reference excerpts
 
-**Knowledge Base:** taif_research_knowledge.md
+**Knowledge Base:** taif_research_knowledge_ENHANCED.md (the older `taif_research_knowledge.md` was removed on 2026-11-07)
 
 ---
 
@@ -536,7 +536,7 @@ Each agent maintains a specialized knowledge base:
 
 | Agent | Knowledge File | Expertise Level |
 |-------|---------------|-----------------|
-| Taif | taif_research_knowledge.md | ITIL/ITOM expert |
+| Taif | taif_research_knowledge_ENHANCED.md | ITIL/ITOM expert |
 | Mohammad | mohammad_standards_knowledge.md | ISO/COBIT/compliance expert |
 | Saad | saad_content_knowledge.md | Technical writing expert |
 | Layla | layla_data_knowledge_complete.md | 100% Power BI/analytics expertise |
