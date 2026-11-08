@@ -14,7 +14,7 @@ advisory chat and model-phase recovery) are described in `docs/reports/` and
 Khalid
   │  plain words
   ▼
-Claude Code session = Ahmad (coordinator)              .claude/skills, .claude/agents
+Claude Code session = Ahmad (executive assistant)      .claude/skills, .claude/agents
   ├─ abdullah-docs ─┬─ reema-generate ─ reema-writer (+ reema-agent10-euc appendix)
   │                 ├─ reema-review  ─ reema-reviewer, reema-consistency-reviewer
   │                 └─ reema-revise  ─ reema-reviser, reema-rechecker

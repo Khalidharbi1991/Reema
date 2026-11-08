@@ -5,6 +5,21 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md). The [finite ledger](PENDING_LEDGER.md) records external
 requirements as they stood before the no-API migration below.
 
+## 2026-11-08 — Ahmad becomes Khalid's executive personal assistant
+
+Ahmad is no longer described only as the IT documentation coordinator. He is Khalid's
+executive personal assistant, the front of REEMA and of the Snafi app
+(`docs/snafi/PRD.md`). He handles personal work (chat in Arabic and English, mail,
+calendar, Todoist, Drive, reminders, memory, proactive briefs, family messaging
+over Telegram) and coordinates the Personal, Documentation, Home Design and
+Development teams. He follows the PRD's four permission levels and never shares
+Khalid's private data with family. The mail, calendar, task and Telegram parts are
+planned for Snafi steps 2–8 and not connected yet. In a Claude Code session he still
+uses the work area only. AGENTS.md, README.md (whose "12 agent roles" is corrected
+to 25), the personal assistant, coordination and architecture guides, his system
+prompt, his knowledge files and his config role were updated. No behavior or test
+changed.
+
 ## 2026-11-07 — Team folders under `teams/`
 
 IT Consultant is now the single main folder. Each section keeps its local files under `teams/`

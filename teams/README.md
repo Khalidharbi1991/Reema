@@ -5,7 +5,7 @@ Everything below this README is ignored by Git (`/teams/*/` in `.gitignore`).
 
 | Folder | Section | Holds |
 | --- | --- | --- |
-| `coordination/data/` | Coordination (Ahmad) | Work and personal task and memory stores, used only through the `task` and `memory` commands |
+| `coordination/data/` | Coordination (Ahmad, executive assistant) | Work and personal task and memory stores, used only through the `task` and `memory` commands |
 | `documentation/input/references/` | Documentation (Abdullah) | Reference material and its manifest, including customer material |
 | `documentation/input/diagrams/` | Documentation | Process diagram sources |
 | `documentation/input/handover/` | Documentation | Handover documents |

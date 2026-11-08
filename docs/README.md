@@ -12,7 +12,7 @@
 REEMA makes no model call: Claude Code writes the text, and REEMA's code checks,
 exports and records it. Start with:
 
-- [Personal assistant](guides/PERSONAL_ASSISTANT.md): Ahmad, the routes, tasks and memory.
+- [Personal assistant](guides/PERSONAL_ASSISTANT.md): Ahmad's role as executive personal assistant and coordinator, the routes, tasks and memory.
 - [Coordination](guides/COORDINATION_AND_RECOVERY.md): who writes what, job phases and export.
 - [Data handling](guides/DATA_HANDLING.md): what a Claude Code session may read, and approval.
 - [Reliability and sources](guides/RELIABILITY_AND_SOURCES.md): the reference manifest and checks.

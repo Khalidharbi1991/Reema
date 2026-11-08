@@ -1,8 +1,9 @@
-# REEMA - Khalid's IT Company
+# REEMA - Khalid's Company
 
-**REEMA** is Khalid's IT company. Ahmad, the coordinator, talks with Khalid and
-routes work to sections. The main section is Documentation, led by Abdullah:
-writing, reviewing and revising SOPs, and later reports and presentations. The
+**REEMA** is Khalid's company. Ahmad, Khalid's executive personal assistant, is the
+front of REEMA and of the Snafi app: he handles Khalid's personal work and
+coordinates all the teams (Personal, Documentation, Home Design, Development), then
+reports back. The Documentation section, led by Abdullah, covers writing, reviewing and revising SOPs, and later reports and presentations. The
 first new feature, not yet built, will turn SCCM and Intune data into a patch
 report PowerPoint. The Home Design section, led by Agent 9, designs one part of
 Khalid's home at a time in a local project. The Development
@@ -29,8 +30,8 @@ explains what adding one back would take.
 
 ## Overview
 
-REEMA has 12 agent roles. Ahmad coordinates Khalid's tasks and conversations as the
-main Claude Code session; Abdullah heads the Documentation section's jobs. A new SOP
+REEMA has 25 agent roles. Ahmad, Khalid's executive personal assistant and
+coordinator, is the main Claude Code session; Abdullah heads the Documentation section's jobs. A new SOP
 is prepared by `reema generate`, written section by section in Claude Code, then
 checked, exported and recorded by REEMA. Finished SOPs can be reviewed and revised
 the same way. The 15–30 page target warns by default; `ENFORCE_PAGE_TARGET=true`
@@ -51,15 +52,19 @@ approval.
 
 ## Agent Team
 
-Ahmad is the user's main coordinator, as the main Claude Code session. Abdullah
-heads the Documentation section: the generate, review, revise and export jobs. The
+Ahmad is Khalid's executive personal assistant and coordinator, as the main Claude
+Code session and the front of the Snafi app. He is meant to handle chat in Arabic
+and English, mail (Gmail, Yahoo), calendar, Todoist tasks, Drive files, reminders,
+memory, proactive briefs and family messaging over Telegram. These come with Snafi
+steps 2–8 and none is connected yet. He follows the PRD's four permission levels
+and never sends, invites, deletes or pays without approval. Abdullah heads the Documentation section: the generate, review, revise and export jobs. The
 former Khalid owner agent was removed; Ahmad frames advice in its strategy,
 governance, quality, and business-value terms. The user retains approval and
 decision authority. Run `python3 scripts/dev.py run agents` for the active roster.
 
 | Agent | Current responsibility |
 | --- | --- |
-| Ahmad | Main coordinator for tasks, preferences, planning and conversations (Claude Code session) |
+| Ahmad | Executive personal assistant and coordinator: personal work, memory, briefs and family messaging; routes work to every team and reports back (Claude Code session; the front of Snafi) |
 | Abdullah | Documentation section head: the local generate, review, revise and export jobs |
 | Agent 1 | Research and IT service practices (role only) |
 | Agent 2 | Standards and control alignment (role only) |

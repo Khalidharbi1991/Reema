@@ -1,6 +1,7 @@
 # Coordination in Claude Code, and what can be recovered
 
-REEMA's work is coordinated by Ahmad, the main Claude Code session, using the skills
+REEMA's work is coordinated by Ahmad, Khalid's executive personal assistant and the
+main Claude Code session (also the front of the Snafi app), using the skills
 and subagents in `.claude/`. REEMA's own commands make no model call. The advisory
 chat planner (`config/assistant_routes.yaml`), consultation records and model-phase
 recovery were removed with the API path. Document approval remains a separate human
@@ -17,7 +18,8 @@ correction and export checks.
 | Building or home design | Ahmad | `reema-agent9-design` | Local `drawing` commands |
 | Endpoint question | Ahmad | `reema-agent10-euc` | — |
 | Strategy, prioritization, governance | Ahmad answers himself | — | — |
-| Tasks and memory | Ahmad | — | Local `task` and `memory` commands |
+| Tasks and memory | Ahmad | — | Local `task` and `memory` commands (work area) |
+| Mail, calendar, Todoist, Drive, family messages | Ahmad → Personal team (Mail, Planner, Memory agents) in Snafi | Planned, Snafi steps 2–8 | Not built; PRD permission levels, approval card before any send, invite or delete |
 
 Subagents cannot call other subagents, so Ahmad routes everything himself. Each
 subagent has only Read and Write tools and reads only the request file of its job (or
