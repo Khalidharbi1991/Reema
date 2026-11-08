@@ -1,6 +1,6 @@
 """Main entry point for the IT Process Documentation System (REEMA).
 
-REEMA — Khalid's IT company: coordination and IT process documentation
+REEMA — Khalid's company: Ahmad, his executive personal assistant, and IT process documentation
 12-role architecture: Ahmad, Abdullah, Agents 1–8, building-design Agent 9, and EUC Agent 10.
 """
 
@@ -640,7 +640,7 @@ def status():
     table.add_row("Knowledge Directory", str(config_manager.system_config.knowledge_dir))
     table.add_row("References Directory", str(config_manager.system_config.references_dir))
     table.add_row("Generation", "reema generate prepares; Claude Code writes; REEMA checks, exports and records")
-    table.add_row("Personal coordination", "Ahmad; local work and personal task lists")
+    table.add_row("Executive assistant", "Ahmad; local work and personal task lists (mail, calendar and Todoist come with Snafi)")
     table.add_row("Conversation", "Ahmad in Claude Code; task, memory and find-sop run locally here")
 
     console.print(table)
