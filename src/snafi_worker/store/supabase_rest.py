@@ -96,6 +96,13 @@ class SupabaseRestStore:
             raise StoreError(f"{table} row not found")
         return rows[0]
 
+    def update_if(self, table, row_id, expect, changes):
+        params = {"id": f"eq.{row_id}"}
+        for column, value in expect.items():
+            params[check_name(column)] = f"eq.{_value(value)}"
+        rows = self._call("PATCH", check_name(table), params, changes, "return=representation")
+        return rows[0] if rows else None
+
     def upsert(self, table, row, key):
         rows = self._call("POST", check_name(table), {"on_conflict": check_name(key)}, row,
                           "resolution=merge-duplicates,return=representation")

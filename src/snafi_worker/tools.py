@@ -5,6 +5,8 @@ Khalid's Approve on an approval card. Level 4 is never run. A tool that is not l
 refused. The brain can only propose; it cannot change a tool's level.
 """
 
+import hashlib
+import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Callable, Dict, Optional, Tuple
@@ -54,6 +56,12 @@ def clean_args(tool: Tool, args: Dict) -> Dict:
                 raise ToolArgError(f"{name} must be a number from 1 to {limit}")
         clean[name] = value
     return tool.validate(clean) if tool.validate else clean
+
+
+def args_hash(tool: str, args: Dict) -> str:
+    """SHA-256 of exactly what an approval card shows and what will run (SEC-13)."""
+    text = json.dumps({"tool": tool, "args": args}, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def _now() -> str:

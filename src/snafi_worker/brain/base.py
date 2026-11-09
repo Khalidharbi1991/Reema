@@ -61,8 +61,8 @@ the system runs actions and reports their real results."""
 
 
 def data_block(text: str, label: str = "data") -> str:
-    """Wrap outside content so the brain treats it as data. Closing tags inside are neutralised."""
-    safe = text.replace("</data", "</ data")
+    """Wrap outside content so the brain treats it as data. Any data tag inside is neutralised."""
+    safe = re.sub(r"<\s*/?\s*data\b", "‹data", text, flags=re.IGNORECASE)  # SEC-15: any case, any spacing
     return f'<data source="{label}">\n{safe}\n</data>'
 
 

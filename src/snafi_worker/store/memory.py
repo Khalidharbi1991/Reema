@@ -3,7 +3,7 @@
 import copy
 import threading
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List
 
 from ..registry import register
@@ -15,7 +15,7 @@ DEFAULTS = {
              "conversation_id": None},
     "messages": {"job_id": None, "approval_id": None, "meta": {}, "lang": "en"},
     "approvals": {"status": "pending", "level": 3, "args": {}, "decided_at": None, "executed_at": None,
-                  "result": None, "job_id": None},
+                  "result": None, "job_id": None, "args_hash": ""},
     "action_log": {"undoable": False, "undo": None, "undo_requested_at": None, "undone_at": None,
                    "result": None, "args": {}, "job_id": None, "approval_id": None, "conversation_id": None},
     "notes": {"deleted_at": None}, "reminders": {"deleted_at": None, "due_at": None}, "facts": {"deleted_at": None},
@@ -50,6 +50,8 @@ class MemoryStore:
                 return copy.deepcopy(full)
             full.setdefault("id", str(uuid.uuid4()))
             full.setdefault("created_at", now_iso())
+            if table == "approvals":
+                full.setdefault("expires_at", (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat())
             if table == "jobs":
                 full.setdefault("updated_at", full["created_at"])
                 full.setdefault("run_after", full["created_at"])
@@ -71,6 +73,16 @@ class MemoryStore:
                         row["updated_at"] = now_iso()
                     return copy.deepcopy(row)
         raise StoreError(f"{table} row not found")
+
+    def update_if(self, table, row_id, expect, changes):
+        with self._lock:
+            for row in self._table(table):
+                if row.get("id") == row_id:
+                    if any(row.get(k) != v for k, v in expect.items()):
+                        return None
+                    row.update(copy.deepcopy(changes))
+                    return copy.deepcopy(row)
+        return None
 
     def upsert(self, table, row, key):
         with self._lock:

@@ -153,7 +153,8 @@ def test_a_pending_card_cannot_run_without_approve_and_others_cannot_resume_it()
     for user in (OWNER, OTHER):
         store.insert("jobs", {"user_id": user, "kind": "approval.resume", "conversation_id": CONV,
                               "payload": {"approval_id": card["id"]}})
-    assert work(store, engine) == ["failed", "failed"]
+    # the owner's job finds the card still pending and runs nothing; another user's job finds no card
+    assert work(store, engine) == ["done", "failed"]
     assert store.tables["action_log"] == [] and store.tables["approvals"][0]["status"] == "pending"
 
 
