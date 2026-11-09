@@ -5,12 +5,13 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { ALICE, as, BOB, CONV, freshDb } from "./helpers/db";
 
 let db: PGlite;
+const HASH = "a".repeat(64);
 const STEP2_TABLES = ["approvals", "action_log", "notes", "reminders", "facts", "worker_status"];
 
 async function seedApproval(user = ALICE) {
   const r = await as<{ id: string }>(db, "service_role", null,
-    "insert into public.approvals (user_id, conversation_id, tool, summary) values ($1, $2, 'send_test_message', 'Test send') returning id",
-    [user, CONV]);
+    "insert into public.approvals (user_id, conversation_id, tool, summary, args_hash) values ($1, $2, 'send_test_message', 'Test send', $3) returning id",
+    [user, CONV, HASH]);
   return r.rows[0].id;
 }
 
@@ -62,19 +63,19 @@ describe("jobs from the app", () => {
 describe("decide_approval", () => {
   it("lets the owner approve once and queues the follow-up job", async () => {
     const id = await seedApproval();
-    const r = await as<{ status: string }>(db, "authenticated", ALICE, "select status from public.decide_approval($1, 'approved')", [id]);
+    const r = await as<{ status: string }>(db, "authenticated", ALICE, "select status from public.decide_approval($1, 'approved', $2)", [id, HASH]);
     expect(r.rows[0].status).toBe("approved");
     const jobs = await as<{ kind: string; payload: { approval_id: string } }>(db, "authenticated", ALICE,
       "select kind, payload from public.jobs where kind = 'approval.resume'");
     expect(jobs.rows.map((j) => j.payload.approval_id)).toContain(id);
-    await expect(as(db, "authenticated", ALICE, "select public.decide_approval($1, 'rejected')", [id])).rejects.toThrow(/no pending approval/);
+    await expect(as(db, "authenticated", ALICE, "select public.decide_approval($1, 'rejected', $2)", [id, HASH])).rejects.toThrow(/no pending approval/);
   });
 
   it("refuses someone else's approval, anonymous callers and odd decisions", async () => {
     const id = await seedApproval();
-    await expect(as(db, "authenticated", BOB, "select public.decide_approval($1, 'approved')", [id])).rejects.toThrow(/no pending approval/);
-    await expect(as(db, "anon", null, "select public.decide_approval($1, 'approved')", [id])).rejects.toThrow(/permission denied/);
-    await expect(as(db, "authenticated", ALICE, "select public.decide_approval($1, 'executed')", [id])).rejects.toThrow(/approved or rejected/);
+    await expect(as(db, "authenticated", BOB, "select public.decide_approval($1, 'approved', $2)", [id, HASH])).rejects.toThrow(/no pending approval/);
+    await expect(as(db, "anon", null, "select public.decide_approval($1, 'approved', $2)", [id, HASH])).rejects.toThrow(/permission denied/);
+    await expect(as(db, "authenticated", ALICE, "select public.decide_approval($1, 'executed', $2)", [id, HASH])).rejects.toThrow(/approved or rejected/);
   });
 
   it("cannot be bypassed by updating the table directly", async () => {
