@@ -37,7 +37,7 @@ Snafi is Khalid's personal assistant app. Ahmad, the executive assistant inside 
 | --- | --- | --- |
 | App | Next.js web app on Vercel, installable (PWA) | Capacitor-wrapped iOS/Android apps for widgets |
 | Database / mailbox | Supabase (Postgres, free plan), pgvector for memory search | Any Postgres (e.g. Neon) |
-| Brain, personal work | Gemini (no per-message cost) | Claude, by one setting |
+| Brain, personal work | Gemini API, paid tier funded by Khalid's Google AI Pro credits (`gemini-3.5-flash-lite`), text only, behind the brain adapter (`src/snafi_worker/brain/`) | Claude or another model, by one setting in `worker.yaml` |
 | Brain, Documentation and Home Design | Claude (already built and tested) | Any provider via AGENTS.md |
 | Email | Gmail (Google sign-in) and Yahoo (app password, stored on PC only) | Any IMAP provider |
 | Calendar | Google Calendar (main calendar) | Other calendars |
@@ -154,7 +154,7 @@ The look is a luxury-brand app: quiet, spacious, gold used sparingly. The mockup
 Each step is built and tested on a real phone before the next starts. Khalid starts using Snafi once steps 1–7 are done; voice comes after.
 
 1. **Skeleton:** Supabase mailbox, sign-in, Today and chat screens in the final design, tested on the PC browser and on the phone over Wi-Fi. Vercel hosting and install-to-home-screen wait for a Vercel preview in a later step (installing needs HTTPS).
-2. **Ahmad's brain:** PC worker picks up jobs; Ahmad answers in Arabic and English; permission levels, approvals, honesty check, log with Undo. Also real Umm al-Qura prayer times and the Hijri date on the Today screen (placeholders in step 1).
+2. **Ahmad's brain:** PC worker picks up jobs; Ahmad answers in Arabic and English; permission levels, approvals, honesty check, log with Undo. Also real Umm al-Qura prayer times and the Hijri date for Jeddah on the Today screen (placeholders in step 1), the PC online/offline banner, and a daily local backup of every Snafi table (30 days kept) with a tested restore.
 3. **Google:** Gmail, Calendar and Drive; drafts only; send and invite through approval cards.
 4. **The rest of the sources:** Yahoo, Todoist, and the swappable layer behind each service.
 5. **Proactive Ahmad:** scheduler, morning brief, mail watch, push notifications, prayer quiet times.
@@ -181,7 +181,7 @@ From the step 1 security review (`apps/snafi-web/docs/SECURITY_REVIEW.md`). No V
 ## Open questions
 
 - [ ] Voice Studio: confirm it speaks Arabic well and has a way for REEMA to call it.
-- [ ] Gemini: which account and model, and its usage limits.
+- [x] Brain: the Gemini API, paid tier funded by Google AI Pro credits, `gemini-3.5-flash-lite` for chat (decided Nov 9, 2026). Gemini CLI stopped serving personal accounts on June 18, 2026; the Antigravity CLI was not used.
 - [ ] Google sign-in: keep the Google app in Testing (reconnect weekly) or complete Google's verification.
 - [ ] Supabase region closest to Khalid.
 - [x] Arabic menu position: mirrored to the top left (decided Nov 7, 2026).
