@@ -1,23 +1,46 @@
 import "server-only";
 /**
- * The one place that picks which adapter backs each outside service.
- * Swapping a provider means changing one line here and adding its file.
+ * Maps the configured choice (config/services.ts) to an adapter. No provider is
+ * picked here: only the settings decide. Adding a provider means its own file plus one
+ * line in each table below.
  */
+import { isPreviewMode } from "@/config/env";
+import { currentChoice } from "@/config/services";
 import { SupabaseAuthAdapter } from "./auth/supabase";
 import type { AuthAdapter } from "./auth/types";
+import { createMemoryStore, MemoryMailboxAdapter } from "./mailbox/memory";
 import { SupabaseMailboxAdapter } from "./mailbox/supabase";
 import type { MailboxAdapter } from "./mailbox/types";
+import { LiveTodaySource } from "./today/live";
 import { PlaceholderTodaySource } from "./today/placeholder";
 import type { TodaySource } from "./today/types";
 
+/** Preview mode's owner and conversation (dev server without keys only). */
+export const PREVIEW_USER = "00000000-0000-4000-8000-000000000000";
+const previewStore = createMemoryStore();
+
+const AUTH: Record<string, () => AuthAdapter> = {
+  supabase: () => new SupabaseAuthAdapter(),
+};
+const MAILBOX: Record<string, (userId: string | null) => MailboxAdapter> = {
+  supabase: () => new SupabaseMailboxAdapter(),
+  memory: (userId) => new MemoryMailboxAdapter(previewStore, userId ?? PREVIEW_USER),
+};
+const TODAY: Record<string, (mailbox: MailboxAdapter) => TodaySource> = {
+  live: (mailbox) => new LiveTodaySource(() => mailbox.pendingApprovals(5)),
+  placeholder: () => new PlaceholderTodaySource(),
+};
+
+const choice = () => currentChoice(isPreviewMode());
+
 export function authAdapter(): AuthAdapter {
-  return new SupabaseAuthAdapter();
+  return AUTH[choice().auth]();
 }
 
-export function mailboxAdapter(): MailboxAdapter {
-  return new SupabaseMailboxAdapter();
+export function mailboxAdapter(userId: string | null = null): MailboxAdapter {
+  return MAILBOX[choice().mailbox](userId);
 }
 
-export function todaySource(): TodaySource {
-  return new PlaceholderTodaySource();
+export function todaySource(mailbox: MailboxAdapter): TodaySource {
+  return TODAY[choice().today](mailbox);
 }

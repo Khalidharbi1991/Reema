@@ -1,11 +1,11 @@
 /**
- * The mailbox between the phone app and the PC worker. Supabase today; any
- * Postgres later. Step 1 defines it; the screens do not write to it yet.
+ * The mailbox between the phone app and the PC worker. Supabase today; any Postgres
+ * later. The app posts Khalid's own words, decides approval cards, asks for Undo and
+ * reads results; everything else is done by the worker.
  */
 import type { Lang } from "@/i18n/messages";
 
 export type MessageRole = "user" | "assistant" | "system";
-export type JobStatus = "queued" | "claimed" | "running" | "done" | "failed" | "cancelled";
 
 export type MailboxMessage = {
   id: string;
@@ -15,35 +15,52 @@ export type MailboxMessage = {
   body: string;
   lang: Lang;
   jobId: string | null;
+  approvalId: string | null;
+  meta: { kind?: string; actions?: string[]; approvals?: string[] };
   createdAt: string;
 };
 
-export type MailboxJob = {
+export type ApprovalStatus = "pending" | "approved" | "rejected" | "executed" | "failed" | "expired";
+export type ApprovalCard = { id: string; conversationId: string; summary: string; status: ApprovalStatus; createdAt: string };
+
+export type ActionEntry = {
   id: string;
-  userId: string;
-  kind: string;
-  status: JobStatus;
-  payload: Record<string, unknown>;
-  result: Record<string, unknown> | null;
-  error: string | null;
-  createdAt: string;
-  updatedAt: string;
+  summary: string;
+  level: number;
+  status: "done" | "failed" | "undone";
+  undoable: boolean;
+  undoRequested: boolean;
+};
+
+export type WorkerStatus = {
+  lastSeen: string;
+  lastBackupAt: string | null;
+  lastBackupOk: boolean | null;
+  lastBackupError: string | null;
 };
 
 export const MAX_MESSAGE_LENGTH = 8000;
-export const JOB_KIND_PATTERN = /^[a-z][a-z0-9_.]{0,63}$/;
+/** The app shows "PC offline" when the worker's heartbeat is older than this. */
+export const OFFLINE_AFTER_MS = 45_000;
 
 export interface MailboxAdapter {
   /** Newest last; only the signed-in user's own messages. */
   listMessages(conversationId: string, limit?: number): Promise<MailboxMessage[]>;
-  /** The app may only post the user's own words; Ahmad's replies come from the PC worker. */
-  postUserMessage(input: { conversationId: string; body: string; lang: Lang }): Promise<MailboxMessage>;
-  /** Queue work for the PC worker. The app can create jobs but never change their status. */
-  enqueueJob(input: { kind: string; payload: Record<string, unknown> }): Promise<MailboxJob>;
-  listJobs(limit?: number): Promise<MailboxJob[]>;
+  /** Posts Khalid's message and queues Ahmad's reply (a chat.reply job). */
+  sendChat(input: { conversationId: string; body: string; lang: Lang }): Promise<MailboxMessage>;
+  approvals(ids: string[]): Promise<ApprovalCard[]>;
+  pendingApprovals(limit?: number): Promise<ApprovalCard[]>;
+  /** Pending -> approved or rejected, once; the database queues the worker's follow-up. */
+  decideApproval(id: string, decision: "approved" | "rejected"): Promise<ApprovalCard>;
+  actions(ids: string[]): Promise<ActionEntry[]>;
+  /** Asks the worker to undo a Level 2 action. */
+  requestUndo(actionId: string): Promise<void>;
+  workerStatus(): Promise<WorkerStatus | null>;
 }
 
 export class MailboxError extends Error {}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function checkMessageBody(body: string): string {
   const trimmed = body.trim();
@@ -52,7 +69,11 @@ export function checkMessageBody(body: string): string {
   return trimmed;
 }
 
-export function checkJobKind(kind: string): string {
-  if (!JOB_KIND_PATTERN.test(kind)) throw new MailboxError("invalid job kind");
-  return kind;
+export function checkId(id: string): string {
+  if (!UUID.test(id)) throw new MailboxError("invalid id");
+  return id.toLowerCase();
+}
+
+export function isOnline(status: WorkerStatus | null, now: Date): boolean {
+  return !!status && now.getTime() - new Date(status.lastSeen).getTime() <= OFFLINE_AFTER_MS;
 }
