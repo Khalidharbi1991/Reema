@@ -110,7 +110,13 @@
       "Write(./teams/documentation/input/references/**)",
       "Read(./apps/snafi-web/.env.local)",
       "Edit(./apps/snafi-web/.env.local)",
-      "Write(./apps/snafi-web/.env.local)"
+      "Write(./apps/snafi-web/.env.local)",
+      "Read(~/AppData/Roaming/REEMA/**)",
+      "Edit(~/AppData/Roaming/REEMA/**)",
+      "Write(~/AppData/Roaming/REEMA/**)",
+      "Read(./teams/coordination/snafi-backups/**)",
+      "Edit(./teams/coordination/snafi-backups/**)",
+      "Write(./teams/coordination/snafi-backups/**)"
     ]
   },
   "hooks": {

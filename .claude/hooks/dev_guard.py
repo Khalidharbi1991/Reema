@@ -138,6 +138,21 @@ def _first_operand(words):
     return None
 
 
+# Snafi: the worker's secrets (%APPDATA%\REEMA\, worker.env with the Supabase secret key and the
+# Gemini API key) and Khalid's daily Snafi backups. No session or agent may name them in a command.
+SNAFI_PRIVATE = re.compile(
+    r"(appdata/roaming|%appdata%|\$env:appdata|\$appdata|\$\{appdata\}|\$env:userprofile/appdata/roaming"
+    r"|~/appdata/roaming)/reema(/|\b)"
+    r"|teams/coordination/snafi-backups")
+
+
+def _snafi_reason(command):
+    if SNAFI_PRIVATE.search(command.replace("\\", "/").lower()):
+        return ("Snafi's worker secrets (%APPDATA%\\REEMA\\) and Khalid's Snafi backups "
+                "(teams/coordination/snafi-backups/) are never read by a Claude Code session or agent")
+    return None
+
+
 def _path_reason(word):
     word = word.replace("\\", "/").lower()
     root, name = ROOT.as_posix().lower(), ROOT.name.lower()
@@ -219,6 +234,8 @@ def reason(command, depth=0, powershell=False):
     """Why this Bash (or, with powershell=True, PowerShell) command is blocked, or None when it may run."""
     if depth > 5:
         return "command is nested too deeply to check"
+    if why := _snafi_reason(command):
+        return why
     if not powershell:
         command, shell_bodies = _split_heredocs(command)
         for body in shell_bodies:
