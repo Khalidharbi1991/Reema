@@ -18,7 +18,7 @@ Transport = Callable[[str, str, Dict[str, str], Optional[bytes], float], Tuple[i
 def urllib_transport(method, url, headers, body, timeout):
     request = urllib.request.Request(url, data=body, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 (https from worker.env)
+        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 (https URL checked above)
             return response.status, response.read()
     except urllib.error.HTTPError as exc:
         return exc.code, exc.read() if exc.fp else b""

@@ -15,6 +15,7 @@ from src.snafi_worker.store.supabase_rest import SupabaseRestStore
 OWNER = "11111111-1111-4111-8111-111111111111"
 NEW_OWNER = "44444444-4444-4444-8444-444444444444"
 TZ = "Asia/Riyadh"
+KEY = "k" * 64
 WORKER = Path(__file__).resolve().parents[1] / "src" / "snafi_worker"
 
 
@@ -30,7 +31,7 @@ def filled_store():
 
 def test_backup_writes_one_dated_file_with_a_checked_manifest(tmp_path):
     now = datetime(2026, 11, 9, 0, 30, tzinfo=timezone.utc)  # 03:30 in Jeddah
-    outcome = backup.run_backup(filled_store(), tmp_path, OWNER, "pc", TZ, 30, now)
+    outcome = backup.run_backup(filled_store(), tmp_path, OWNER, "pc", TZ, 30, now, signing_key=KEY)
     assert outcome["ok"] and outcome["file"] == "snafi-backup-20261109-0330.json.gz"
     with gzip.open(tmp_path / outcome["file"]) as f:
         data = json.loads(f.read())
@@ -41,7 +42,7 @@ def test_backup_writes_one_dated_file_with_a_checked_manifest(tmp_path):
 
 def test_backup_status_is_recorded_for_the_app(tmp_path):
     store = filled_store()
-    backup.run_backup(store, tmp_path, OWNER, "pc", TZ, 30)
+    backup.run_backup(store, tmp_path, OWNER, "pc", TZ, 30, signing_key=KEY)
     status = store.tables["worker_status"][0]
     assert status["last_backup_ok"] is True and status["last_backup_file"].startswith("snafi-backup-")
 
@@ -52,7 +53,7 @@ def test_a_failed_backup_is_recorded_without_any_data(tmp_path):
     def broken(table, offset, limit):
         raise RuntimeError("database unreachable")
     store.page = broken
-    outcome = backup.run_backup(store, tmp_path, OWNER, "pc", TZ, 30)
+    outcome = backup.run_backup(store, tmp_path, OWNER, "pc", TZ, 30, signing_key=KEY)
     status = store.tables["worker_status"][0]
     assert not outcome["ok"] and status["last_backup_ok"] is False and "unreachable" in status["last_backup_error"]
     assert backup.backup_files(tmp_path) == []
@@ -76,7 +77,7 @@ def test_old_backups_are_kept_when_a_new_backup_fails(tmp_path):
     (tmp_path / "snafi-backup-20250101-0330.json.gz").write_bytes(b"x")
     store = filled_store()
     store.page = lambda *a: (_ for _ in ()).throw(RuntimeError("down"))
-    backup.run_backup(store, tmp_path, OWNER, "pc", TZ, 30)
+    backup.run_backup(store, tmp_path, OWNER, "pc", TZ, 30, signing_key=KEY)
     assert (tmp_path / "snafi-backup-20250101-0330.json.gz").exists()
 
 
@@ -96,13 +97,13 @@ def test_backup_is_due_once_a_day(tmp_path, existing, now_local, due):
 
 
 def test_restore_checks_every_table_and_maps_the_owner(tmp_path):
-    outcome = backup.run_backup(filled_store(), tmp_path, OWNER, "pc", TZ, 30)
-    tables = restore.map_users(restore.load(tmp_path / outcome["file"]), {OWNER: NEW_OWNER})
+    outcome = backup.run_backup(filled_store(), tmp_path, OWNER, "pc", TZ, 30, signing_key=KEY)
+    tables = restore.map_users(restore.load(tmp_path / outcome["file"], KEY), {OWNER: NEW_OWNER})
     assert {r["user_id"] for rows in tables.values() for r in rows} == {NEW_OWNER}
 
 
 def test_restore_refuses_a_changed_backup(tmp_path):
-    outcome = backup.run_backup(filled_store(), tmp_path, OWNER, "pc", TZ, 30)
+    outcome = backup.run_backup(filled_store(), tmp_path, OWNER, "pc", TZ, 30, signing_key=KEY)
     path = tmp_path / outcome["file"]
     with gzip.open(path) as f:
         data = json.loads(f.read())
@@ -110,20 +111,20 @@ def test_restore_refuses_a_changed_backup(tmp_path):
     with gzip.open(path, "wb") as f:
         f.write(json.dumps(data).encode())
     with pytest.raises(restore.RestoreError, match="notes does not match"):
-        restore.load(path)
+        restore.load(path, KEY)
 
 
 def test_restore_sql_quotes_safely_and_keeps_parents_first(tmp_path):
-    outcome = backup.run_backup(filled_store(), tmp_path, OWNER, "pc", TZ, 30)
-    sql = restore.to_sql(restore.load(tmp_path / outcome["file"]))
+    outcome = backup.run_backup(filled_store(), tmp_path, OWNER, "pc", TZ, 30, signing_key=KEY)
+    sql = restore.to_sql(restore.load(tmp_path / outcome["file"], KEY))
     assert "It''s 4 o''clock — مرحبا" in sql
     assert sql.index("insert into public.jobs") < sql.index("insert into public.messages")
     assert "'::jsonb" in sql and sql.strip().endswith("commit;")
 
 
 def test_restore_into_a_database_refuses_unless_empty(tmp_path):
-    outcome = backup.run_backup(filled_store(), tmp_path, OWNER, "pc", TZ, 30)
-    tables = restore.load(tmp_path / outcome["file"])
+    outcome = backup.run_backup(filled_store(), tmp_path, OWNER, "pc", TZ, 30, signing_key=KEY)
+    tables = restore.load(tmp_path / outcome["file"], KEY)
     target = MemoryStore()
     counts = restore.to_database(tables, target)
     assert counts["notes"] == 1 and target.tables["notes"][0]["body"] == "drawings"
@@ -132,38 +133,30 @@ def test_restore_into_a_database_refuses_unless_empty(tmp_path):
 
 
 def test_restore_command_line(tmp_path, capsys):
-    outcome = backup.run_backup(filled_store(), tmp_path, OWNER, "pc", TZ, 30)
+    outcome = backup.run_backup(filled_store(), tmp_path, OWNER, "pc", TZ, 30, signing_key=KEY)
     out = tmp_path / "restore.sql"
-    assert restore.main([str(tmp_path / outcome["file"]), "--to-sql", str(out), "--map-user", f"{OWNER}={NEW_OWNER}"]) == 0
+    signed = Secrets({"SNAFI_BACKUP_SIGNING_KEY": KEY})
+    assert restore.main([str(tmp_path / outcome["file"]), "--to-sql", str(out), "--map-user", f"{OWNER}={NEW_OWNER}"],
+                        secrets=signed) == 0
     assert NEW_OWNER in out.read_text(encoding="utf-8") and OWNER not in out.read_text(encoding="utf-8")
-    assert restore.main([str(tmp_path / "missing.json.gz"), "--verify"]) == 1
+    assert restore.main([str(tmp_path / "missing.json.gz"), "--verify"], secrets=signed) == 1
 
 
 # ---------- secrets and settings ----------
-def test_secrets_never_show_their_values(tmp_path):
-    env = tmp_path / "worker.env"
-    env.write_text("# comment\nSNAFI_SUPABASE_SECRET_KEY=sb_secret_abcdefghijklmnop\nGEMINI_API_KEY=\"g-secret-123\"\n",
-                   encoding="utf-8")
-    secrets = Secrets.load(env)
+def test_secrets_never_show_their_values():
+    secrets = Secrets({"SNAFI_SUPABASE_SECRET_KEY": "sb_secret_abcdefghijklmnop", "GEMINI_API_KEY": "g-secret-123"})
     assert secrets.get("GEMINI_API_KEY") == "g-secret-123"
     for shown in (repr(secrets), str(secrets)):
         assert "sb_secret_abc" not in shown and "g-secret" not in shown
-    with pytest.raises(ConfigError) as err:
-        Secrets.load(tmp_path / "nope.env")
-    assert "worker.env not found" in str(err.value)
-    env.write_text("not a key line with sb_secret_zzz\n", encoding="utf-8")
-    with pytest.raises(ConfigError) as err:
-        Secrets.load(env)
-    assert "sb_secret_zzz" not in str(err.value)
+    with pytest.raises(ConfigError, match="set_secrets"):
+        Secrets({}).get("GEMINI_API_KEY")
 
 
-def test_worker_env_defaults_outside_the_repo(monkeypatch):
-    from src.snafi_worker.config import default_env_path
-    monkeypatch.delenv("SNAFI_WORKER_ENV", raising=False)
+def test_logs_folder_is_outside_the_repo(monkeypatch):
+    from src.snafi_worker.config import worker_data_dir
     monkeypatch.setenv("APPDATA", r"C:\Users\x\AppData\Roaming")
-    path = default_env_path()
-    assert path.parts[-3:] == ("REEMA", "snafi-worker", "worker.env")
-    assert Path(__file__).resolve().parents[1] not in path.parents
+    assert worker_data_dir().parts[-2:] == ("REEMA", "snafi-worker")
+    assert Path(__file__).resolve().parents[1] not in worker_data_dir().parents
 
 
 def test_settings_point_backups_at_the_ignored_team_folder():

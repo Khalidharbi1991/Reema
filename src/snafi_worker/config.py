@@ -1,13 +1,12 @@
-"""Worker settings (worker.yaml, in the repo) and secrets (worker.env, outside the repo).
+"""Worker settings (worker.yaml, in the repo) and secrets (Windows Credential Manager).
 
-worker.env lives at %APPDATA%\\REEMA\\snafi-worker\\worker.env (override with the
-SNAFI_WORKER_ENV environment variable, used by tests). Khalid creates it; no Claude
-Code session or agent may read it. Secrets are never logged and never printed: the
+Secrets are stored once by Khalid with `python -m src.snafi_worker.set_secrets`, as
+"REEMA-Snafi:<NAME>" credentials for his Windows user, encrypted by Windows (DPAPI). There
+is no plain-text secrets file (SEC-14). Secrets are never logged and never printed: the
 Secrets object hides its values in repr and str.
 """
 
 import os
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Optional
@@ -17,23 +16,20 @@ import yaml
 HERE = Path(__file__).resolve().parent
 SETTINGS_FILE = HERE / "worker.yaml"
 REPO_ROOT = HERE.parents[1]
-KEY_LINE = re.compile(r"^([A-Z][A-Z0-9_]{0,63})=(.*)$")
 
 
 class ConfigError(Exception):
     pass
 
 
-def default_env_path() -> Path:
-    override = os.environ.get("SNAFI_WORKER_ENV")
-    if override:
-        return Path(override)
+def worker_data_dir() -> Path:
+    """%APPDATA%\\REEMA\\snafi-worker: logs only (no secrets). No Claude Code session may read it."""
     appdata = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
-    return Path(appdata) / "REEMA" / "snafi-worker" / "worker.env"
+    return Path(appdata) / "REEMA" / "snafi-worker"
 
 
 class Secrets:
-    """Values from worker.env. Read with .get(name); never shown in repr, str or errors."""
+    """The worker's secrets. Read with .get(name); never shown in repr, str or errors."""
 
     def __init__(self, values: Dict[str, str]):
         self._values = dict(values)
@@ -41,7 +37,7 @@ class Secrets:
     def get(self, name: str) -> str:
         value = self._values.get(name, "")
         if not value:
-            raise ConfigError(f"{name} is missing from worker.env")
+            raise ConfigError(f"{name} is not stored yet; run: python -m src.snafi_worker.set_secrets")
         return value
 
     def has(self, name: str) -> bool:
@@ -56,21 +52,13 @@ class Secrets:
     __str__ = __repr__
 
     @classmethod
-    def load(cls, path: Optional[Path] = None) -> "Secrets":
-        path = Path(path or default_env_path())
-        if not path.is_file():
-            raise ConfigError(f"worker.env not found at {path}; see src/snafi_worker/README.md")
-        values: Dict[str, str] = {}
-        for number, raw in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), 1):
-            line = raw.strip()
-            if not line or line.startswith("#"):
-                continue
-            match = KEY_LINE.match(line)
-            if not match:
-                raise ConfigError(f"worker.env line {number} is not NAME=value (value not shown)")
-            name, value = match.groups()
-            values[name] = value.strip().strip('"').strip("'")
-        return cls(values)
+    def load(cls, backend=None) -> "Secrets":
+        """From Windows Credential Manager (or the backend given, in tests)."""
+        from .secret_store import SecretStoreError, WindowsCredentials, load_all
+        try:
+            return cls(load_all(backend or WindowsCredentials()))
+        except SecretStoreError as exc:
+            raise ConfigError(str(exc)) from None
 
 
 @dataclass(frozen=True)

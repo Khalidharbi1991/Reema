@@ -1,0 +1,127 @@
+"""One-time setup: asks Khalid for each Snafi worker setting and stores it in Windows
+Credential Manager for his Windows user. Keys are typed without being shown (getpass) and
+are never printed, logged or written to a file. Run it yourself, in a normal PowerShell
+window, from the repo folder:
+
+  .venv\\Scripts\\python.exe -m src.snafi_worker.set_secrets            ask for each value
+  .venv\\Scripts\\python.exe -m src.snafi_worker.set_secrets --status   which are stored (names only)
+  .venv\\Scripts\\python.exe -m src.snafi_worker.set_secrets --remove   delete them all
+
+Press Enter at any question to keep the value already stored. The backup signing key is
+made here once, at random, and never shown.
+"""
+
+import argparse
+import base64
+import getpass
+import json
+import re
+import secrets
+import sys
+from urllib.parse import urlparse
+
+from .secret_store import NAMES, SecretStoreError, WindowsCredentials
+
+UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+
+
+def check_url(value: str) -> str:
+    parsed = urlparse(value.strip().rstrip("/"))
+    if parsed.scheme != "https" or not parsed.netloc or parsed.path not in ("", "/"):
+        raise ValueError("must be the project URL, like https://abcd.supabase.co")
+    return f"https://{parsed.netloc}"
+
+
+def _jwt_role(token: str) -> str:
+    try:
+        payload = token.split(".")[1]
+        return json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4))).get("role", "")
+    except (IndexError, ValueError):
+        return ""
+
+
+def check_secret_key(value: str) -> str:
+    value = value.strip()
+    if value.startswith("sb_publishable_") or _jwt_role(value) == "anon":
+        raise ValueError("that is the publishable key; the worker needs the secret key")
+    if not (value.startswith("sb_secret_") or _jwt_role(value) == "service_role"):
+        raise ValueError("does not look like a Supabase secret key (sb_secret_...)")
+    return value
+
+
+def check_owner(value: str) -> str:
+    value = value.strip().lower()
+    if not UUID.match(value):
+        raise ValueError("must be your user's UID from Authentication -> Users")
+    return value
+
+
+def check_gemini(value: str) -> str:
+    value = value.strip()
+    if not re.fullmatch(r"[A-Za-z0-9_\-]{20,200}", value):
+        raise ValueError("does not look like an API key")
+    return value
+
+
+QUESTIONS = (
+    ("SNAFI_SUPABASE_URL", "Supabase project URL", check_url, False),
+    ("SNAFI_SUPABASE_SECRET_KEY", "Supabase secret key (hidden while you type or paste)", check_secret_key, True),
+    ("SNAFI_OWNER_USER_ID", "Your Supabase user UID", check_owner, False),
+    ("GEMINI_API_KEY", "Gemini API key (hidden while you type or paste)", check_gemini, True),
+)
+
+
+def ask(store, name, label, check, hidden, prompt=getpass.getpass, plain=input, out=print) -> bool:
+    have = store.read(name) is not None
+    suffix = " [Enter keeps the stored one]" if have else ""
+    for _ in range(3):
+        raw = (prompt if hidden else plain)(f"{label}{suffix}: ")
+        if not raw.strip() and have:
+            out(f"  kept {name}")
+            return True
+        try:
+            store.write(name, check(raw))
+            out(f"  stored {name}")
+            return True
+        except ValueError as exc:
+            out(f"  not stored: {exc}")
+    return False
+
+
+def run(store, prompt=getpass.getpass, plain=input, out=print) -> int:
+    ok = all([ask(store, n, label, check, hidden, prompt, plain, out) for n, label, check, hidden in QUESTIONS])
+    if store.read("SNAFI_BACKUP_SIGNING_KEY") is None:
+        store.write("SNAFI_BACKUP_SIGNING_KEY", secrets.token_hex(32))
+        out("  made SNAFI_BACKUP_SIGNING_KEY (random, never shown)")
+    out("All set." if ok else "Some values were not stored; run this again.")
+    return 0 if ok else 1
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(prog="python -m src.snafi_worker.set_secrets")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--status", action="store_true")
+    group.add_argument("--remove", action="store_true")
+    args = parser.parse_args(argv)
+    try:
+        store = WindowsCredentials()
+        if args.status:
+            for name in NAMES:
+                print(f"{name}: {'stored' if store.read(name) else 'missing'}")
+            return 0
+        if args.remove:
+            for name in NAMES:
+                store.delete(name)
+            print("Removed all Snafi worker values from Credential Manager.")
+            return 0
+        return run(store)
+    except SecretStoreError as exc:
+        print(f"Stopped: {exc}", file=sys.stderr)
+        return 2
+    except (KeyboardInterrupt, EOFError):
+        print("\nStopped; nothing more was changed.", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

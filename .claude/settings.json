@@ -116,7 +116,11 @@
       "Write(~/AppData/Roaming/REEMA/**)",
       "Read(./teams/coordination/snafi-backups/**)",
       "Edit(./teams/coordination/snafi-backups/**)",
-      "Write(./teams/coordination/snafi-backups/**)"
+      "Write(./teams/coordination/snafi-backups/**)",
+      "Read(**/snafi-backups/**)",
+      "Read(**/snafi-backup-*)",
+      "Edit(**/snafi-backup-*)",
+      "Write(**/snafi-backup-*)"
     ]
   },
   "hooks": {

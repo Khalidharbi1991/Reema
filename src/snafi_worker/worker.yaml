@@ -1,4 +1,5 @@
-# Snafi worker settings. No secrets here: those live in worker.env outside the repo.
+# Snafi worker settings. No secrets here: they live in Windows Credential Manager
+# (stored once with: python -m src.snafi_worker.set_secrets).
 # Each outside service is chosen by its provider name; switching one is a one-line change.
 
 brain:

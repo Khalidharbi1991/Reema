@@ -138,18 +138,30 @@ def _first_operand(words):
     return None
 
 
-# Snafi: the worker's secrets (%APPDATA%\REEMA\, worker.env with the Supabase secret key and the
-# Gemini API key) and Khalid's daily Snafi backups. No session or agent may name them in a command.
-SNAFI_PRIVATE = re.compile(
-    r"(appdata/roaming|%appdata%|\$env:appdata|\$appdata|\$\{appdata\}|\$env:userprofile/appdata/roaming"
-    r"|~/appdata/roaming)/reema(/|\b)"
-    r"|teams/coordination/snafi-backups")
+# Snafi (SEC-14): the worker's secrets (Windows Credential Manager, "REEMA-Snafi:<NAME>"), its
+# folder under %APPDATA%\REEMA\, Khalid's daily Snafi backups, and running the worker itself
+# (it would use Khalid's real keys and make paid calls). No session or agent may do any of these.
+# Matched on the whole command, lower-cased, with backslashes as slashes, so quoting, Join-Path,
+# environment variables and wildcards do not get around it. A backstop, not a full guarantee.
+SNAFI_PRIVATE = (
+    (r"appdata.*reema|reema.*appdata|appdata[^\s'\"]*[*?\[]", "the worker's folder under %APPDATA%\\REEMA\\"),
+    (r"reema-snafi|snafi_worker[./]secret_store|snafi_worker[./]set_secrets|secret_store|set_secrets",
+     "the worker's secrets in Credential Manager"),
+    (r"\bcmdkey\b|credread|credwrite|credenumerate|creddelete|vaultcmd|passwordvault|storedcredential"
+     r"|credentialmanager|security\.credentials|win32cred|\bkeyring\b",
+     "Windows Credential Manager"),
+    (r"snafi[-_ .]*back|coordination/[^\s'\"]*[*?\[]|coordination/\.\.|/\*/snafi|coordination.*snafi|snafi.*coordination",
+     "Khalid's Snafi backups (teams/coordination/snafi-backups/)"),
+    (r"(-m|-c)\s+['\"]?src\.snafi_worker|src/snafi_worker/(__main__|restore|install_task)",
+     "running the Snafi worker, its restore or its task setup (Khalid runs these himself)"),
+)
 
 
 def _snafi_reason(command):
-    if SNAFI_PRIVATE.search(command.replace("\\", "/").lower()):
-        return ("Snafi's worker secrets (%APPDATA%\\REEMA\\) and Khalid's Snafi backups "
-                "(teams/coordination/snafi-backups/) are never read by a Claude Code session or agent")
+    text = command.replace("\\", "/").lower()
+    for pattern, what in SNAFI_PRIVATE:
+        if re.search(pattern, text):
+            return f"Snafi: {what} is never touched by a Claude Code session or agent"
     return None
 
 

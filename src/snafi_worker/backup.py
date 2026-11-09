@@ -6,10 +6,15 @@ named snafi-backup-YYYYMMDD-HHMM.json.gz in Jeddah time. Each file carries a man
 every table's row count and SHA-256, so restore can prove nothing changed. The newest 30
 days are kept; older files are deleted only after a new backup succeeds, and only files
 that match the backup naming pattern. The result is written to worker_status.
+
+Each manifest is signed (SEC-17): an HMAC-SHA256 over the manifest, which holds every
+table's SHA-256, with a key kept in Windows Credential Manager. Restore refuses a file
+whose signature does not match, so a planted or edited backup cannot be loaded quietly.
 """
 
 import gzip
 import hashlib
+import hmac
 import json
 import logging
 import os
@@ -36,6 +41,17 @@ def canonical(rows: List[Dict]) -> bytes:
 
 def digest(rows: List[Dict]) -> str:
     return hashlib.sha256(canonical(rows)).hexdigest()
+
+
+def sign(manifest: Dict, key: str) -> str:
+    body = json.dumps({k: v for k, v in manifest.items() if k != "signature"}, sort_keys=True,
+                      ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return hmac.new(key.encode("utf-8"), body, hashlib.sha256).hexdigest()
+
+
+def signature_ok(manifest: Dict, key: str) -> bool:
+    given = manifest.get("signature")
+    return isinstance(given, str) and hmac.compare_digest(given, sign(manifest, key))
 
 
 def export_tables(store) -> Dict[str, List[Dict]]:
@@ -73,7 +89,7 @@ def prune(folder: Path, today: date, keep_days: int) -> List[str]:
     return removed
 
 
-def write_backup(store, folder: Path, now: datetime, time_zone: str) -> Dict:
+def write_backup(store, folder: Path, now: datetime, time_zone: str, signing_key: str) -> Dict:
     local = now.astimezone(ZoneInfo(time_zone))
     data = export_tables(store)
     manifest = {
@@ -81,6 +97,7 @@ def write_backup(store, folder: Path, now: datetime, time_zone: str) -> Dict:
         "created_at": now.astimezone(timezone.utc).isoformat(), "time_zone": time_zone,
         "tables": {t: {"rows": len(rows), "sha256": digest(rows)} for t, rows in data.items()},
     }
+    manifest["signature"] = sign(manifest, signing_key)
     folder.mkdir(parents=True, exist_ok=True)
     name = f"snafi-backup-{local:%Y%m%d-%H%M}.json.gz"
     final, temp = folder / name, folder / (name + ".part")
@@ -91,11 +108,15 @@ def write_backup(store, folder: Path, now: datetime, time_zone: str) -> Dict:
 
 
 def run_backup(store, folder: Path, owner_id: str, worker_id: str, time_zone: str, keep_days: int,
-               now: Optional[datetime] = None) -> Dict:
+               now: Optional[datetime] = None, signing_key: str = "") -> Dict:
     now = now or datetime.now(timezone.utc)
+    if keep_days < 1:
+        raise ValueError("keep_days must be at least 1")
     status = {"user_id": owner_id, "worker_id": worker_id, "last_backup_at": now.isoformat()}
     try:
-        result = write_backup(store, folder, now, time_zone)
+        if not signing_key:
+            raise ValueError("no backup signing key")
+        result = write_backup(store, folder, now, time_zone, signing_key)
         removed = prune(folder, now.astimezone(ZoneInfo(time_zone)).date(), keep_days)
         status.update(last_backup_ok=True, last_backup_error=None, last_backup_file=result["file"])
         log.info("backup ok file=%s removed=%d", result["file"], len(removed))
@@ -128,9 +149,10 @@ def is_due(folder: Path, now: datetime, time_zone: str, at: str) -> bool:
 
 
 class BackupScheduler(threading.Thread):
-    def __init__(self, store, settings, owner_id, stop: threading.Event, check_seconds: float = 60):
+    def __init__(self, store, settings, owner_id, stop: threading.Event, signing_key: str, check_seconds: float = 60):
         super().__init__(name="backup", daemon=True)
         self.store, self.settings, self.owner_id, self.stop = store, settings, owner_id, stop
+        self.signing_key = signing_key
         self.check_seconds = check_seconds
 
     def run(self):
@@ -138,7 +160,8 @@ class BackupScheduler(threading.Thread):
             s = self.settings
             try:
                 if is_due(s.backup_folder, datetime.now(timezone.utc), s.time_zone, s.backup_time):
-                    run_backup(self.store, s.backup_folder, self.owner_id, s.worker_id, s.time_zone, s.backup_keep_days)
+                    run_backup(self.store, s.backup_folder, self.owner_id, s.worker_id, s.time_zone, s.backup_keep_days,
+                               signing_key=self.signing_key)
             except Exception as exc:
                 log.error("backup scheduler error: %s", type(exc).__name__)
             self.stop.wait(self.check_seconds)
