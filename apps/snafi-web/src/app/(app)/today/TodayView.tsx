@@ -1,4 +1,4 @@
-import { ApprovalButtons } from "@/components/ApprovalButtons";
+import { ApprovalCard } from "@/components/ApprovalCard";
 import { Card, PlaceholderBadge } from "@/components/Card";
 import { Orb } from "@/components/Orb";
 import { PrayerRing } from "@/components/PrayerRing";
@@ -6,12 +6,18 @@ import { greetingFor } from "@/core/preferences";
 import type { TodaySnapshot } from "@/adapters/today/types";
 import { messages, type Lang } from "@/i18n/messages";
 
-type Props = { lang: Lang; hour: number; today: TodaySnapshot };
+type Props = {
+  lang: Lang;
+  hour: number;
+  today: TodaySnapshot;
+  decide: (id: string, decision: "approved" | "rejected") => Promise<{ ok: boolean }>;
+};
 
 /** The Today screen. Pure view: all data comes in through props. */
-export function TodayView({ lang, hour, today }: Props) {
+export function TodayView({ lang, hour, today, decide }: Props) {
   const t = messages(lang);
-  const badge = today.placeholder ? <PlaceholderBadge label={t.placeholder} /> : null;
+  const sample = <PlaceholderBadge label={t.placeholder} />;
+  const anySample = Object.values(today.samples).some(Boolean);
   const prayerName = t.prayers[today.nextPrayer.key];
   const pct = Math.round(today.nextPrayer.progress * 100);
 
@@ -33,11 +39,11 @@ export function TodayView({ lang, hour, today }: Props) {
         />
       </section>
 
-      {today.placeholder && <p className="rise-in mt-3 text-xs text-muted" style={{ ["--i" as string]: 1 }}>{t.placeholderNote}</p>}
+      {anySample && <p className="rise-in mt-3 text-xs text-muted" style={{ ["--i" as string]: 1 }}>{t.placeholderNote}</p>}
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         {today.nextEvent && (
-          <Card title={t.nextEvent} index={1} badge={badge}>
+          <Card title={t.nextEvent} index={1} badge={today.samples.nextEvent ? sample : null}>
             <p className="text-base">{today.nextEvent.title}</p>
             <p className="mt-1 text-sm text-muted">
               <span dir="ltr" className="tabular-nums">{today.nextEvent.time}</span> · {today.nextEvent.place}
@@ -45,7 +51,7 @@ export function TodayView({ lang, hour, today }: Props) {
           </Card>
         )}
 
-        <Card title={t.topTasks} index={2} badge={badge}>
+        <Card title={t.topTasks} index={2} badge={today.samples.tasks ? sample : null}>
           <ul className="space-y-3">
             {today.tasks.map((task) => (
               <li key={task.id} className="flex items-start gap-3">
@@ -58,25 +64,26 @@ export function TodayView({ lang, hour, today }: Props) {
         </Card>
 
         {today.cards.map((card, i) => (
-          <Card key={card.id} title={t.ahmadCards} index={3 + i} badge={badge}>
+          <Card key={card.id} title={t.ahmadCards} index={3 + i} badge={today.samples.cards ? sample : null}>
             <p className="text-sm font-medium">{card.title}</p>
             <p className="mt-1 text-sm text-muted">{card.body}</p>
           </Card>
         ))}
 
-        {today.approvals.length > 0 && (
-          <Card title={t.approvals} index={4 + today.cards.length} badge={badge}>
-            <ul className="space-y-4">
-              {today.approvals.map((a) => (
-                <li key={a.id}>
-                  <p className="text-sm">{a.title}</p>
-                  <p className="text-xs text-muted">{a.detail}</p>
-                  <ApprovalButtons approve={t.approve} reject={t.reject} disabledNote={t.approvalsDisabled} />
+        <Card title={t.approvals} index={4 + today.cards.length}>
+          {today.approvals.length === 0 ? (
+            <p className="text-sm text-muted">{t.approvalsEmpty}</p>
+          ) : (
+            <ul className="space-y-3">
+              {today.approvals.map((card) => (
+                <li key={card.id}>
+                  <ApprovalCard card={card} decide={decide}
+                    labels={{ approve: t.approve, reject: t.reject, status: t.cardStatus, failed: t.decideFailed }} />
                 </li>
               ))}
             </ul>
-          </Card>
-        )}
+          )}
+        </Card>
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-40 flex justify-center pb-[max(env(safe-area-inset-bottom),1.25rem)]">

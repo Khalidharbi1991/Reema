@@ -1,10 +1,16 @@
-# Snafi web (step 1: skeleton)
+# Snafi web (steps 1 and 2)
 
 Snafi is Khalid's personal assistant app and part of REEMA. The plan is
-`docs/snafi/PRD.md`. Step 1 is the skeleton: sign-in, Today and Chat screens with
-clearly marked sample data, the dark/light and Arabic/English menu, and the
-Supabase mailbox tables (`jobs`, `messages`), empty for now. No model call, no
-deploy.
+`docs/snafi/PRD.md`.
+
+- **Step 1:** sign-in, Today and Chat screens, the dark/light and Arabic/English menu.
+- **Step 2:** Chat with Ahmad through the PC worker (`src/snafi_worker/`), approval
+  cards with Approve / Reject, Undo on logged actions, a "PC offline" banner with the
+  last backup's result in the menu, and real Umm al-Qura prayer times and Hijri date
+  for Jeddah on Today. The event, tasks and Ahmad's cards on Today stay marked
+  samples until steps 3-5.
+
+The web app never calls a model; the worker on the PC does. No deploy.
 
 ## Run it
 
@@ -52,8 +58,8 @@ app refuses a secret / service_role key.
 
 | Path | What |
 | --- | --- |
-| `src/adapters/` | Every outside service behind its own interface: `auth/`, `mailbox/`, `today/`, `supabase/`. `adapters/index.ts` picks the implementation. Only this folder may import Supabase (a test enforces it). |
-| `src/config/` | `env.ts` (the only place env vars are read), `app.ts` (time zone and other settings) |
+| `src/adapters/` | Every outside service behind its own interface: `auth/`, `mailbox/`, `today/` (prayer times in `today/prayer.ts`), `supabase/`. `adapters/index.ts` maps the configured choice to a class. Only this folder may import Supabase (a test enforces it). |
+| `src/config/` | `env.ts` (the only place env vars are read), `services.ts` (which adapter backs each service: `SNAFI_AUTH_ADAPTER`, `SNAFI_MAILBOX_ADAPTER`, `SNAFI_TODAY_ADAPTER`), `app.ts` (time zone and the prayer-times city, Jeddah) |
 | `src/core/` | Preferences (theme, language), session guard, haptics |
 | `src/i18n/` | English and Arabic text; Arabic switches the page to right-to-left |
 | `src/app/` | Screens: `sign-in`, `(app)/today`, `(app)/chat` |
@@ -70,6 +76,8 @@ npm run lint
 npm run build
 ```
 
-`tests/rls.test.ts` runs the real migration in PGlite (Postgres in-process) and
-checks that users see only their own rows, that anonymous visitors get nothing,
-and that the app can never update or delete.
+`tests/rls.test.ts` and `tests/rls-step2.test.ts` run the real migrations in PGlite
+(Postgres in-process) and check that users see only their own rows, that anonymous
+visitors get nothing, and that the app changes nothing except through the approval
+and Undo functions. `tests/restore.test.ts` restores a real backup from the worker
+into an empty PGlite database.

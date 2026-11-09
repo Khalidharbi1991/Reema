@@ -16,13 +16,15 @@ type Props = {
   lang: Lang;
   /** Server action for sign-out; omitted on the sign-in screen. */
   signOutAction?: () => Promise<void>;
+  /** PC online/offline and the last backup, shown at the top of the menu. */
+  statusLines?: string[];
 };
 
 /**
  * Three-line menu at the inline end of the top bar: top right in English,
  * mirrored to top left in Arabic.
  */
-export function Menu({ labels, theme: initialTheme, lang, signOutAction }: Props) {
+export function Menu({ labels, theme: initialTheme, lang, signOutAction, statusLines = [] }: Props) {
   const [open, setOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>(initialTheme);
   const router = useRouter();
@@ -94,6 +96,11 @@ export function Menu({ labels, theme: initialTheme, lang, signOutAction }: Props
           aria-label={labels.menu}
           className="rise-in absolute end-0 top-12 z-50 w-72 rounded-2xl border border-edge bg-card p-4 shadow-2xl"
         >
+          {statusLines.length > 0 && (
+            <div className="mb-4 space-y-1 border-b border-edge pb-3 text-xs text-muted" data-testid="menu-status">
+              {statusLines.map((line) => <p key={line}>{line}</p>)}
+            </div>
+          )}
           <p className="mb-2 text-xs uppercase tracking-[0.14em] text-muted">{labels.theme}</p>
           <div className="mb-4 flex gap-2" role="group" aria-label={labels.theme}>
             <button type="button" className={option(theme === "dark")} aria-pressed={theme === "dark"} onClick={() => chooseTheme("dark")}>

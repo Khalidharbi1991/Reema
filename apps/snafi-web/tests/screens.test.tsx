@@ -1,6 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApprovalButtons } from "@/components/ApprovalButtons";
+import { ApprovalCard } from "@/components/ApprovalCard";
+import { UndoButton } from "@/components/UndoButton";
 import { Menu } from "@/components/Menu";
 import { PrayerRing } from "@/components/PrayerRing";
 import { ChatView } from "@/app/(app)/chat/ChatView";
@@ -16,39 +17,87 @@ const labels = (lang: "en" | "ar") => {
   return { menu: t.menu, closeMenu: t.closeMenu, theme: t.theme, dark: t.dark, light: t.light, language: t.language, signOut: t.signOut };
 };
 
-async function today(lang: "en" | "ar") {
-  return new PlaceholderTodaySource().getToday(lang, new Date("2026-11-07T15:00:00Z"));
+const CARD = { id: "c1", conversationId: "x", summary: "Test send: hello", status: "pending" as const, createdAt: "" };
+const decide = vi.fn(async () => ({ ok: true }));
+const undo = vi.fn(async () => ({ ok: true }));
+const send = vi.fn(async () => ({ error: false, sentAt: 1 }));
+
+async function today(lang: "en" | "ar", withCard = true) {
+  const snapshot = await new PlaceholderTodaySource().getToday(lang, new Date("2026-11-07T15:00:00Z"));
+  return { ...snapshot, approvals: withCard ? [CARD] : [] };
 }
 
 describe("Today screen", () => {
   it("shows the greeting, prayer ring, sample badges and the orb link (English)", async () => {
-    render(<TodayView lang="en" hour={19} today={await today("en")} />);
+    render(<TodayView lang="en" hour={19} today={await today("en")} decide={decide} />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Good evening, Khalid");
     expect(screen.getByRole("img", { name: /Next prayer Asr at 15:12, 62%/ })).toBeInTheDocument();
-    expect(screen.getAllByText("Sample").length).toBeGreaterThanOrEqual(4);
+    // event, tasks and Ahmad's cards are still samples; approvals are real since step 2
+    expect(screen.getAllByText("Sample")).toHaveLength(3);
     expect(screen.getByRole("link", { name: "Talk to Ahmad" })).toHaveAttribute("href", "/chat");
     expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
   });
 
   it("renders in Arabic", async () => {
-    render(<TodayView lang="ar" hour={8} today={await today("ar")} />);
+    render(<TodayView lang="ar" hour={8} today={await today("ar")} decide={decide} />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("صباح الخير، خالد");
     expect(screen.getByRole("link", { name: "تحدّث مع أحمد" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "موافقة" })).toBeInTheDocument();
   });
+
+  it("says when nothing waits for approval", async () => {
+    render(<TodayView lang="en" hour={9} today={await today("en", false)} decide={decide} />);
+    expect(screen.getByText("Nothing is waiting for your approval.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  });
 });
 
-describe("approvals", () => {
-  it("are buttons that do nothing yet but say so", () => {
+const cardLabels = { approve: "Approve", reject: "Reject", status: messages("en").cardStatus, failed: "That didn't go through." };
+
+describe("approval cards", () => {
+  it("send the decision with tap feedback, then show the result instead of buttons", async () => {
     const vibrate = vi.fn(() => true);
     vi.stubGlobal("navigator", { ...navigator, vibrate });
-    render(<ApprovalButtons approve="Approve" reject="Reject" disabledNote="Approvals start working in step 2." />);
-    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
-    expect(screen.getByRole("status")).toHaveTextContent("step 2");
+    render(<ApprovalCard card={CARD} labels={cardLabels} decide={decide} />);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Approve" })); });
+    expect(decide).toHaveBeenCalledWith("c1", "approved");
     expect(vibrate).toHaveBeenCalledWith(12);
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(screen.getByText("Approved, running…")).toBeInTheDocument();
     vi.unstubAllGlobals();
     vi.stubGlobal("fetch", () => { throw new Error("Network access is forbidden in Snafi tests"); });
+  });
+
+  it("keep the buttons and say so when the decision fails", async () => {
+    const failing = vi.fn(async () => ({ ok: false }));
+    render(<ApprovalCard card={CARD} labels={cardLabels} decide={failing} />);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Reject" })); });
+    expect(failing).toHaveBeenCalledWith("c1", "rejected");
+    expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("didn't go through");
+  });
+
+  it("show the final state with no buttons once decided", () => {
+    render(<ApprovalCard card={{ ...CARD, status: "executed" }} labels={cardLabels} decide={decide} />);
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.getByText("Done")).toBeInTheDocument();
+  });
+});
+
+describe("Undo", () => {
+  const labels = { undo: "Undo", undoing: "Undoing…", undone: "Undone" };
+  const entry = { id: "a1", summary: "Saved a note", level: 2, status: "done" as const, undoable: true, undoRequested: false };
+
+  it("appears only for undoable actions and asks once", async () => {
+    const { rerender } = render(<UndoButton action={entry} labels={labels} undo={undo} />);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Undo" })); });
+    expect(undo).toHaveBeenCalledWith("a1");
+    expect(screen.getByText("Undoing…")).toBeInTheDocument();
+    rerender(<UndoButton action={{ ...entry, id: "a2", undoable: false }} labels={labels} undo={undo} />);
+    expect(screen.queryByRole("button")).toBeNull();
+    rerender(<UndoButton action={{ ...entry, id: "a3", status: "undone" }} labels={labels} undo={undo} />);
+    expect(screen.getByText("Undone")).toBeInTheDocument();
   });
 });
 
@@ -65,13 +114,37 @@ describe("prayer ring", () => {
   });
 });
 
+const msg = (over: Record<string, unknown>) => ({
+  id: crypto.randomUUID(), userId: "u", conversationId: "x", role: "assistant", body: "", lang: "en",
+  jobId: null, approvalId: null, meta: {}, createdAt: "", ...over,
+}) as import("@/adapters/mailbox/types").MailboxMessage;
+
 describe("chat screen", () => {
-  it("shows sample messages and keeps sending off until step 2", () => {
-    render(<ChatView lang="en" />);
-    expect(screen.getByRole("heading", { name: "Ahmad" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
-    expect(screen.getByLabelText("Message Ahmad…")).toBeDisabled();
-    expect(screen.getByText(/Messages are not sent yet/)).toBeInTheDocument();
+  it("shows the conversation, an approval card and Undo on a logged action", () => {
+    const messages_ = [
+      msg({ role: "user", body: "note: drawings" }),
+      msg({ body: "Sure.\n\nSaved a note: drawings", meta: { actions: ["a1"] } }),
+      msg({ body: "Test send", approvalId: "c1", meta: { kind: "approval_card" } }),
+    ];
+    render(<ChatView lang="en" messages={messages_} preview={false} decide={decide} undo={undo} send={send}
+      cards={{ c1: CARD }}
+      actions={{ a1: { id: "a1", summary: "Saved a note", level: 2, status: "done", undoable: true, undoRequested: false } }} />);
+    expect(screen.getByText(/Saved a note: drawings/)).toBeInTheDocument();
+    expect(screen.getByTestId("approval-card")).toHaveTextContent("Test send: hello");
+    expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send" })).toBeEnabled();
+  });
+
+  it("shows Ahmad thinking while the last message is Khalid's, in Arabic right to left", () => {
+    render(<ChatView lang="ar" messages={[msg({ role: "user", body: "مرحبا", lang: "ar" })]} preview={false}
+      decide={decide} undo={undo} send={send} cards={{}} actions={{}} />);
+    expect(screen.getByText("أحمد يفكّر…")).toBeInTheDocument();
+    expect(screen.getByText("مرحبا")).toHaveAttribute("dir", "rtl");
+  });
+
+  it("says when it is only a preview", () => {
+    render(<ChatView lang="en" messages={[]} preview decide={decide} undo={undo} send={send} cards={{}} actions={{}} />);
+    expect(screen.getByText(/Preview mode: messages stay on this PC/)).toBeInTheDocument();
   });
 });
 

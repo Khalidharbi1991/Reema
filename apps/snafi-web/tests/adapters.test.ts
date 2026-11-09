@@ -62,27 +62,54 @@ describe("auth adapter", () => {
   });
 });
 
+const A = "11111111-1111-4111-8111-111111111111";
+const B = "22222222-2222-4222-8222-222222222222";
+
 describe("mailbox adapter (memory)", () => {
-  it("keeps each user's messages and jobs apart", async () => {
+  it("keeps each user's messages apart and queues a reply for each message", async () => {
     const store = createMemoryStore();
-    const alice = new MemoryMailboxAdapter(store, "alice");
-    const bob = new MemoryMailboxAdapter(store, "bob");
-    await alice.postUserMessage({ conversationId: "c", body: " مرحبا ", lang: "ar" });
-    await bob.postUserMessage({ conversationId: "c", body: "hi", lang: "en" });
-    const mine = await alice.listMessages("c");
-    expect(mine.map((m) => [m.userId, m.role, m.body])).toEqual([["alice", "user", "مرحبا"]]);
-    const job = await alice.enqueueJob({ kind: "chat.reply", payload: {} });
-    expect(job.status).toBe("queued");
-    expect(await bob.listJobs()).toEqual([]);
+    const alice = new MemoryMailboxAdapter(store, A);
+    const bob = new MemoryMailboxAdapter(store, B);
+    await alice.sendChat({ conversationId: A, body: " مرحبا ", lang: "ar" });
+    await bob.sendChat({ conversationId: B, body: "hi", lang: "en" });
+    const mine = await alice.listMessages(A);
+    expect(mine.map((m) => [m.userId, m.role, m.body])).toEqual([[A, "user", "مرحبا"]]);
+    expect(await bob.listMessages(A)).toEqual([]);
+    expect(store.jobs.map((j) => [j.userId, j.kind, j.payload.message_id])).toEqual([
+      [A, "chat.reply", mine[0].id], [B, "chat.reply", expect.any(String)]]);
   });
 
-  it("refuses signed-out use, empty or long messages and bad job kinds", async () => {
+  it("decides a pending card once, only for its owner, and queues the follow-up", async () => {
     const store = createMemoryStore();
-    await expect(new MemoryMailboxAdapter(store, null).listJobs()).rejects.toThrow(MailboxError);
-    const a = new MemoryMailboxAdapter(store, "a");
-    await expect(a.postUserMessage({ conversationId: "c", body: "   ", lang: "en" })).rejects.toThrow(/empty/);
-    await expect(a.postUserMessage({ conversationId: "c", body: "x".repeat(8001), lang: "en" })).rejects.toThrow(/too long/);
-    await expect(a.enqueueJob({ kind: "DROP TABLE", payload: {} })).rejects.toThrow(/kind/);
+    store.approvals.push({ id: B, userId: A, conversationId: A, summary: "Test send", status: "pending", createdAt: "" });
+    const bob = new MemoryMailboxAdapter(store, B);
+    await expect(bob.decideApproval(B, "approved")).rejects.toThrow(/no pending/);
+    const alice = new MemoryMailboxAdapter(store, A);
+    expect((await alice.pendingApprovals()).map((c) => c.id)).toEqual([B]);
+    expect((await alice.decideApproval(B, "approved")).status).toBe("approved");
+    await expect(alice.decideApproval(B, "rejected")).rejects.toThrow(/no pending/);
+    expect(store.jobs.at(-1)).toMatchObject({ kind: "approval.resume", payload: { approval_id: B } });
+  });
+
+  it("asks for Undo once, only on undoable actions", async () => {
+    const store = createMemoryStore();
+    store.actions.push({ id: A, userId: A, summary: "Saved a note", level: 2, status: "done", undoable: true, undoRequested: false });
+    store.actions.push({ id: B, userId: A, summary: "Listed notes", level: 1, status: "done", undoable: false, undoRequested: false });
+    const alice = new MemoryMailboxAdapter(store, A);
+    await alice.requestUndo(A);
+    await expect(alice.requestUndo(A)).rejects.toThrow(/nothing to undo/);
+    await expect(alice.requestUndo(B)).rejects.toThrow(/nothing to undo/);
+    expect(store.jobs.map((j) => j.kind)).toEqual(["action.undo"]);
+  });
+
+  it("refuses signed-out use, empty or long messages and bad ids", async () => {
+    const store = createMemoryStore();
+    await expect(new MemoryMailboxAdapter(store, null).listMessages(A)).rejects.toThrow(MailboxError);
+    const a = new MemoryMailboxAdapter(store, A);
+    await expect(a.sendChat({ conversationId: A, body: "   ", lang: "en" })).rejects.toThrow(/empty/);
+    await expect(a.sendChat({ conversationId: A, body: "x".repeat(8001), lang: "en" })).rejects.toThrow(/too long/);
+    await expect(a.sendChat({ conversationId: "not-an-id", body: "x", lang: "en" })).rejects.toThrow(/invalid id/);
+    await expect(a.decideApproval("1; drop", "approved")).rejects.toThrow(/invalid id/);
   });
 });
 
@@ -92,12 +119,11 @@ describe("Today source (placeholder)", () => {
     const now = new Date("2026-11-07T12:00:00Z");
     const en = await src.getToday("en", now);
     const ar = await src.getToday("ar", now);
-    expect(en.placeholder && ar.placeholder).toBe(true);
+    expect(Object.values(en.samples).every(Boolean)).toBe(true);
     expect(en.gregorianDate).toContain("2026");
     expect(ar.gregorianDate).toMatch(/[؀-ۿ]/);
     expect(en.tasks.every((t) => t.title.startsWith("Sample"))).toBe(true);
     expect(ar.tasks.every((t) => t.title.startsWith("نموذج"))).toBe(true);
-    expect(en.nextPrayer.progress).toBeGreaterThanOrEqual(0);
   });
 });
 
