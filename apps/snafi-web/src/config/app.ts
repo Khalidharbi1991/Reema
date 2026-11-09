@@ -1,7 +1,9 @@
 /** App settings that are not secrets. Change them here, not in the screens. */
 export const APP_SETTINGS = {
-  /** Used for the greeting and dates, so they match Khalid's day wherever the server runs. */
+  /** Used for the greeting, dates and prayer times, wherever the server runs. */
   timeZone: "Asia/Riyadh",
+  /** Prayer times (Umm al-Qura) are computed for this city. */
+  city: { name: "Jeddah", latitude: 21.4858, longitude: 39.1925, timeZone: "Asia/Riyadh" },
 } as const;
 
 /** Hour (0-23) of `now` in the configured time zone. */

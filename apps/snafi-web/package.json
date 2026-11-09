@@ -20,6 +20,7 @@
     "@fontsource/ibm-plex-sans-arabic": "5.3.0",
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.119.0",
+    "adhan": "4.4.6",
     "next": "16.4.5",
     "react": "19.3.1",
     "react-dom": "19.3.1"
