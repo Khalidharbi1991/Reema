@@ -6,6 +6,7 @@ Everything below this README is ignored by Git (`/teams/*/` in `.gitignore`).
 | Folder | Section | Holds |
 | --- | --- | --- |
 | `coordination/data/` | Coordination (Ahmad, executive assistant) | Work and personal task and memory stores, used only through the `task` and `memory` commands |
+| `coordination/snafi-backups/` | Coordination (Snafi) | Khalid's daily Snafi backups (`snafi-backup-YYYYMMDD-HHMM.json.gz`, newest 30 days), written by the Snafi worker. Personal data: no Claude Code session or agent may read it (deny rules and `dev_guard.py`). Restore with `python -m src.snafi_worker.restore` (see `src/snafi_worker/README.md`) |
 | `documentation/input/references/` | Documentation (Abdullah) | Reference material and its manifest, including customer material |
 | `documentation/input/diagrams/` | Documentation | Process diagram sources |
 | `documentation/input/handover/` | Documentation | Handover documents |

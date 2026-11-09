@@ -43,6 +43,11 @@ class MemoryStore:
     def insert(self, table, row):
         with self._lock:
             full = {**copy.deepcopy(DEFAULTS.get(table, {})), **copy.deepcopy(row)}
+            if table == "worker_status":  # keyed by user_id; no id or created_at, as in the database
+                full.setdefault("updated_at", now_iso())
+                full.setdefault("last_seen", now_iso())
+                self._table(table).append(full)
+                return copy.deepcopy(full)
             full.setdefault("id", str(uuid.uuid4()))
             full.setdefault("created_at", now_iso())
             if table == "jobs":
