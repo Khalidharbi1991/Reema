@@ -1,0 +1,32 @@
+# Snafi worker settings. No secrets here: those live in worker.env outside the repo.
+# Each outside service is chosen by its provider name; switching one is a one-line change.
+
+brain:
+  provider: gemini_api          # or: fake (offline, for tests)
+  model: gemini-3.5-flash-lite  # the fast Flash model for chat
+  timeout_seconds: 60
+  max_output_tokens: 1024
+
+store:
+  provider: supabase_rest       # or: memory (offline, for tests)
+  timeout_seconds: 20
+
+lanes:
+  chat:
+    poll_seconds: 2
+    timeout_seconds: 90         # whole job, brain call included
+    retry_delay_seconds: 5      # one retry (jobs.max_attempts = 2)
+  background:
+    poll_seconds: 30
+    timeout_seconds: 600
+    retry_delay_seconds: 60
+
+heartbeat:
+  seconds: 15                   # the app shows "PC offline" after 45 seconds
+
+backup:
+  folder: teams/coordination/snafi-backups   # ignored by Git; no Claude session may read it
+  time: "03:30"                 # daily, local time below
+  keep_days: 30
+
+time_zone: Asia/Riyadh
