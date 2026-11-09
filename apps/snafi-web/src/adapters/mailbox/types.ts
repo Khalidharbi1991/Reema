@@ -20,8 +20,24 @@ export type MailboxMessage = {
   createdAt: string;
 };
 
-export type ApprovalStatus = "pending" | "approved" | "rejected" | "executed" | "failed" | "expired";
-export type ApprovalCard = { id: string; conversationId: string; summary: string; status: ApprovalStatus; createdAt: string };
+export type ApprovalStatus = "pending" | "approved" | "executing" | "rejected" | "executed" | "failed" | "expired";
+/** A Level 3 action waiting for Khalid. `args` is exactly what will run; `argsHash` binds Approve to it (SEC-13). */
+export type ApprovalCard = {
+  id: string;
+  conversationId: string;
+  tool: string;
+  args: Record<string, unknown>;
+  argsHash: string;
+  summary: string;
+  status: ApprovalStatus;
+  createdAt: string;
+  expiresAt: string;
+};
+
+/** A pending card past its expiry shows as expired; the database refuses to approve it. */
+export function effectiveStatus(card: ApprovalCard, now: Date): ApprovalStatus {
+  return card.status === "pending" && new Date(card.expiresAt).getTime() <= now.getTime() ? "expired" : card.status;
+}
 
 export type ActionEntry = {
   id: string;
@@ -50,8 +66,8 @@ export interface MailboxAdapter {
   sendChat(input: { conversationId: string; body: string; lang: Lang }): Promise<MailboxMessage>;
   approvals(ids: string[]): Promise<ApprovalCard[]>;
   pendingApprovals(limit?: number): Promise<ApprovalCard[]>;
-  /** Pending -> approved or rejected, once; the database queues the worker's follow-up. */
-  decideApproval(id: string, decision: "approved" | "rejected"): Promise<ApprovalCard>;
+  /** Pending -> approved or rejected, once, for exactly the arguments shown; the database queues the worker's follow-up. */
+  decideApproval(id: string, decision: "approved" | "rejected", argsHash: string): Promise<ApprovalCard>;
   actions(ids: string[]): Promise<ActionEntry[]>;
   /** Asks the worker to undo a Level 2 action. */
   requestUndo(actionId: string): Promise<void>;

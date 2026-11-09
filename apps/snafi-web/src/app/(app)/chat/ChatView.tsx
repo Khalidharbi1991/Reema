@@ -12,7 +12,7 @@ type Props = {
   cards: Record<string, Card>;
   actions: Record<string, ActionEntry>;
   preview: boolean;
-  decide: (id: string, decision: "approved" | "rejected") => Promise<{ ok: boolean }>;
+  decide: (id: string, decision: "approved" | "rejected", argsHash: string) => Promise<{ ok: boolean; status?: string }>;
   undo: (id: string) => Promise<{ ok: boolean }>;
   send: Parameters<typeof ChatComposer>[0]["send"];
 };
@@ -21,7 +21,7 @@ type Props = {
 export function ChatView({ lang, messages, cards, actions, preview, decide, undo, send }: Props) {
   const t = dict(lang);
   const waiting = messages.length > 0 && messages[messages.length - 1].role === "user";
-  const cardLabels = { approve: t.approve, reject: t.reject, status: t.cardStatus, failed: t.decideFailed };
+  const cardLabels = { approve: t.approve, reject: t.reject, status: t.cardStatus, failed: t.decideFailed, exactly: t.exactly, expires: t.expires };
   return (
     <div className="flex min-h-[calc(100dvh-6rem)] flex-col">
       <div className="flex items-center gap-3 py-3">

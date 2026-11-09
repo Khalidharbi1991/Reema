@@ -30,17 +30,20 @@ export async function sendMessage(_prev: ChatState, form: FormData): Promise<Cha
 }
 
 /** Approve or Reject a card. Only the database function can change it, once. */
-export async function decideApproval(id: string, decision: "approved" | "rejected"): Promise<{ ok: boolean }> {
+export async function decideApproval(
+  id: string, decision: "approved" | "rejected", argsHash: string,
+): Promise<{ ok: boolean; status?: string }> {
   if (decision !== "approved" && decision !== "rejected") return { ok: false };
   const session = await requireSession();
+  let status: string;
   try {
-    await mailboxFor(session).decideApproval(id, decision);
+    status = (await mailboxFor(session).decideApproval(id, decision, argsHash)).status;
   } catch {
     return { ok: false };
   }
   revalidatePath("/chat");
   revalidatePath("/today");
-  return { ok: true };
+  return { ok: true, status };
 }
 
 export async function undoAction(actionId: string): Promise<{ ok: boolean }> {

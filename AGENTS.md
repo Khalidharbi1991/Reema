@@ -51,10 +51,15 @@ commands. Change history is in `docs/reports/CHANGELOG.md`.
   (`SNAFI_*_ADAPTER` settings). Switching a provider is a config change plus the new
   adapter's own file, nothing else.
 - The worker's secrets (`SNAFI_SUPABASE_URL`, `SNAFI_SUPABASE_SECRET_KEY`,
-  `GEMINI_API_KEY`) live only in `%APPDATA%\REEMA\snafi-worker\worker.env`, outside
-  the repo; Snafi's daily backups live in ignored `teams/coordination/snafi-backups/`.
-  No Claude Code session or agent reads either: `.claude/settings.json` denies them
-  and `.claude/hooks/dev_guard.py` blocks commands that name them.
+  `SNAFI_OWNER_USER_ID`, `GEMINI_API_KEY`, `SNAFI_BACKUP_SIGNING_KEY`) live only in
+  Windows Credential Manager for Khalid's Windows user ("REEMA-Snafi:<NAME>", encrypted
+  by Windows), stored by Khalid with `python -m src.snafi_worker.set_secrets`; there is
+  no plain-text secrets file. The worker's logs live in `%APPDATA%\REEMA\snafi-worker\logs`
+  and Snafi's signed daily backups in ignored `teams/coordination/snafi-backups/`. No
+  Claude Code session or agent reads the secrets, logs or backups, or runs the worker,
+  its restore or its setup: `.claude/settings.json` denies the paths and
+  `.claude/hooks/dev_guard.py` blocks commands that name them or Credential Manager (a
+  backstop, not a full guarantee).
 - Never add API keys, generated documents, logs, local editor settings, or source
   customer documents to Git.
 - Reference material stays in ignored `teams/documentation/input/references/`. Only files explicitly

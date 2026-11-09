@@ -15,7 +15,11 @@ type MessageRow = {
   id: string; user_id: string; conversation_id: string; role: MailboxMessage["role"]; body: string; lang: Lang;
   job_id: string | null; approval_id: string | null; meta: MailboxMessage["meta"] | null; created_at: string;
 };
-type ApprovalRow = { id: string; conversation_id: string; summary: string; status: ApprovalCard["status"]; created_at: string };
+type ApprovalRow = {
+  id: string; conversation_id: string; tool: string; args: Record<string, unknown> | null; args_hash: string;
+  summary: string; status: ApprovalCard["status"]; created_at: string; expires_at: string;
+};
+const CARD_COLUMNS = "id, conversation_id, tool, args, args_hash, summary, status, created_at, expires_at";
 type ActionRow = {
   id: string; summary: string; level: number; status: ActionEntry["status"]; undoable: boolean; undo_requested_at: string | null;
 };
@@ -25,7 +29,8 @@ const toMessage = (r: MessageRow): MailboxMessage => ({
   jobId: r.job_id, approvalId: r.approval_id, meta: r.meta ?? {}, createdAt: r.created_at,
 });
 const toCard = (r: ApprovalRow): ApprovalCard => ({
-  id: r.id, conversationId: r.conversation_id, summary: r.summary, status: r.status, createdAt: r.created_at,
+  id: r.id, conversationId: r.conversation_id, tool: r.tool, args: r.args ?? {}, argsHash: r.args_hash,
+  summary: r.summary, status: r.status, createdAt: r.created_at, expiresAt: r.expires_at,
 });
 const toAction = (r: ActionRow): ActionEntry => ({
   id: r.id, summary: r.summary, level: r.level, status: r.status, undoable: r.undoable, undoRequested: !!r.undo_requested_at,
@@ -68,21 +73,24 @@ export class SupabaseMailboxAdapter implements MailboxAdapter {
 
   async approvals(ids: string[]) {
     if (!ids.length) return [];
-    const { data, error } = await (await this.client()).from("approvals").select("id, conversation_id, summary, status, created_at")
+    const { data, error } = await (await this.client()).from("approvals").select(CARD_COLUMNS)
       .in("id", ids.map(checkId));
     if (error) throw new MailboxError(error.message);
     return (data as ApprovalRow[]).map(toCard);
   }
 
   async pendingApprovals(limit = 10) {
-    const { data, error } = await (await this.client()).from("approvals").select("id, conversation_id, summary, status, created_at")
-      .eq("status", "pending").order("created_at", { ascending: false }).limit(limit);
+    const { data, error } = await (await this.client()).from("approvals").select(CARD_COLUMNS)
+      .eq("status", "pending").gt("expires_at", new Date().toISOString()).order("created_at", { ascending: false }).limit(limit);
     if (error) throw new MailboxError(error.message);
     return (data as ApprovalRow[]).map(toCard);
   }
 
-  async decideApproval(id: string, decision: "approved" | "rejected") {
-    const { data, error } = await (await this.client()).rpc("decide_approval", { p_id: checkId(id), p_decision: decision });
+  async decideApproval(id: string, decision: "approved" | "rejected", argsHash: string) {
+    if (!/^[0-9a-f]{64}$/.test(argsHash)) throw new MailboxError("invalid arguments hash");
+    const { data, error } = await (await this.client()).rpc("decide_approval", {
+      p_id: checkId(id), p_decision: decision, p_args_hash: argsHash,
+    });
     if (error) throw new MailboxError(error.message);
     return toCard(data as ApprovalRow);
   }

@@ -10,7 +10,7 @@ type Props = {
   lang: Lang;
   hour: number;
   today: TodaySnapshot;
-  decide: (id: string, decision: "approved" | "rejected") => Promise<{ ok: boolean }>;
+  decide: (id: string, decision: "approved" | "rejected", argsHash: string) => Promise<{ ok: boolean; status?: string }>;
 };
 
 /** The Today screen. Pure view: all data comes in through props. */
@@ -78,7 +78,7 @@ export function TodayView({ lang, hour, today, decide }: Props) {
               {today.approvals.map((card) => (
                 <li key={card.id}>
                   <ApprovalCard card={card} decide={decide}
-                    labels={{ approve: t.approve, reject: t.reject, status: t.cardStatus, failed: t.decideFailed }} />
+                    labels={{ approve: t.approve, reject: t.reject, status: t.cardStatus, failed: t.decideFailed, exactly: t.exactly, expires: t.expires }} />
                 </li>
               ))}
             </ul>

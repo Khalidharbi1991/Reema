@@ -81,13 +81,15 @@ describe("mailbox adapter (memory)", () => {
 
   it("decides a pending card once, only for its owner, and queues the follow-up", async () => {
     const store = createMemoryStore();
-    store.approvals.push({ id: B, userId: A, conversationId: A, summary: "Test send", status: "pending", createdAt: "" });
+    store.approvals.push({ id: B, userId: A, conversationId: A, tool: "send_test_message", args: { text: "hi" },
+      argsHash: "a".repeat(64), summary: "Test send", status: "pending", createdAt: "", expiresAt: "2999-01-01T00:00:00Z" });
     const bob = new MemoryMailboxAdapter(store, B);
-    await expect(bob.decideApproval(B, "approved")).rejects.toThrow(/no pending/);
+    await expect(bob.decideApproval(B, "approved", "a".repeat(64))).rejects.toThrow(/no pending/);
     const alice = new MemoryMailboxAdapter(store, A);
     expect((await alice.pendingApprovals()).map((c) => c.id)).toEqual([B]);
-    expect((await alice.decideApproval(B, "approved")).status).toBe("approved");
-    await expect(alice.decideApproval(B, "rejected")).rejects.toThrow(/no pending/);
+    await expect(alice.decideApproval(B, "approved", "b".repeat(64))).rejects.toThrow(/changed after it was shown/);
+    expect((await alice.decideApproval(B, "approved", "a".repeat(64))).status).toBe("approved");
+    await expect(alice.decideApproval(B, "rejected", "a".repeat(64))).rejects.toThrow(/no pending/);
     expect(store.jobs.at(-1)).toMatchObject({ kind: "approval.resume", payload: { approval_id: B } });
   });
 
@@ -109,7 +111,7 @@ describe("mailbox adapter (memory)", () => {
     await expect(a.sendChat({ conversationId: A, body: "   ", lang: "en" })).rejects.toThrow(/empty/);
     await expect(a.sendChat({ conversationId: A, body: "x".repeat(8001), lang: "en" })).rejects.toThrow(/too long/);
     await expect(a.sendChat({ conversationId: "not-an-id", body: "x", lang: "en" })).rejects.toThrow(/invalid id/);
-    await expect(a.decideApproval("1; drop", "approved")).rejects.toThrow(/invalid id/);
+    await expect(a.decideApproval("1; drop", "approved", "a".repeat(64))).rejects.toThrow(/invalid id/);
   });
 });
 

@@ -68,14 +68,23 @@ export class MemoryMailboxAdapter implements MailboxAdapter {
 
   async pendingApprovals(limit = 10) {
     const me = this.me();
-    return this.store.approvals.filter((a) => a.userId === me && a.status === "pending").slice(0, limit);
+    const now = this.now().getTime();
+    return this.store.approvals
+      .filter((a) => a.userId === me && a.status === "pending" && new Date(a.expiresAt).getTime() > now).slice(0, limit);
   }
 
-  async decideApproval(id: string, decision: "approved" | "rejected") {
+  async decideApproval(id: string, decision: "approved" | "rejected", argsHash: string) {
     const me = this.me();
     const cardId = checkId(id);
     const card = this.store.approvals.find((a) => a.id === cardId && a.userId === me && a.status === "pending");
     if (!card) throw new MailboxError("no pending approval with that id");
+    if (new Date(card.expiresAt).getTime() <= this.now().getTime()) {
+      card.status = "expired";
+      return card;
+    }
+    if (decision === "approved" && (!card.argsHash || card.argsHash !== argsHash)) {
+      throw new MailboxError("the action changed after it was shown; nothing was approved");
+    }
     card.status = decision;
     this.store.jobs.push({ id: this.id(), userId: me, kind: "approval.resume", payload: { approval_id: id },
       conversationId: card.conversationId });

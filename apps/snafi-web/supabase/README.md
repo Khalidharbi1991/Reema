@@ -8,12 +8,14 @@ Code; no Claude Code session has a key that could change the database.
 2. Authentication → Users → Add user → Create new user: your email and a strong
    password, with "Auto Confirm User" ticked.
 3. SQL Editor → New query → paste all of `migrations/0001_mailbox.sql` → Run.
-4. **Step 2:** SQL Editor → New query → paste all of `migrations/0002_step2_brain.sql` → Run.
+4. **Step 2:** SQL Editor → New query → paste all of `migrations/0002_step2_brain.sql` → Run,
+   then the same for `migrations/0003_approvals_once.sql` (approvals bound to the arguments
+   shown, 24-hour expiry, run once).
    Table Editor then shows `jobs`, `messages`, `approvals`, `action_log`, `notes`,
    `reminders`, `facts` and `worker_status`, each with "RLS enabled".
 5. Project Settings → API Keys: the Project URL and the **publishable** key go in
    `apps/snafi-web/.env.local` (see `.env.example`). The **secret** key goes only in
-   the worker's `worker.env` outside the repo (see `src/snafi_worker/README.md`);
+   the worker, stored in Windows Credential Manager by `set_secrets` (see `src/snafi_worker/README.md`);
    never in the web app, which refuses it.
 
 ## What the rules allow

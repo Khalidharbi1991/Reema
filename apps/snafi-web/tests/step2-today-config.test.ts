@@ -57,7 +57,8 @@ describe("prayer times for Jeddah (Umm al-Qura)", () => {
 
 describe("live Today", () => {
   it("has real prayer and dates, marks the rest as samples, and shows real approvals", async () => {
-    const card = { id: "a", conversationId: "c", summary: "Test send", status: "pending" as const, createdAt: "" };
+    const card = { id: "a", conversationId: "c", tool: "send_test_message", args: {}, argsHash: "", summary: "Test send",
+      status: "pending" as const, createdAt: "", expiresAt: "2999-01-01T00:00:00Z" };
     const today = await new LiveTodaySource(async () => [card]).getToday("en", new Date("2026-11-09T11:00:00Z"));
     expect(today.samples).toEqual({ prayer: false, nextEvent: true, tasks: true, cards: true });
     expect(today.nextPrayer).toMatchObject({ key: "asr", time: "15:19" });

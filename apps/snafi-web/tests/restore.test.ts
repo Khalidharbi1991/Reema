@@ -31,9 +31,9 @@ s.insert("notes", {"user_id": owner, "body": "drawings"})
 s.insert("reminders", {"user_id": owner, "body": "renew", "due_at": "2026-11-10T09:00:00+03:00"})
 s.insert("facts", {"user_id": owner, "body": "prefers Arabic"})
 s.upsert("worker_status", {"user_id": owner, "worker_id": "pc", "lanes": {"chat": {"alive": True}}}, "user_id")
-out = backup.run_backup(s, folder, owner, "pc", "Asia/Riyadh", 30)
+out = backup.run_backup(s, folder, owner, "pc", "Asia/Riyadh", 30, signing_key="k" * 64)
 assert out["ok"], out
-(folder / "restore.sql").write_text(restore.to_sql(restore.load(folder / out["file"])), encoding="utf-8")
+(folder / "restore.sql").write_text(restore.to_sql(restore.load(folder / out["file"], "k" * 64)), encoding="utf-8")
 `;
 
 afterAll(() => rmSync(work, { recursive: true, force: true }));

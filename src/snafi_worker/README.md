@@ -15,7 +15,10 @@ back for the app. The plan is `docs/snafi/PRD.md`.
 4. The **honesty check** (`honesty.py`) removes any "done / sent / saved / تم / أرسلت / حفظت"
    the reply has not earned; code adds the real outcome of each action underneath.
 5. Approve or Reject on a card (or Undo on a logged action) queues a follow-up job; after
-   Approve the action runs and Ahmad carries on from the real result.
+   Approve the action runs and Ahmad carries on from the real result. The card shows every
+   argument in full and Approve is bound to their SHA-256; cards expire after 24 hours; an
+   approved action is claimed approved -> executing once and never runs twice, even after a
+   timeout or a database error.
 
 Outside content only ever reaches the brain inside `<data>` blocks, as information.
 
@@ -42,19 +45,24 @@ only `store/` knows the database.
   with each table's row count and SHA-256. The newest 30 days are kept. The result is shown
   in the app's menu. No AI call.
 
-## Secrets: `worker.env`
+## Secrets: Windows Credential Manager
 
-`%APPDATA%\REEMA\snafi-worker\worker.env`, outside the repo, created by Khalid:
+Stored once by Khalid, for his Windows user, with
+`.venv\Scripts\python.exe -m src.snafi_worker.set_secrets`, which asks for each value and
+never shows the keys (`--status` lists which are stored, `--remove` deletes them):
 
-```
-SNAFI_SUPABASE_URL=https://<project>.supabase.co
-SNAFI_SUPABASE_SECRET_KEY=<the secret key, sb_secret_...>
-SNAFI_OWNER_USER_ID=<Khalid's Supabase user id>
-GEMINI_API_KEY=<the Gemini API key>
-```
+| Name | What |
+| --- | --- |
+| `SNAFI_SUPABASE_URL` | the project URL |
+| `SNAFI_SUPABASE_SECRET_KEY` | the secret key (`sb_secret_...`) |
+| `SNAFI_OWNER_USER_ID` | Khalid's Supabase user UID |
+| `GEMINI_API_KEY` | the Gemini API key |
+| `SNAFI_BACKUP_SIGNING_KEY` | made at random by the script; signs every backup |
 
-No Claude Code session or agent may read this file or the backups
-(`.claude/settings.json` deny rules and `.claude/hooks/dev_guard.py`). Keys are sent only in
+Each is a generic credential "REEMA-Snafi:<NAME>", encrypted by Windows (DPAPI) under
+Khalid's login. There is no plain-text secrets file. No Claude Code session or agent may
+read them, the logs or the backups, or run the worker (`.claude/settings.json` deny rules
+and `.claude/hooks/dev_guard.py`; a backstop, not a full guarantee). Keys are sent only in
 request headers and never logged; logs (`%APPDATA%\REEMA\snafi-worker\logs\`) hold job ids
 and status only.
 
@@ -65,7 +73,8 @@ python -m src.snafi_worker --check        # settings and which secrets exist (ne
 python -m src.snafi_worker --once         # answer waiting jobs, then stop
 python -m src.snafi_worker --backup-now
 python -m src.snafi_worker                # run until stopped
-python -m src.snafi_worker.restore BACKUP --verify | --to-sql OUT.sql | --to-database [--map-user OLD=NEW]
+python -m src.snafi_worker.restore BACKUP --verify | --to-sql OUT.sql | --to-database [--map-user OLD=NEW] [--accept-unsigned]
+python -m src.snafi_worker.set_secrets [--status | --remove]
 powershell -ExecutionPolicy Bypass -File src\snafi_worker\install_task.ps1   # start at logon
 ```
 

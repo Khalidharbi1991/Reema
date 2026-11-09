@@ -17,7 +17,8 @@ const labels = (lang: "en" | "ar") => {
   return { menu: t.menu, closeMenu: t.closeMenu, theme: t.theme, dark: t.dark, light: t.light, language: t.language, signOut: t.signOut };
 };
 
-const CARD = { id: "c1", conversationId: "x", summary: "Test send: hello", status: "pending" as const, createdAt: "" };
+const CARD = { id: "c1", conversationId: "x", tool: "send_test_message", args: { text: "Site visit at 4 — الساعة ٤" },
+  argsHash: "a".repeat(64), summary: "Test send: hello", status: "pending" as const, createdAt: "", expiresAt: "2999-01-01T00:00:00Z" };
 const decide = vi.fn(async () => ({ ok: true }));
 const undo = vi.fn(async () => ({ ok: true }));
 const send = vi.fn(async () => ({ error: false, sentAt: 1 }));
@@ -53,7 +54,8 @@ describe("Today screen", () => {
   });
 });
 
-const cardLabels = { approve: "Approve", reject: "Reject", status: messages("en").cardStatus, failed: "That didn't go through." };
+const cardLabels = { approve: "Approve", reject: "Reject", status: messages("en").cardStatus, failed: "That didn't go through.",
+  exactly: "Exactly what will run", expires: messages("en").expires };
 
 describe("approval cards", () => {
   it("send the decision with tap feedback, then show the result instead of buttons", async () => {
@@ -61,7 +63,7 @@ describe("approval cards", () => {
     vi.stubGlobal("navigator", { ...navigator, vibrate });
     render(<ApprovalCard card={CARD} labels={cardLabels} decide={decide} />);
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Approve" })); });
-    expect(decide).toHaveBeenCalledWith("c1", "approved");
+    expect(decide).toHaveBeenCalledWith("c1", "approved", "a".repeat(64));
     expect(vibrate).toHaveBeenCalledWith(12);
     expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
     expect(screen.getByText("Approved, running…")).toBeInTheDocument();
@@ -73,7 +75,7 @@ describe("approval cards", () => {
     const failing = vi.fn(async () => ({ ok: false }));
     render(<ApprovalCard card={CARD} labels={cardLabels} decide={failing} />);
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Reject" })); });
-    expect(failing).toHaveBeenCalledWith("c1", "rejected");
+    expect(failing).toHaveBeenCalledWith("c1", "rejected", "a".repeat(64));
     expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("didn't go through");
   });
