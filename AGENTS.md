@@ -13,13 +13,14 @@ games in separate project repos. Generate, review, revise, development and
 coordination run inside Claude Code; REEMA's own commands make no model call.
 
 Snafi, Khalid's personal assistant web app, is part of REEMA: a Next.js app in
-`apps/snafi-web/` that talks to a Supabase mailbox (messages and jobs) which a REEMA
-worker on the PC will read from step 2. Its plan is `docs/snafi/PRD.md` (source of
-truth). Step 1, the skeleton, is built: sign-in, Today and Chat screens with
-placeholder data, and no model call.
+`apps/snafi-web/` that talks to a Supabase mailbox, and a worker on the PC
+(`src/snafi_worker/`) that picks up its jobs. Its plan is `docs/snafi/PRD.md` (source
+of truth). Steps 1 and 2 are built: sign-in, Today (real Umm al-Qura prayer times and
+Hijri date for Jeddah), Chat with Ahmad's brain, approval cards, the action log with
+Undo, the PC online/offline banner and a daily backup with a tested restore.
 
 Not yet built: patch report PowerPoint (PPTX export), SCCM/Intune export intake, and
-Snafi steps 2–8.
+Snafi steps 3–8.
 
 It is a Python CLI that makes no model call: Claude Code writes the text, and REEMA
 plans, checks, exports and records it. It has no model settings and has not moved
@@ -38,9 +39,22 @@ commands. Change history is in `docs/reports/CHANGELOG.md`.
   behalf unless that person explicitly authorizes approval of those exact
   artifacts. Code-change approval is not document approval. See
   `docs/guides/DATA_HANDLING.md`.
-- REEMA makes no model call. Do not add a model API client, key or paid
-  call back into REEMA unless Khalid explicitly asks for it; model work
-  happens in Claude Code. Tests use stand-in workers only.
+- REEMA makes no model call, with one exception Khalid asked for: the Snafi worker
+  (`src/snafi_worker/`) calls Ahmad's brain, and only through its brain adapter
+  (`src/snafi_worker/brain/`, chosen by `src/snafi_worker/worker.yaml`; today the
+  Gemini API). Do not add any other model API client, key or paid call unless
+  Khalid explicitly asks for it; other model work happens in Claude Code. Tests use
+  stand-in workers and the fake brain only. The no-Anthropic guard stays.
+- Every outside service (brain/model, email, calendar, tasks, files, voice,
+  database, hosting) stays behind its own adapter, chosen by config: the worker's in
+  `src/snafi_worker/` (`worker.yaml`), the web app's in `apps/snafi-web/src/adapters/`
+  (`SNAFI_*_ADAPTER` settings). Switching a provider is a config change plus the new
+  adapter's own file, nothing else.
+- The worker's secrets (`SNAFI_SUPABASE_URL`, `SNAFI_SUPABASE_SECRET_KEY`,
+  `GEMINI_API_KEY`) live only in `%APPDATA%\REEMA\snafi-worker\worker.env`, outside
+  the repo; Snafi's daily backups live in ignored `teams/coordination/snafi-backups/`.
+  No Claude Code session or agent reads either: `.claude/settings.json` denies them
+  and `.claude/hooks/dev_guard.py` blocks commands that name them.
 - Never add API keys, generated documents, logs, local editor settings, or source
   customer documents to Git.
 - Reference material stays in ignored `teams/documentation/input/references/`. Only files explicitly
@@ -421,6 +435,10 @@ records the earlier external requirements as they stood before the no-API migrat
 - `apps/snafi-web/`: the Snafi web app (Next.js, Tailwind, Supabase adapters,
   `supabase/migrations/`). Its offline tests run with `npm test` inside that folder
   (Vitest; the RLS tests run the migration in PGlite). See its README.
+- `src/snafi_worker/`: the Snafi PC worker (brain and store adapters, permission
+  gate, honesty check, tools, approvals, action log and Undo, chat and background
+  lanes, heartbeat, daily backup and restore, Task Scheduler script). Tests in
+  `tests/test_snafi_worker_*.py`. See its README.
 - `docs/guides/RELIABILITY_AND_SOURCES.md`: model and source safeguards.
 
 ## Start here
@@ -451,10 +469,13 @@ records the earlier external requirements as they stood before the no-API migrat
 
 ## Model runtime boundary
 
-REEMA has no model runtime and has not moved to OpenAI or any other provider. Adding
-any model API back is a new feature that needs Khalid's explicit request and must add
-the client, settings, consent, dependencies (regenerated with `uv`), documentation and
-tests together, including the no-API guard. See `docs/migration/CODEX_ADOPTION.md`.
+REEMA's CLI and documentation jobs have no model runtime and have not moved to OpenAI
+or any other provider. The single exception is the Snafi worker's brain adapter
+(`src/snafi_worker/brain/`), which Khalid asked for: it sends text only, with no tools,
+and its provider is chosen in `src/snafi_worker/worker.yaml`. Adding any other model
+API is a new feature that needs Khalid's explicit request and must add the client,
+settings, consent, dependencies (regenerated with `uv`), documentation and tests
+together, including the no-API guard. See `docs/migration/CODEX_ADOPTION.md`.
 
 ## Definition of done
 
