@@ -113,3 +113,6 @@ htmlcov/
 *.tmp
 *.bak
 *.cache
+
+# Snafi worker: prompt text built at deploy time (lives only in the worker copy)
+/src/snafi_worker/ahmad_base.txt
