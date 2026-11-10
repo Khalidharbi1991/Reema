@@ -37,7 +37,7 @@ class Secrets:
     def get(self, name: str) -> str:
         value = self._values.get(name, "")
         if not value:
-            raise ConfigError(f"{name} is not stored yet; run: python -m src.snafi_worker.set_secrets")
+            raise ConfigError(f"{name} is not stored yet; as snafi-worker run: C:\\SnafiWorker\\snafi.cmd set-secrets")
         return value
 
     def has(self, name: str) -> bool:

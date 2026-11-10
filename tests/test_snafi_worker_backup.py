@@ -148,7 +148,7 @@ def test_secrets_never_show_their_values():
     assert secrets.get("GEMINI_API_KEY") == "g-secret-123"
     for shown in (repr(secrets), str(secrets)):
         assert "sb_secret_abc" not in shown and "g-secret" not in shown
-    with pytest.raises(ConfigError, match="set_secrets"):
+    with pytest.raises(ConfigError, match="set-secrets"):
         Secrets({}).get("GEMINI_API_KEY")
 
 

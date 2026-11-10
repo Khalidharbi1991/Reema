@@ -84,10 +84,13 @@ profile or logs. There is no plain-text secrets file.
 
 ## Where it runs
 
-`src/snafi_worker/deploy/deploy.ps1` (admin, by Khalid) copies only this folder to
-`C:\SnafiWorker\app`, builds Ahmad's prompt text (`ahmad_base.txt`), creates
-`C:\SnafiWorker\venv` from machine-wide Python 3.12.10 with exactly pyyaml 6.0.3 and tzdata
-2026.6, and sets permissions: `snafi-worker` may read and run `C:\SnafiWorker` but not change it,
+First Khalid builds Ahmad's prompt text as himself, not as admin
+(`.venv\Scripts\python.exe -m src.snafi_worker.prompt --write src\snafi_worker\ahmad_base.txt`;
+the file is gitignored). Then `src/snafi_worker/deploy/deploy.ps1` (admin, by Khalid) locks
+`C:\SnafiWorker`, refuses if `src/snafi_worker` has uncommitted changes, copies only this folder
+to `C:\SnafiWorker\app` (no REEMA code runs as admin), creates `C:\SnafiWorker\venv` from
+machine-wide Python 3.12.10 with exactly pyyaml 6.0.3 and tzdata 2026.6 as hash-checked wheels
+(`deploy/requirements-worker.txt`), locks the backups folder to `snafi-worker`, and sets permissions: `snafi-worker` may read and run `C:\SnafiWorker` but not change it,
 is denied on `D:\Projects` (and `D:\Antigravity_Projects`), and may write only to the backups
 folder. `deploy/install_task.ps1` (admin) registers the task to start with Windows as
 `snafi-worker`. Re-run the deploy after every worker update.

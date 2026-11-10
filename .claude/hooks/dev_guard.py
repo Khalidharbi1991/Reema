@@ -160,11 +160,27 @@ SNAFI_PRIVATE = (
 )
 
 
+AGY_PROGRAM = re.compile(r"^(?:&\s*)?['\"]?(?:[^\s'\"]*/)?agy(?:\.exe)?['\"]?$")
+
+
+def _runs_agy(text):
+    """A command segment that starts the agy program (it would use Khalid's own Google sign-in)."""
+    for segment in re.split(r"[;&|\n]+|\$\(|`", text):
+        words = segment.strip().split()
+        if words and words[0] in ("&", "call", "start", "exec"):
+            words = words[1:]
+        if words and AGY_PROGRAM.match(words[0]):
+            return True
+    return False
+
+
 def _snafi_reason(command):
     text = command.replace("\\", "/").lower()
     for pattern, what in SNAFI_PRIVATE:
         if re.search(pattern, text):
             return f"Snafi: {what} is never touched by a Claude Code session or agent"
+    if _runs_agy(text):
+        return "Snafi: running agy (the Antigravity CLI) from a Claude Code session or agent is not allowed"
     return None
 
 

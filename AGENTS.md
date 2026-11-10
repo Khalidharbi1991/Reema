@@ -481,8 +481,8 @@ records the earlier external requirements as they stood before the no-API migrat
 
 REEMA's CLI and documentation jobs have no model runtime and have not moved to OpenAI
 or any other provider. The single exception is the Snafi worker's brain adapter
-(`src/snafi_worker/brain/`), which Khalid asked for: it sends text only, with no tools,
-and its provider is chosen in `src/snafi_worker/worker.yaml` (today `agy`: no API key, no
+(`src/snafi_worker/brain/`), which Khalid asked for: the brain only proposes actions as text,
+every tool on the brain's side is denied or absent, and its provider is chosen in `src/snafi_worker/worker.yaml` (today `agy`: no API key, no
 paid credits, every tool denied, any tool that runs pauses the brain). Adding any other model
 API is a new feature that needs Khalid's explicit request and must add the client,
 settings, consent, dependencies (regenerated with `uv`), documentation and tests

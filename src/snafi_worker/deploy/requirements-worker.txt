@@ -1,0 +1,6 @@
+# The Snafi worker's only packages (approved by Khalid), pinned to version AND file hash.
+# Installed by deploy.ps1 with --require-hashes --only-binary=:all: --no-deps.
+pyyaml==6.0.3 \
+    --hash=sha256:5fcd34e47f6e0b794d17de1b4ff496c00986e1c83f7ab2fb8fcfe9616ff7477b
+tzdata==2026.6 \
+    --hash=sha256:0a10eec6e13ef16b627fabed9a5f2ba61a62b1c67f327305f4e7e412a70b4aec

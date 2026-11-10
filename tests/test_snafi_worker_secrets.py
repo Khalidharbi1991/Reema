@@ -98,7 +98,7 @@ def test_setup_refuses_the_publishable_key_and_bad_values():
 
 
 def test_missing_values_stop_the_worker_with_the_setup_command():
-    with pytest.raises(ConfigError, match="python -m src.snafi_worker.set_secrets"):
+    with pytest.raises(ConfigError, match="snafi.cmd set-secrets"):
         Secrets.load(MemoryCredentials()).get("SNAFI_SUPABASE_SECRET_KEY")
 
 
