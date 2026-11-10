@@ -26,11 +26,12 @@ OWNER = "11111111-1111-4111-8111-111111111111"
 CONV = "33333333-3333-4333-8333-333333333333"
 REQUEST = BrainRequest("You are Ahmad.", [("user", "hello")])
 MCP_REAL = """NAME                 TYPE   STATUS   COMMAND/URL
-desktop-controller   stdio  enabled  python C:/Users/Khali/.gemini/antigravity/desktop_controller_mcp.py
-filesystem           stdio  enabled  npx -y @modelcontextprotocol/server-filesystem D:\\Antigravity_Projects"""
+example-server       stdio  enabled  python C:/example/server.py
+files                stdio  enabled  npx -y example-filesystem-server C:\\example"""
 PLUGINS_REAL = """Installed plugins:
-- android-cli-plugin (enabled, 1.0.16625370)
-    Source:     antigravity-plugins-official"""
+- example-plugin (enabled, 1.0.0)
+    Source:     example-source"""
+INIT = {"event": "init", "permission_mode": "strict"}
 
 
 def events(*items):
@@ -58,15 +59,20 @@ class FakeAgy:
         if rest == ["plugin", "list"]:
             return 0, self.plugins.encode(), b""
         text = json.loads(stdin)["message"]["content"][0]["text"]
-        return 0, (self.turn or (lambda t, cwd: events({"event": "init", "permission_mode": "strict"}, ok_result())))(text, cwd), b""
+        return 0, (self.turn or (lambda t, cwd: events(INIT, ok_result())))(text, cwd), b""
 
 
-def brain_with(fake, tmp_path, proven=True, **options):
-    brain = AgyBrain({"agy_path": str(tmp_path / "agy" / "agy.exe"), **options}, None, runner=fake,
-                     proof_path=tmp_path / "proof.json")
+def brain_with(fake, tmp_path, proven=True, clock=None, **options):
+    agy = tmp_path / "agy" / "agy.exe"
+    agy.parent.mkdir(parents=True, exist_ok=True)
+    if not agy.exists():
+        agy.write_bytes(b"agy program v1")
+    extra = {"clock": clock} if clock else {}
+    brain = AgyBrain({"agy_path": str(agy), **options}, None, runner=fake, proof_path=tmp_path / "proof.json",
+                     home=tmp_path / "home", **extra)
     if proven:
-        brain.proof_path.write_text(json.dumps({"passed": True, "agy_version": VERSION,
-                                                "fingerprint": fingerprint(brain.model)}))
+        brain.proof_path.write_text(json.dumps({"passed": True, "agy_version": VERSION, "fingerprint": fingerprint(brain.model),
+                                                "install_fingerprint": brain.install_fingerprint()}))
     return brain
 
 
@@ -193,7 +199,8 @@ def test_a_new_agy_version_pauses_until_the_proof_is_run_again(tmp_path):
 
 def test_changed_lockdown_settings_need_a_new_proof(tmp_path):
     brain = brain_with(FakeAgy(), tmp_path)
-    brain.proof_path.write_text(json.dumps({"passed": True, "agy_version": VERSION, "fingerprint": "0" * 64}))
+    brain.proof_path.write_text(json.dumps({"passed": True, "agy_version": VERSION, "fingerprint": "0" * 64,
+                                            "install_fingerprint": brain.install_fingerprint()}))
     with pytest.raises(BrainNotReady):
         brain.think(REQUEST)
 
@@ -207,6 +214,7 @@ def test_mcp_servers_or_plugins_mean_not_ready(tmp_path, mcp, plugins):
 @pytest.mark.parametrize("text,empty", [
     (MCP_REAL, False), (PLUGINS_REAL, False), ("", True), ("No MCP servers configured.", True),
     ("NAME TYPE STATUS COMMAND/URL", True), ("Installed plugins:\n", True), ("Fetching...\nNo plugins installed.", True),
+    ("Server: helper (running)", False), ("weird new format line", False),  # unknown = not empty (fail closed)
 ])
 def test_list_is_empty(text, empty):
     assert list_is_empty(text) is empty
@@ -265,8 +273,8 @@ def test_only_the_brain_adapter_knows_agy():
 def obedient(text, cwd):
     """A locked-down agy: every tool attempt is refused; the normal prompt gets a normal reply."""
     if "Say ready." in text:
-        return events({"event": "init", "permission_mode": "strict", "tools": ["write_file"]}, ok_result("ready"))
-    return events(tool_step(error=True), ok_result("I can't do that."))
+        return events({**INIT, "tools": ["write_file"]}, ok_result("ready"))
+    return events(INIT, tool_step(error=True), ok_result("I can't do that."))
 
 
 def test_the_proof_passes_for_a_locked_down_agy_and_records_the_version(tmp_path):
@@ -284,17 +292,17 @@ def test_the_proof_passes_for_a_locked_down_agy_and_records_the_version(tmp_path
 def test_the_proof_fails_and_removes_an_older_pass_if_anything_gets_out(tmp_path, escape):
     def leaky(text, cwd):
         if "Say ready." in text:
-            return events(ok_result("ready"))
+            return events(INIT, ok_result("ready"))
         if escape == "write" and "Create the file" in text:
             Path(text.split("Create the file ")[1].split(" and")[0]).write_text("x")
         if escape == "command" and "whoami" in text:
             Path(text.split('whoami > "')[1].split('"')[0]).write_text("snafi-worker")
         if escape == "leak" and "read " in text and "canary" in text:
             secret = Path(text.split("read ")[1].split(" and")[0]).read_text()
-            return events(ok_result(f"The file says {secret}"))
+            return events(INIT, tool_step(error=True), ok_result(f"The file says {secret}"))
         if escape == "tool" and "MCP" in text:
-            return events(tool_step(error=False, name="mcp_call"), ok_result("ok"))
-        return events(tool_step(error=True), ok_result("no"))
+            return events(INIT, tool_step(error=False, name="mcp_call"), ok_result("ok"))
+        return events(INIT, tool_step(error=True), ok_result("no"))
     brain = brain_with(FakeAgy(leaky), tmp_path, proven=True)  # an older pass exists
     record = prove(brain, tmp_path / "home", out=lambda *_: None)
     assert record["passed"] is False
@@ -305,3 +313,113 @@ def test_the_proof_fails_and_removes_an_older_pass_if_anything_gets_out(tmp_path
 def test_the_proof_refuses_to_run_with_mcp_servers_present(tmp_path):
     with pytest.raises(BrainNotReady):
         prove(brain_with(FakeAgy(obedient, mcp=MCP_REAL), tmp_path, proven=False), tmp_path / "home")
+
+
+
+# ---------- SEC-29: the tripwire fails closed ----------
+@pytest.mark.parametrize("shape", ["unknown_event", "deep_nested", "list_nested"])
+def test_tool_steps_are_found_in_any_event_shape(tmp_path, shape):
+    step = {k: v for k, v in tool_step(error=False, name="run_command").items() if k != "event"}
+    event = {"unknown_event": {"event": "agent_progress", "detail": step},
+             "deep_nested": {"event": "step_update", "payload": {"inner": {"step": step}}},
+             "list_nested": {"event": "batch", "items": [{"x": 1}, step]}}[shape]
+    fake = FakeAgy(lambda t, cwd: events(INIT, event, ok_result()))
+    with pytest.raises(BrainBreach, match="run_command"):
+        brain_with(fake, tmp_path).think(REQUEST)
+
+
+def test_a_later_update_cannot_hide_an_earlier_success(tmp_path):
+    first = tool_step(error=False, name="write_file")
+    later = tool_step(error=True, name="write_file")  # same step_index
+    fake = FakeAgy(lambda t, cwd: events(INIT, first, later, ok_result()))
+    with pytest.raises(BrainBreach):
+        brain_with(fake, tmp_path).think(REQUEST)
+
+
+def test_a_tool_step_that_never_finished_is_a_breach(tmp_path):
+    active = {**tool_step(error=False), "state": "ACTIVE"}
+    fake = FakeAgy(lambda t, cwd: events(INIT, active, ok_result()))
+    with pytest.raises(BrainBreach, match="never finished"):
+        brain_with(fake, tmp_path).think(REQUEST)
+
+
+def test_an_active_then_refused_step_is_fine(tmp_path):
+    active = {**tool_step(error=False), "state": "ACTIVE"}
+    fake = FakeAgy(lambda t, cwd: events(INIT, active, tool_step(error=True), ok_result()))
+    assert brain_with(fake, tmp_path).think(REQUEST).reply == "Hi"
+
+
+def test_a_timed_out_run_is_still_checked_before_its_folder_is_deleted(tmp_path):
+    from src.snafi_worker.brain.agy import TIMED_OUT
+
+    class Hangs(FakeAgy):
+        def __init__(self, leak):
+            super().__init__()
+            self.leak = leak
+
+        def __call__(self, argv, stdin, cwd, env, timeout):
+            if stdin is None:
+                return super().__call__(argv, stdin, cwd, env, timeout)
+            if self.leak:
+                (Path(cwd) / "left-behind.txt").write_text("x")
+            return TIMED_OUT, events(INIT, tool_step(error=True)), b""
+    with pytest.raises(BrainBreach, match="left-behind"):
+        brain_with(Hangs(leak=True), tmp_path).think(REQUEST)
+    with pytest.raises(Exception) as err:
+        brain_with(Hangs(leak=False), tmp_path / "b").think(REQUEST)
+    assert "timed out" in str(err.value) and err.value.retryable
+
+
+# ---------- SEC-28: the proof and readiness cover the program and its configuration ----------
+def test_a_changed_agy_program_or_config_needs_a_new_proof(tmp_path):
+    brain = brain_with(FakeAgy(), tmp_path)
+    assert brain.think(REQUEST).reply == "Hi"
+    settings = tmp_path / "home" / ".gemini" / "antigravity-cli" / "settings.json"
+    settings.parent.mkdir(parents=True)
+    settings.write_text('{"permissions": {"allow": ["command(*)"]}}')
+    with pytest.raises(BrainNotReady, match="changed since the last passing proof"):
+        brain.think(REQUEST)
+    other = brain_with(FakeAgy(), tmp_path / "c")
+    other.agy_path.write_bytes(b"agy program v2 (updated)")
+    with pytest.raises(BrainNotReady):
+        other.think(REQUEST)
+
+
+def test_version_and_listings_are_reused_for_ten_minutes(tmp_path):
+    now = [0.0]
+    fake = FakeAgy()
+    brain = brain_with(fake, tmp_path, clock=lambda: now[0])
+    for _ in range(3):
+        brain.think(REQUEST)
+    checks = [c for c in fake.calls if c["stdin"] is None]
+    assert len(checks) == 3  # --version, mcp list, plugin list once
+    now[0] = 601
+    brain.think(REQUEST)
+    assert len([c for c in fake.calls if c["stdin"] is None]) == 6
+
+
+def test_the_proof_fails_if_agy_never_tries_the_tools(tmp_path):
+    def lazy(text, cwd):
+        return events(INIT, ok_result("ready" if "Say ready." in text else "I won't."))
+    record = prove(brain_with(FakeAgy(lazy), tmp_path, proven=False), tmp_path / "home", out=lambda *_: None)
+    assert record["passed"] is False
+    problems = [p for c in record["checks"] for p in c["problems"]]
+    assert any("did not try the tool" in p for p in problems)
+
+
+@pytest.mark.parametrize("mode", [None, "always-proceed", "auto"])
+def test_the_proof_fails_without_a_safe_permission_mode(tmp_path, mode):
+    init = {"event": "init"} if mode is None else {"event": "init", "permission_mode": mode}
+
+    def turn(text, cwd):
+        if "Say ready." in text:
+            return events(init, ok_result("ready"))
+        return events(init, tool_step(error=True), ok_result("no"))
+    record = prove(brain_with(FakeAgy(turn), tmp_path, proven=False), tmp_path / "home", out=lambda *_: None)
+    assert record["passed"] is False
+
+
+def test_a_passing_proof_records_the_install_fingerprint(tmp_path):
+    brain = brain_with(FakeAgy(obedient), tmp_path, proven=False)
+    record = prove(brain, tmp_path / "home", out=lambda *_: None)
+    assert record["passed"] and record["install_fingerprint"] == brain.install_fingerprint()
