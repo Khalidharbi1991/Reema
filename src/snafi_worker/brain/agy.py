@@ -220,7 +220,7 @@ def transcript(request: BrainRequest) -> str:
 
 EMPTY_LINES = re.compile(
     r"^(name\s+type\s+status(\s+command/url)?|installed plugins:?|no (mcp )?(servers?|plugins?)\b.*"
-    r"|fetching\b.*|no mcp servers configured\.?)$")
+    r"|fetching( [a-z]+)*\.\.\.|no mcp servers configured\.?)$")
 
 
 def list_is_empty(output: str) -> bool:

@@ -43,6 +43,16 @@ def test_deploy_runs_no_repo_code_as_admin_and_locks_before_copying():
     assert 'icacls (Join-Path $Target "*") /reset /T /Q' in s and "icacls $Target /reset" not in s
 
 
+def test_deploy_sets_admin_owners_and_rebuilds_the_venv():
+    s = text("deploy.ps1")
+    assert 'icacls $Target /setowner "*S-1-5-32-544" /T /C /Q' in s
+    assert 'icacls $Backups /setowner "*S-1-5-32-544" /T /C /Q' in s
+    assert s.index("icacls $Backups /setowner") < s.index("icacls $Backups /inheritance:r")
+    assert "if (Test-Path $venv) { Remove-Item -Recurse -Force $venv }" in s
+    assert s.index("Remove-Item -Recurse -Force $venv") < s.index("pip install")
+    assert 'Stop-ScheduledTask -TaskName "Snafi Worker"' in s
+
+
 def test_deploy_keeps_the_worker_out_of_khalids_folders():
     s = text("deploy.ps1")
     assert '[string[]]$DenyFolders = @("D:\\Projects", "D:\\Antigravity_Projects")' in s

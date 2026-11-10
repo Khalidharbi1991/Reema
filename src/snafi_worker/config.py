@@ -1,7 +1,8 @@
 """Worker settings (worker.yaml, in the repo) and secrets (Windows Credential Manager).
 
-Secrets are stored once by Khalid with `python -m src.snafi_worker.set_secrets`, as
-"REEMA-Snafi:<NAME>" credentials for his Windows user, encrypted by Windows (DPAPI). There
+Secrets are stored once by Khalid, as the snafi-worker Windows user, with
+`C:\\SnafiWorker\\snafi.cmd set-secrets`, as "REEMA-Snafi:<NAME>" credentials for that user,
+encrypted by Windows (DPAPI). There
 is no plain-text secrets file (SEC-14). Secrets are never logged and never printed: the
 Secrets object hides its values in repr and str.
 """

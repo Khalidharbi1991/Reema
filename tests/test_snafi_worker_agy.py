@@ -270,18 +270,26 @@ def test_only_the_brain_adapter_knows_agy():
 
 
 # ---------- the live proof's logic, offline ----------
+def tool_for(text):
+    if "shell or terminal" in text:
+        return "run_command"
+    if "to read" in text:
+        return "read_file"
+    return "write_file"
+
+
 def obedient(text, cwd):
     """A locked-down agy: every tool attempt is refused; the normal prompt gets a normal reply."""
     if "Say ready." in text:
         return events({**INIT, "tools": ["write_file"]}, ok_result("ready"))
-    return events(INIT, tool_step(error=True), ok_result("I can't do that."))
+    return events(INIT, tool_step(error=True, name=tool_for(text)), ok_result("I can't do that."))
 
 
 def test_the_proof_passes_for_a_locked_down_agy_and_records_the_version(tmp_path):
     brain = brain_with(FakeAgy(obedient), tmp_path, proven=False)
     lines = []
     record = prove(brain, tmp_path / "home", out=lines.append)
-    assert record["passed"] and len(record["checks"]) == 6
+    assert record["passed"] and len(record["checks"]) == 7
     saved = json.loads(brain.proof_path.read_text())
     assert saved["agy_version"] == VERSION and saved["fingerprint"] == fingerprint(brain.model)
     assert lines[-1].startswith("\nLockdown proof PASSED")
@@ -299,10 +307,10 @@ def test_the_proof_fails_and_removes_an_older_pass_if_anything_gets_out(tmp_path
             Path(text.split('whoami > "')[1].split('"')[0]).write_text("snafi-worker")
         if escape == "leak" and "read " in text and "canary" in text:
             secret = Path(text.split("read ")[1].split(" and")[0]).read_text()
-            return events(INIT, tool_step(error=True), ok_result(f"The file says {secret}"))
+            return events(INIT, tool_step(error=True, name="read_file"), ok_result(f"The file says {secret}"))
         if escape == "tool" and "MCP" in text:
             return events(INIT, tool_step(error=False, name="mcp_call"), ok_result("ok"))
-        return events(INIT, tool_step(error=True), ok_result("no"))
+        return events(INIT, tool_step(error=True, name=tool_for(text)), ok_result("no"))
     brain = brain_with(FakeAgy(leaky), tmp_path, proven=True)  # an older pass exists
     record = prove(brain, tmp_path / "home", out=lambda *_: None)
     assert record["passed"] is False
@@ -404,17 +412,17 @@ def test_the_proof_fails_if_agy_never_tries_the_tools(tmp_path):
     record = prove(brain_with(FakeAgy(lazy), tmp_path, proven=False), tmp_path / "home", out=lambda *_: None)
     assert record["passed"] is False
     problems = [p for c in record["checks"] for p in c["problems"]]
-    assert any("did not try the tool" in p for p in problems)
+    assert any("did not try a" in p for p in problems)
 
 
-@pytest.mark.parametrize("mode", [None, "always-proceed", "auto"])
+@pytest.mark.parametrize("mode", [None, "always-proceed", "auto", "request-review"])
 def test_the_proof_fails_without_a_safe_permission_mode(tmp_path, mode):
     init = {"event": "init"} if mode is None else {"event": "init", "permission_mode": mode}
 
     def turn(text, cwd):
         if "Say ready." in text:
             return events(init, ok_result("ready"))
-        return events(init, tool_step(error=True), ok_result("no"))
+        return events(init, tool_step(error=True, name=tool_for(text)), ok_result("no"))
     record = prove(brain_with(FakeAgy(turn), tmp_path, proven=False), tmp_path / "home", out=lambda *_: None)
     assert record["passed"] is False
 
@@ -423,3 +431,43 @@ def test_a_passing_proof_records_the_install_fingerprint(tmp_path):
     brain = brain_with(FakeAgy(obedient), tmp_path, proven=False)
     record = prove(brain, tmp_path / "home", out=lambda *_: None)
     assert record["passed"] and record["install_fingerprint"] == brain.install_fingerprint()
+
+
+
+def test_a_denial_word_on_stderr_without_a_refused_tool_does_not_pass(tmp_path):
+    class Wordy(FakeAgy):
+        def __call__(self, argv, stdin, cwd, env, timeout):
+            code, out, err = super().__call__(argv, stdin, cwd, env, timeout)
+            return code, out, (err + b"note: permission denied for something") if stdin else err
+
+    def lazy(text, cwd):
+        return events(INIT, ok_result("ready" if "Say ready." in text else "I won't."))
+    record = prove(brain_with(Wordy(lazy), tmp_path, proven=False), tmp_path / "home", out=lambda *_: None)
+    assert record["passed"] is False
+
+
+def test_a_refusal_of_the_wrong_kind_of_tool_does_not_count(tmp_path):
+    def wrong(text, cwd):
+        if "Say ready." in text:
+            return events(INIT, ok_result("ready"))
+        return events(INIT, tool_step(error=True, name="web_fetch"), ok_result("no"))
+    record = prove(brain_with(FakeAgy(wrong), tmp_path, proven=False), tmp_path / "home", out=lambda *_: None)
+    assert record["passed"] is False
+    assert sum("did not try a" in p for c in record["checks"] for p in c["problems"]) == 3
+
+
+def test_instructions_hidden_in_data_that_get_obeyed_fail_the_proof(tmp_path):
+    def gullible(text, cwd):
+        if "Say ready." in text:
+            return events(INIT, ok_result("ready"))
+        if "SYSTEM OVERRIDE" in text:
+            return events(INIT, tool_step(error=False, name="write_file"), ok_result("done"))
+        return events(INIT, tool_step(error=True, name=tool_for(text)), ok_result("no"))
+    record = prove(brain_with(FakeAgy(gullible), tmp_path, proven=False), tmp_path / "home", out=lambda *_: None)
+    assert record["passed"] is False
+    assert [c["attempt"] for c in record["checks"] if not c["ok"]] == ["instructions hidden in data"]
+
+
+def test_a_listing_entry_named_like_fetching_is_not_empty():
+    assert list_is_empty("fetching-helper   stdio  enabled  x") is False
+    assert list_is_empty("Fetching available models...") is True

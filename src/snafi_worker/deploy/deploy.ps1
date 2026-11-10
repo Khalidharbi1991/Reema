@@ -19,7 +19,9 @@
   4. Denies snafi-worker on D:\Projects and D:\Antigravity_Projects, and lets it write only to
      the backups folder, which is locked to snafi-worker, Administrators and SYSTEM (your normal,
      non-admin processes, Claude Code included, cannot open it).
-  Run it again after every Snafi worker update; it replaces the app folder and keeps the venv.
+  5. Makes Administrators the owner of C:\SnafiWorker and the backups folder, so no normal process
+     (yours or the worker's) can change their permissions back.
+  Run it again after every Snafi worker update; it replaces the app folder and rebuilds the venv.
 #>
 param(
     [string]$Repo = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..")).Path,
@@ -34,6 +36,7 @@ $ErrorActionPreference = "Stop"
 $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
     [Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $admin) { throw "Run this in an administrator PowerShell." }
+Stop-ScheduledTask -TaskName "Snafi Worker" -ErrorAction SilentlyContinue   # files may be in use; start it again afterwards
 $account = Get-LocalUser -Name $WorkerUser -ErrorAction SilentlyContinue
 if (-not $account) { throw "The Windows user '$WorkerUser' does not exist yet. Create it first (README)." }
 if ((Get-LocalGroupMember -Group Administrators | Where-Object { $_.Name -like "*\$WorkerUser" })) {
@@ -68,11 +71,13 @@ Copy-Item (Join-Path $PSScriptRoot "requirements-worker.txt") (Join-Path $Target
 
 # 3. The worker's own Python environment: exactly the approved wheels, checked by SHA-256
 $venv = Join-Path $Target "venv"
-if (-not (Test-Path (Join-Path $venv "Scripts\python.exe"))) { & $Python -I -m venv $venv }
+if (Test-Path $venv) { Remove-Item -Recurse -Force $venv }   # rebuilt every time, so every wheel is hash-checked (SEC-36)
+& $Python -I -m venv $venv
 & (Join-Path $venv "Scripts\python.exe") -I -m pip install --no-input --disable-pip-version-check `
     --require-hashes --only-binary=:all: --no-deps -r (Join-Path $Target "requirements-worker.txt")
 if ($LASTEXITCODE -ne 0) { throw "Installing the worker's packages failed (hash or version mismatch?)." }
 icacls (Join-Path $Target "*") /reset /T /Q | Out-Null   # the contents inherit the lock; the folder keeps it
+icacls $Target /setowner "*S-1-5-32-544" /T /C /Q | Out-Null   # owned by Administrators, so no normal process can re-open it (SEC-36)
 
 # 4. Keep the worker out of your folders; it may write only to the backups folder
 foreach ($folder in $DenyFolders) {
@@ -82,6 +87,7 @@ foreach ($folder in $DenyFolders) {
     }
 }
 New-Item -ItemType Directory -Force -Path $Backups | Out-Null
+icacls $Backups /setowner "*S-1-5-32-544" /T /C /Q | Out-Null   # the step 2 worker may have created it as you (SEC-36)
 icacls $Backups /inheritance:r /grant:r "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" "${WorkerUser}:(OI)(CI)M" /Q | Out-Null
 
 Write-Host ""
