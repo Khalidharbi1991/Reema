@@ -22,7 +22,7 @@ from .backup import BackupScheduler, run_backup
 from .config import ConfigError, Secrets, Settings, worker_data_dir
 from .engine import Engine
 from .runner import Heartbeat, Lane, run_job
-from .services import build
+from .services import PAUSE_FILE, build, guarded_brain
 
 UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
@@ -51,12 +51,18 @@ def main(argv=None) -> int:
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--backup-now", action="store_true")
+    parser.add_argument("--reset-brain", action="store_true", help="clear a safety pause after you have looked")
     args = parser.parse_args(argv)
+    if args.reset_brain:
+        from .brain.pause import PauseFile
+        cleared = PauseFile(worker_data_dir() / PAUSE_FILE).clear()
+        print("Brain pause cleared." if cleared else "The brain was not paused.")
+        return 0
     try:
         settings, secrets = Settings.load(), Secrets.load()
         owner_id = owner(secrets)
         secrets.get("SNAFI_BACKUP_SIGNING_KEY")  # backups are signed (SEC-17)
-        store, brain = build("store", settings, secrets), build("brain", settings, secrets)
+        store, brain = build("store", settings, secrets), guarded_brain(settings, secrets)
     except ConfigError as exc:
         print(f"Snafi worker not started: {exc}", file=sys.stderr)
         return 2

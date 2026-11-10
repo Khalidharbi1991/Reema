@@ -163,7 +163,7 @@ def test_settings_point_backups_at_the_ignored_team_folder():
     s = Settings.load()
     assert s.backup_folder.as_posix().endswith("teams/coordination/snafi-backups")
     assert s.backup_keep_days == 30 and s.backup_time == "03:30" and s.time_zone == "Asia/Riyadh"
-    assert s.lanes["chat"].timeout_seconds == 90 and s.lanes["chat"].retry_delay_seconds == 5
+    assert s.lanes["chat"].timeout_seconds == 120 and s.lanes["chat"].retry_delay_seconds == 5
     assert s.lanes["background"].timeout_seconds == 600 and s.heartbeat_seconds == 15
 
 

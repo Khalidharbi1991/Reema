@@ -35,6 +35,8 @@ EXPIRED = {"en": "This approval expired before it was decided. Nothing was done:
 MISMATCH = {"en": "Not done: the action no longer matches what you approved: {s}",
             "ar": "لم يُنفَّذ: الإجراء لم يعد مطابقاً لما وافقت عليه: {s}"}
 UNDONE = {"en": "Undone: {s}", "ar": "تم التراجع: {s}"}
+PAUSED = {"en": "I'm paused for a safety check, so I can't answer right now. Nothing was done.",
+          "ar": "أنا متوقف مؤقتاً لفحص أمان، لذا لا أستطيع الرد الآن. لم يُنفَّذ شيء."}
 SORRY = {"en": "Sorry, I couldn't answer this time. Please try again in a moment.",
          "ar": "عذراً، لم أتمكن من الرد هذه المرة. حاول مرة أخرى بعد قليل."}
 
@@ -159,6 +161,9 @@ class Engine:
         try:
             reply = self.brain.think(request)
         except BrainError as exc:
+            if getattr(exc, "paused", False):  # breach or not ready: say so, run nothing, do not retry
+                self._post(job, lang, reply=PAUSED[lang], kind="paused")
+                return {"paused": True}
             raise JobError(str(exc), retryable=exc.retryable) from None
 
         lines, succeeded, action_ids, approvals = [], [], [], []

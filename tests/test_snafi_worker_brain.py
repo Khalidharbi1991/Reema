@@ -108,19 +108,19 @@ def test_malformed_brain_json_is_retryable():
 
 def test_switching_brains_is_one_setting():
     secrets = Secrets({"GEMINI_API_KEY": KEY})
-    real = Settings.load()
+    gemini = Settings.load(overrides={"brain.provider": "gemini_api"})
     fake = Settings.load(overrides={"brain.provider": "fake"})
-    assert real.brain_provider == "gemini_api" and fake.brain_provider == "fake"
-    assert isinstance(services.build("brain", real, secrets), GeminiApiBrain)
+    assert Settings.load().brain_provider == "agy"  # the configured brain; gemini_api is switched off
+    assert isinstance(services.build("brain", gemini, secrets), GeminiApiBrain)
     assert isinstance(services.build("brain", fake, Secrets({})), FakeBrain)
-    assert set(registry.providers("brain")) >= {"gemini_api", "fake"}
+    assert set(registry.providers("brain")) >= {"agy", "gemini_api", "fake"}
 
 
 def test_unknown_brain_and_missing_key_fail_clearly():
-    with pytest.raises(registry.UnknownProvider, match="known: fake, gemini_api"):
+    with pytest.raises(registry.UnknownProvider, match="known: agy, fake, gemini_api"):
         services.build("brain", Settings.load(overrides={"brain.provider": "nope"}), Secrets({}))
     with pytest.raises(Exception, match="GEMINI_API_KEY is not stored"):
-        services.build("brain", Settings.load(), Secrets({}))
+        services.build("brain", Settings.load(overrides={"brain.provider": "gemini_api"}), Secrets({}))
 
 
 def test_no_file_outside_the_brain_adapter_knows_the_brain():
