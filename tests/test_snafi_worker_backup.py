@@ -193,9 +193,5 @@ def test_store_sends_the_key_only_in_headers():
         store.select("notes; drop table x")
 
 
-def test_task_script_runs_hidden_at_logon_without_elevation():
-    script = (WORKER / "install_task.ps1").read_text(encoding="utf-8")
-    for needed in ("-AtLogOn", "pythonw.exe", "-m src.snafi_worker", "-RunLevel Limited", "-LogonType Interactive",
-                   "-RestartCount 999", "-MultipleInstances IgnoreNew"):
-        assert needed in script
-    assert "-RunLevel Highest" not in script and "Password" not in script
+def test_the_old_task_script_is_gone():
+    assert not (WORKER / "install_task.ps1").exists()  # replaced by deploy/install_task.ps1 for snafi-worker

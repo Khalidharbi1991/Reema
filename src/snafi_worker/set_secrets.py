@@ -1,5 +1,5 @@
 """One-time setup: asks Khalid for each Snafi worker setting and stores it in Windows
-Credential Manager for his Windows user. Keys are typed without being shown (getpass) and
+Credential Manager for the Windows user that runs it (snafi-worker). Keys are typed without being shown (getpass) and
 are never printed, logged or written to a file. Run it yourself, in a normal PowerShell
 window, from the repo folder:
 
@@ -88,8 +88,17 @@ def ask(store, name, label, check, hidden, prompt=getpass.getpass, plain=input, 
     return False
 
 
-def run(store, prompt=getpass.getpass, plain=input, out=print) -> int:
-    ok = all([ask(store, n, label, check, hidden, prompt, plain, out) for n, label, check, hidden in QUESTIONS])
+def questions(brain_provider: str):
+    """Only what the configured services need: no Gemini key unless the gemini_api brain is chosen."""
+    return [q for q in QUESTIONS if q[0] != "GEMINI_API_KEY" or brain_provider == "gemini_api"]
+
+
+def run(store, prompt=getpass.getpass, plain=input, out=print, brain_provider: str = "") -> int:
+    if not brain_provider:
+        from .config import Settings
+        brain_provider = Settings.load().brain_provider
+    ok = all([ask(store, n, label, check, hidden, prompt, plain, out)
+              for n, label, check, hidden in questions(brain_provider)])
     if store.read("SNAFI_BACKUP_SIGNING_KEY") is None:
         store.write("SNAFI_BACKUP_SIGNING_KEY", secrets.token_hex(32))
         out("  made SNAFI_BACKUP_SIGNING_KEY (random, never shown)")

@@ -60,7 +60,8 @@ def test_setup_stores_each_value_hidden_and_never_prints_keys():
     def hidden(prompt):
         hidden_prompts.append(prompt)
         return {0: secret, 1: gemini}[len(hidden_prompts) - 1]
-    code = run(creds, prompt=hidden, plain=answers("https://abcd.supabase.co/", OWNER.upper()), out=printed.append)
+    code = run(creds, prompt=hidden, plain=answers("https://abcd.supabase.co/", OWNER.upper()), out=printed.append,
+               brain_provider="gemini_api")
     assert code == 0
     assert creds.values["SNAFI_SUPABASE_URL"] == "https://abcd.supabase.co"
     assert creds.values["SNAFI_SUPABASE_SECRET_KEY"] == secret and creds.values["GEMINI_API_KEY"] == gemini
@@ -73,7 +74,7 @@ def test_setup_stores_each_value_hidden_and_never_prints_keys():
 
 def test_setup_keeps_stored_values_on_enter_and_keeps_the_signing_key():
     creds = MemoryCredentials({n: "old" for n in NAMES})
-    assert run(creds, prompt=answers("", ""), plain=answers("", ""), out=lambda *_: None) == 0
+    assert run(creds, prompt=answers("", ""), plain=answers("", ""), out=lambda *_: None, brain_provider="gemini_api") == 0
     assert all(creds.values[n] == "old" for n in NAMES)
 
 
@@ -92,7 +93,7 @@ def test_setup_refuses_the_publishable_key_and_bad_values():
         check_gemini("has spaces in it")
     creds, printed = MemoryCredentials(), []
     run(creds, prompt=answers("sb_publishable_x", "sb_publishable_x", "sb_publishable_x", "AIza" + "y" * 35),
-        plain=answers("https://a.supabase.co", OWNER), out=printed.append)
+        plain=answers("https://a.supabase.co", OWNER), out=printed.append, brain_provider="gemini_api")
     assert "SNAFI_SUPABASE_SECRET_KEY" not in creds.values and printed[-1].startswith("Some values were not stored")
 
 
@@ -150,3 +151,15 @@ def test_backups_need_a_signing_key_and_at_least_one_day(tmp_path):
     assert backup.run_backup(MemoryStore(), tmp_path, OWNER, "pc", "Asia/Riyadh", 30, signing_key="")["ok"] is False
     with pytest.raises(ValueError):
         backup.run_backup(MemoryStore(), tmp_path, OWNER, "pc", "Asia/Riyadh", 0, signing_key=KEY)
+
+
+def test_with_the_agy_brain_no_gemini_key_is_ever_asked_for():
+    creds, hidden_prompts = MemoryCredentials(), []
+
+    def hidden(prompt):
+        hidden_prompts.append(prompt)
+        return "sb_secret_" + "x" * 30
+    assert run(creds, prompt=hidden, plain=answers("https://abcd.supabase.co", OWNER), out=lambda *_: None,
+               brain_provider="agy") == 0
+    assert len(hidden_prompts) == 1 and "Supabase" in hidden_prompts[0]
+    assert "GEMINI_API_KEY" not in creds.values
