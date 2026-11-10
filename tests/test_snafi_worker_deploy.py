@@ -57,7 +57,7 @@ def test_deploy_keeps_the_worker_out_of_khalids_folders():
     s = text("deploy.ps1")
     assert '[string[]]$DenyFolders = @("D:\\Projects", "D:\\Antigravity_Projects")' in s
     assert 'icacls $folder /deny "${WorkerUser}:(OI)(CI)F"' in s
-    backups = [line for line in s.splitlines() if line.startswith("icacls $Backups")][0]
+    backups = [line for line in s.splitlines() if line.startswith("icacls $Backups /inheritance:r")][0]
     assert "/inheritance:r" in backups and '"${WorkerUser}:(OI)(CI)M"' in backups and "${me}" not in backups
     assert '/inheritance:r /grant:r' in s and '"${WorkerUser}:(OI)(CI)RX"' in s  # cannot change its own code
     assert "must NOT be an administrator" in s and "Run this in an administrator PowerShell" in s
