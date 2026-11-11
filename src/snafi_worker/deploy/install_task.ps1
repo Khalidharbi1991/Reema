@@ -21,7 +21,7 @@ if ($Remove) {
     Write-Host "Removed the '$TaskName' task."
     return
 }
-$Pythonw = Join-Path $Target "venv\Scripts\pythonw.exe"
+$Pythonw = Join-Path $Target "python\tools\pythonw.exe"   # the worker's own private Python
 $Launcher = Join-Path $Target "app\snafi.py"
 if (-not (Test-Path $Pythonw) -or -not (Test-Path $Launcher)) { throw "Run deploy.ps1 first ($Target is not ready)." }
 

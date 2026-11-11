@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
-  Builds C:\SnafiWorker (the Snafi worker's own copy) and sets folder permissions for the
-  snafi-worker Windows user.
+  Builds C:\SnafiWorker (the Snafi worker's own copy, with its own private Python) and sets
+  folder permissions for the snafi-worker Windows user.
 
   First, as YOURSELF in a normal (not admin) PowerShell from the repo folder, build Ahmad's
   prompt text (this runs REEMA's own Python, so it must not run as administrator):
@@ -14,24 +14,34 @@
      run only, so the worker cannot change its own code.
   2. Refuses if src\snafi_worker has uncommitted changes, then copies only that folder (with the
      prompt text you built) and the launcher. No REEMA code runs as administrator (SEC-30).
-  3. Creates C:\SnafiWorker\venv from machine-wide Python 3.12.10 and installs exactly pyyaml
-     6.0.3 and tzdata 2026.6, as wheels whose SHA-256 must match requirements-worker.txt.
+  3. Gives the worker its own private Python 3.12.10: python.org's official NuGet package (a zip,
+     no installer), downloaded into the locked folder, checked against its pinned SHA-256 (which
+     matches the SHA-512 nuget.org publishes for it), and unpacked fresh into C:\SnafiWorker\python.
+     It does not touch, need or conflict with any other Python on this PC. Then installs exactly
+     pyyaml 6.0.3 and tzdata 2026.6 into it, as wheels whose SHA-256 must match
+     requirements-worker.txt.
   4. Denies snafi-worker on D:\Projects and D:\Antigravity_Projects, and lets it write only to
      the backups folder, which is locked to snafi-worker, Administrators and SYSTEM (your normal,
      non-admin processes, Claude Code included, cannot open it).
   5. Makes Administrators the owner of C:\SnafiWorker and the backups folder, so no normal process
      (yours or the worker's) can change their permissions back.
-  Run it again after every Snafi worker update; it replaces the app folder and rebuilds the venv.
+  Run it again after every Snafi worker update; it replaces the app folder and unpacks a fresh Python.
 #>
 param(
     [string]$Repo = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..")).Path,
     [string]$Target = "C:\SnafiWorker",
     [string]$WorkerUser = "snafi-worker",
-    [string]$Python = "C:\Program Files\Python312\python.exe",
     [string[]]$DenyFolders = @("D:\Projects", "D:\Antigravity_Projects"),
     [string]$Backups = "D:\Projects\IT Consultant\teams\coordination\snafi-backups"
 )
 $ErrorActionPreference = "Stop"
+
+# python.org's official NuGet package of Python 3.12.10 (Python Software Foundation).
+# SHA-256 of the .nupkg, checked on every deploy. nuget.org publishes this package's SHA-512 as
+# u9pNz2iKlCEbYtUJaKkbOPMF0LjR7NkCafdKhvigpPzrt8oWKgdTpHaR6z3wyWQAm9PYGUxv0Zr66NX9AeHMDw== (checked when pinned).
+$PythonVersion = "3.12.10"
+$PythonUrl = "https://www.nuget.org/api/v2/package/python/3.12.10"
+$PythonSha256 = "0eb85c2dfccccf1b17352de4c397f69194035b7d37149eacc16f1147d93de3b8"
 
 $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
     [Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -42,9 +52,6 @@ if (-not $account) { throw "The Windows user '$WorkerUser' does not exist yet. C
 if ((Get-LocalGroupMember -Group Administrators | Where-Object { $_.Name -like "*\$WorkerUser" })) {
     throw "'$WorkerUser' must NOT be an administrator. Remove it from Administrators first."
 }
-if (-not (Test-Path $Python)) { throw "Machine-wide Python not found at $Python (install 3.12.10 for all users)." }
-$version = & $Python -I -c "import sys; print('.'.join(map(str, sys.version_info[:3])))"
-if ($version -ne "3.12.10") { throw "Expected Python 3.12.10 at $Python, found $version." }
 $source = Join-Path $Repo "src\snafi_worker"
 if (-not (Test-Path (Join-Path $source "ahmad_base.txt"))) {
     throw "Build Ahmad's prompt text first, as yourself (not admin): .venv\Scripts\python.exe -m src.snafi_worker.prompt --write src\snafi_worker\ahmad_base.txt"
@@ -69,13 +76,34 @@ Copy-Item (Join-Path $PSScriptRoot "snafi.py") (Join-Path $app "snafi.py") -Forc
 Copy-Item (Join-Path $PSScriptRoot "snafi.cmd") (Join-Path $Target "snafi.cmd") -Force
 Copy-Item (Join-Path $PSScriptRoot "requirements-worker.txt") (Join-Path $Target "requirements-worker.txt") -Force
 
-# 3. The worker's own Python environment: exactly the approved wheels, checked by SHA-256
-$venv = Join-Path $Target "venv"
-if (Test-Path $venv) { Remove-Item -Recurse -Force $venv }   # rebuilt every time, so every wheel is hash-checked (SEC-36)
-& $Python -I -m venv $venv
-& (Join-Path $venv "Scripts\python.exe") -I -m pip install --no-input --disable-pip-version-check `
+# 3. The worker's own private Python: the official NuGet package, hash-checked, unpacked fresh
+$downloads = Join-Path $Target "downloads"
+New-Item -ItemType Directory -Force -Path $downloads | Out-Null
+$package = Join-Path $downloads "python.$PythonVersion.nupkg"
+$haveGood = (Test-Path $package) -and ((Get-FileHash -Algorithm SHA256 $package).Hash -eq $PythonSha256)
+if (-not $haveGood) {
+    Remove-Item -Force $package -ErrorAction SilentlyContinue
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    Invoke-WebRequest -UseBasicParsing -Uri $PythonUrl -OutFile $package
+}
+$hash = (Get-FileHash -Algorithm SHA256 $package).Hash
+if ($hash -ne $PythonSha256) {
+    Remove-Item -Force $package
+    throw "The Python package's SHA-256 ($hash) does not match the pinned $PythonSha256; nothing was installed."
+}
+$pythonHome = Join-Path $Target "python"
+if (Test-Path $pythonHome) { Remove-Item -Recurse -Force $pythonHome }   # fresh every deploy, so every wheel is hash-checked (SEC-36)
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::ExtractToDirectory($package, $pythonHome)
+$py = Join-Path $pythonHome "tools\python.exe"
+if (-not (Test-Path $py)) { throw "The Python package did not contain tools\python.exe." }
+$version = & $py -I -c "import sys; print('.'.join(map(str, sys.version_info[:3])))"
+if ($version -ne $PythonVersion) { throw "Expected Python $PythonVersion in the package, found $version." }
+& $py -I -m pip install --no-input --disable-pip-version-check --no-warn-script-location `
     --require-hashes --only-binary=:all: --no-deps -r (Join-Path $Target "requirements-worker.txt")
 if ($LASTEXITCODE -ne 0) { throw "Installing the worker's packages failed (hash or version mismatch?)." }
+$oldVenv = Join-Path $Target "venv"
+if (Test-Path $oldVenv) { Remove-Item -Recurse -Force $oldVenv }   # the earlier layout used a venv
 icacls (Join-Path $Target "*") /reset /T /Q | Out-Null   # the contents inherit the lock; the folder keeps it
 icacls $Target /setowner "*S-1-5-32-544" /T /C /Q | Out-Null   # owned by Administrators, so no normal process can re-open it (SEC-36)
 
@@ -91,5 +119,5 @@ icacls $Backups /setowner "*S-1-5-32-544" /T /C /Q | Out-Null   # the step 2 wor
 icacls $Backups /inheritance:r /grant:r "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" "${WorkerUser}:(OI)(CI)M" /Q | Out-Null
 
 Write-Host ""
-Write-Host "Deployed the Snafi worker to $Target."
+Write-Host "Deployed the Snafi worker to $Target with its own Python $PythonVersion."
 Write-Host "Next, as ${WorkerUser}: install and sign in to agy, then run: $Target\snafi.cmd set-secrets, then: $Target\snafi.cmd prove"

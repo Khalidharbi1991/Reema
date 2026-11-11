@@ -25,11 +25,26 @@ def text(name):
 def test_deploy_copies_only_the_worker_and_installs_exactly_the_approved_packages():
     s = text("deploy.ps1")
     assert "robocopy $source" in s and "/XD __pycache__ deploy" in s
-    assert s.count("pip install") == 1 and 'if ($version -ne "3.12.10")' in s
+    assert s.count("pip install") == 1 and '$PythonVersion = "3.12.10"' in s
     assert "--require-hashes --only-binary=:all: --no-deps" in s
     req = text("requirements-worker.txt")
     assert "pyyaml==6.0.3" in req and "tzdata==2026.6" in req and req.count("--hash=sha256:") == 2
-    assert 'C:\\Program Files\\Python312\\python.exe' in s
+    assert "Program Files" not in s and "winget" not in s  # no machine-wide Python, no installer
+
+
+def test_the_worker_gets_its_own_private_hash_checked_python():
+    s = text("deploy.ps1")
+    assert '$PythonUrl = "https://www.nuget.org/api/v2/package/python/3.12.10"' in s
+    assert '$PythonSha256 = "0eb85c2dfccccf1b17352de4c397f69194035b7d37149eacc16f1147d93de3b8"' in s
+    assert "(Get-FileHash -Algorithm SHA256 $package).Hash" in s and "does not match the pinned" in s
+    assert "ExtractToDirectory($package, $pythonHome)" in s and 'Join-Path $pythonHome "tools\\python.exe"' in s
+    # downloaded only into the locked folder, checked before unpacking, unpacked fresh, then the wheels
+    order = [s.index(x) for x in ("icacls $Target /inheritance:r", "Invoke-WebRequest", "$hash -ne $PythonSha256",
+                                  "if (Test-Path $pythonHome) { Remove-Item -Recurse -Force $pythonHome }",
+                                  "ExtractToDirectory", "pip install")]
+    assert order == sorted(order)
+    assert '$downloads = Join-Path $Target "downloads"' in s
+    assert '& $py -I -m pip install' in s and 'if ($version -ne $PythonVersion)' in s
 
 
 def test_deploy_runs_no_repo_code_as_admin_and_locks_before_copying():
@@ -43,13 +58,13 @@ def test_deploy_runs_no_repo_code_as_admin_and_locks_before_copying():
     assert 'icacls (Join-Path $Target "*") /reset /T /Q' in s and "icacls $Target /reset" not in s
 
 
-def test_deploy_sets_admin_owners_and_rebuilds_the_venv():
+def test_deploy_sets_admin_owners_and_unpacks_a_fresh_python():
     s = text("deploy.ps1")
     assert 'icacls $Target /setowner "*S-1-5-32-544" /T /C /Q' in s
     assert 'icacls $Backups /setowner "*S-1-5-32-544" /T /C /Q' in s
     assert s.index("icacls $Backups /setowner") < s.index("icacls $Backups /inheritance:r")
-    assert "if (Test-Path $venv) { Remove-Item -Recurse -Force $venv }" in s
-    assert s.index("Remove-Item -Recurse -Force $venv") < s.index("pip install")
+    assert s.index("Remove-Item -Recurse -Force $pythonHome") < s.index("pip install")
+    assert s.index("pip install") < s.index('icacls $Target /setowner')  # the fresh Python gets admin owners too
     assert 'Stop-ScheduledTask -TaskName "Snafi Worker"' in s
 
 
@@ -71,8 +86,10 @@ def test_the_task_runs_as_snafi_worker_isolated_and_unelevated():
     assert "Highest" not in s and "-AtLogOn" not in s
 
 
-def test_the_launcher_runs_python_isolated():
-    assert '"%~dp0venv\\Scripts\\python.exe" -I "%~dp0app\\snafi.py" %*' in text("snafi.cmd")
+def test_the_launcher_and_task_use_the_private_python_isolated():
+    assert '"%~dp0python\\tools\\python.exe" -I "%~dp0app\\snafi.py" %*' in text("snafi.cmd")
+    assert '$Pythonw = Join-Path $Target "python\\tools\\pythonw.exe"' in text("install_task.ps1")
+    assert "venv" not in text("snafi.cmd") and "venv" not in text("install_task.ps1")
 
 
 def test_the_launcher_dispatches_only_known_commands(monkeypatch, capsys):
