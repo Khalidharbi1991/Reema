@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
   Builds C:\SnafiWorker (the Snafi worker's own copy, with its own private Python) and sets
-  folder permissions for the snafi-worker Windows user.
+  folder permissions for the worker Windows user.
 
   First, as YOURSELF in a normal (not admin) PowerShell from the repo folder, build Ahmad's
   prompt text (this runs REEMA's own Python, so it must not run as administrator):
@@ -10,7 +10,7 @@
       powershell -ExecutionPolicy Bypass -File src\snafi_worker\deploy\deploy.ps1
 
 .DESCRIPTION
-  1. Locks C:\SnafiWorker first: Administrators and SYSTEM full; snafi-worker and you read and
+  1. Locks C:\SnafiWorker first: Administrators and SYSTEM full; worker and you read and
      run only, so the worker cannot change its own code.
   2. Refuses if src\snafi_worker has uncommitted changes, then copies only that folder (with the
      prompt text you built) and the launcher. No REEMA code runs as administrator (SEC-30).
@@ -20,8 +20,8 @@
      It does not touch, need or conflict with any other Python on this PC. Then installs exactly
      pyyaml 6.0.3 and tzdata 2026.6 into it, as wheels whose SHA-256 must match
      requirements-worker.txt.
-  4. Denies snafi-worker on D:\Projects and D:\Antigravity_Projects, and lets it write only to
-     the backups folder, which is locked to snafi-worker, Administrators and SYSTEM (your normal,
+  4. Denies worker on D:\Projects and D:\Antigravity_Projects, and lets it write only to
+     the backups folder, which is locked to worker, Administrators and SYSTEM (your normal,
      non-admin processes, Claude Code included, cannot open it).
   5. Makes Administrators the owner of C:\SnafiWorker and the backups folder, so no normal process
      (yours or the worker's) can change their permissions back.
@@ -30,7 +30,7 @@
 param(
     [string]$Repo = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..")).Path,
     [string]$Target = "C:\SnafiWorker",
-    [string]$WorkerUser = "snafi-worker",
+    [string]$WorkerUser = "worker",
     [string[]]$DenyFolders = @("D:\Projects", "D:\Antigravity_Projects"),
     [string]$Backups = "D:\Projects\IT Consultant\teams\coordination\snafi-backups"
 )

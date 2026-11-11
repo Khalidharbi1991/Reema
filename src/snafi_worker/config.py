@@ -1,6 +1,6 @@
 """Worker settings (worker.yaml, in the repo) and secrets (Windows Credential Manager).
 
-Secrets are stored once by Khalid, as the snafi-worker Windows user, with
+Secrets are stored once by Khalid, as the worker Windows user, with
 `C:\\SnafiWorker\\snafi.cmd set-secrets`, as "REEMA-Snafi:<NAME>" credentials for that user,
 encrypted by Windows (DPAPI). There
 is no plain-text secrets file (SEC-14). Secrets are never logged and never printed: the
@@ -38,7 +38,7 @@ class Secrets:
     def get(self, name: str) -> str:
         value = self._values.get(name, "")
         if not value:
-            raise ConfigError(f"{name} is not stored yet; as snafi-worker run: C:\\SnafiWorker\\snafi.cmd set-secrets")
+            raise ConfigError(f"{name} is not stored yet; as worker run: C:\\SnafiWorker\\snafi.cmd set-secrets")
         return value
 
     def has(self, name: str) -> bool:

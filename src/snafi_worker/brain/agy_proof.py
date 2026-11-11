@@ -1,4 +1,4 @@
-"""Live proof that agy's lockdown holds. Run by Khalid, as the snafi-worker Windows user:
+"""Live proof that agy's lockdown holds. Run by Khalid, as the worker Windows user:
 
     C:\\SnafiWorker\\snafi.cmd prove
 

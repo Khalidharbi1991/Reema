@@ -1,5 +1,5 @@
 """Antigravity CLI (agy) brain, signed in with the Snafi-only Google account under the
-snafi-worker Windows user. No API key and no paid credits.
+worker Windows user. No API key and no paid credits.
 
 Lockdown, on every call:
   - headless plan mode, the terminal sandbox, slash commands off, a time limit;
@@ -309,7 +309,7 @@ class AgyBrain:
         for what in (["mcp", "list"], ["plugin", "list"]):
             code, out, _ = self._run([str(self.agy_path), *what], None, None)
             if code != 0 or not list_is_empty(out.decode("utf-8", errors="replace")):
-                raise BrainNotReady(f"agy has {what[0]} entries configured (or an unknown listing); remove them for snafi-worker")
+                raise BrainNotReady(f"agy has {what[0]} entries configured (or an unknown listing); remove them for worker")
 
     # ---------- readiness ----------
     def preflight(self) -> str:
@@ -326,7 +326,7 @@ class AgyBrain:
         try:
             proof = json.loads(self.proof_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            raise BrainNotReady("no lockdown proof yet; run the proof as snafi-worker") from None
+            raise BrainNotReady("no lockdown proof yet; run the proof as worker") from None
         if not (proof.get("passed") is True and proof.get("agy_version") == version
                 and proof.get("fingerprint") == fingerprint(self.model)
                 and proof.get("install_fingerprint") == install):
@@ -364,7 +364,7 @@ class AgyBrain:
         if status != "SUCCESS":
             message = str(result.get("error") or err.decode("utf-8", errors="replace"))[:300].lower()
             if "auth" in message or "sign in" in message or "login" in message:
-                raise BrainNotReady("agy is not signed in for snafi-worker")
+                raise BrainNotReady("agy is not signed in for worker")
             if "quota" in message or "rate limit" in message or "limit reached" in message:
                 raise BrainError("the free weekly quota is used up; it refreshes weekly", retryable=False)
             raise BrainError(f"brain stopped ({status or 'no status'})", retryable=True)

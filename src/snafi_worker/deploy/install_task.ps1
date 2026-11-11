@@ -1,18 +1,18 @@
 <#
 .SYNOPSIS
-  Registers (or removes) the "Snafi Worker" scheduled task, run as the snafi-worker user.
+  Registers (or removes) the "Snafi Worker" scheduled task, run as the worker user.
   Run it yourself in an ADMIN PowerShell from the repo folder:
       powershell -ExecutionPolicy Bypass -File src\snafi_worker\deploy\install_task.ps1
       powershell -ExecutionPolicy Bypass -File src\snafi_worker\deploy\install_task.ps1 -Remove
 
 .DESCRIPTION
   Starts the worker when Windows starts, whether or not anyone is logged on, as
-  snafi-worker with normal (not elevated) rights, in the background (pythonw, isolated -I),
-  and restarts it every minute if it stops. Windows asks for snafi-worker's password; it is
+  worker with normal (not elevated) rights, in the background (pythonw, isolated -I),
+  and restarts it every minute if it stops. Windows asks for worker's password; it is
   stored by Windows' Task Scheduler, never by REEMA. Running with a stored password also
-  loads snafi-worker's profile, which agy's sign-in and Credential Manager need.
+  loads worker's profile, which agy's sign-in and Credential Manager need.
 #>
-param([switch]$Remove, [string]$WorkerUser = "snafi-worker", [string]$Target = "C:\SnafiWorker")
+param([switch]$Remove, [string]$WorkerUser = "worker", [string]$Target = "C:\SnafiWorker")
 
 $ErrorActionPreference = "Stop"
 $TaskName = "Snafi Worker"

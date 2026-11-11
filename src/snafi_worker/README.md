@@ -47,7 +47,7 @@ only `store/` knows the database.
 
 ## The agy brain and its lockdown
 
-`agy` runs under the separate `snafi-worker` Windows user, signed in with a Snafi-only Google
+`agy` runs under the separate `worker` Windows user, signed in with a Snafi-only Google
 account, so Khalid's own agy setup is untouched. Every call (`brain/agy.py`) uses headless plan
 mode, the terminal sandbox, one-run settings that deny every tool (files, shell, URLs, MCP),
 `useG1Credits: false` (no paid credits), a fresh empty folder and a cleaned environment, and
@@ -58,16 +58,16 @@ reply away and pauses the brain (`brain/pause.py`). Chat then says Ahmad is paus
 check until Khalid looks and runs `snafi.cmd reset-brain`.
 
 **Readiness:** the worker uses agy only when no MCP servers or plugins are configured for
-`snafi-worker` and a passing lockdown proof exists for this exact agy version and lockdown
+`worker` and a passing lockdown proof exists for this exact agy version and lockdown
 settings. A new agy version pauses the brain until the proof is run again.
 
-**The proof** (`snafi.cmd prove`, as `snafi-worker`) runs agy six times: a normal reply, then
+**The proof** (`snafi.cmd prove`, as `worker`) runs agy six times: a normal reply, then
 attempts to write files, run commands, read a file outside its folder, fetch a URL and use MCP.
 It passes only if nothing happened. It uses six requests of the free quota.
 
-## Secrets: Windows Credential Manager (snafi-worker)
+## Secrets: Windows Credential Manager (worker)
 
-Stored once, as `snafi-worker`, with `C:\SnafiWorker\snafi.cmd set-secrets`, which asks for each
+Stored once, as `worker`, with `C:\SnafiWorker\snafi.cmd set-secrets`, which asks for each
 value and never shows the key (`--status` lists which are stored, `--remove` deletes them):
 
 | Name | What |
@@ -78,7 +78,7 @@ value and never shows the key (`--status` lists which are stored, `--remove` del
 | `SNAFI_BACKUP_SIGNING_KEY` | made at random by the script; signs every backup |
 | `GEMINI_API_KEY` | only if `brain.provider` is ever switched to `gemini_api`; not asked for with agy |
 
-Each is a generic credential "REEMA-Snafi:<NAME>" for `snafi-worker`, encrypted by Windows (DPAPI).
+Each is a generic credential "REEMA-Snafi:<NAME>" for `worker`, encrypted by Windows (DPAPI).
 Khalid's own account, and so any Claude Code session, cannot read another user's credentials,
 profile or logs. There is no plain-text secrets file.
 
@@ -92,12 +92,12 @@ to `C:\SnafiWorker\app` (no REEMA code runs as admin), gives the worker its own 
 3.12.10 in `C:\SnafiWorker\python` (python.org's official NuGet package: a zip, no installer,
 checked against its pinned SHA-256 and unpacked fresh on every deploy; no other Python on the PC
 is touched or needed), installs exactly pyyaml 6.0.3 and tzdata 2026.6 into it as hash-checked wheels
-(`deploy/requirements-worker.txt`), locks the backups folder to `snafi-worker`, and sets permissions: `snafi-worker` may read and run `C:\SnafiWorker` but not change it,
+(`deploy/requirements-worker.txt`), locks the backups folder to `worker`, and sets permissions: `worker` may read and run `C:\SnafiWorker` but not change it,
 is denied on `D:\Projects` (and `D:\Antigravity_Projects`), and may write only to the backups
 folder. `deploy/install_task.ps1` (admin) registers the task to start with Windows as
-`snafi-worker`. Re-run the deploy after every worker update.
+`worker`. Re-run the deploy after every worker update.
 
-## Commands (as snafi-worker, except where noted)
+## Commands (as worker, except where noted)
 
 ```
 C:\SnafiWorker\snafi.cmd check          settings and which secrets exist (never values)

@@ -113,11 +113,11 @@ def test_each_call_gets_a_fresh_empty_folder_that_is_deleted(tmp_path):
 
 def test_the_environment_is_cleaned(tmp_path):
     env = clean_env(tmp_path / "agy" / "agy.exe", {
-        "USERPROFILE": r"C:\Users\snafi-worker", "APPDATA": "a", "LOCALAPPDATA": "l", "SYSTEMROOT": r"C:\Windows",
+        "USERPROFILE": r"C:\Users\worker", "APPDATA": "a", "LOCALAPPDATA": "l", "SYSTEMROOT": r"C:\Windows",
         "GEMINI_API_KEY": "x", "SNAFI_SUPABASE_SECRET_KEY": "y", "AGY_ADC_AUTH": "true", "HTTPS_PROXY": "p",
         "PYTHONPATH": "z", "PATH": r"C:\evil;C:\Windows"})
     assert {"GEMINI_API_KEY", "SNAFI_SUPABASE_SECRET_KEY", "AGY_ADC_AUTH", "HTTPS_PROXY", "PYTHONPATH"}.isdisjoint(env)
-    assert env["USERPROFILE"] == r"C:\Users\snafi-worker"
+    assert env["USERPROFILE"] == r"C:\Users\worker"
     assert "evil" not in env["PATH"] and env["PATH"].split(";")[0].endswith("agy")
 
 

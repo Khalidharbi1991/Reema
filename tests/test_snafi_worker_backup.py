@@ -194,4 +194,4 @@ def test_store_sends_the_key_only_in_headers():
 
 
 def test_the_old_task_script_is_gone():
-    assert not (WORKER / "install_task.ps1").exists()  # replaced by deploy/install_task.ps1 for snafi-worker
+    assert not (WORKER / "install_task.ps1").exists()  # replaced by deploy/install_task.ps1 for worker

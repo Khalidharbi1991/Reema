@@ -81,7 +81,7 @@ def test_deploy_keeps_the_worker_out_of_khalids_folders():
 def test_the_task_runs_as_snafi_worker_isolated_and_unelevated():
     s = text("install_task.ps1")
     for needed in ("-AtStartup", "pythonw.exe", '-Argument "-I `"$Launcher`" worker"', "-RunLevel Limited",
-                   "Get-Credential", "-RestartCount 999", "-MultipleInstances IgnoreNew", '[string]$WorkerUser = "snafi-worker"'):
+                   "Get-Credential", "-RestartCount 999", "-MultipleInstances IgnoreNew", '[string]$WorkerUser = "worker"'):
         assert needed in s
     assert "Highest" not in s and "-AtLogOn" not in s
 
@@ -109,10 +109,10 @@ def test_the_launcher_dispatches_only_known_commands(monkeypatch, capsys):
     (r"powershell -File src\snafi_worker\deploy\install_task.ps1", True),
     (r"C:\SnafiWorker\snafi.cmd prove", False),
     (r"type C:\SnafiWorker\app\src\snafi_worker\worker.yaml", False),
-    (r"dir C:\Users\snafi-worker\AppData\Roaming\REEMA", True),
-    (r'runas /user:snafi-worker "cmd"', False),
+    (r"dir C:\Users\worker\AppData\Roaming\REEMA", True),
+    (r'runas /user:worker "cmd"', False),
     (r"python C:/SnafiWorker/app/snafi.py once", False),
-    (r"Get-Content C:\Users\snafi-worker\.gemini\antigravity-cli\settings.json", True),
+    (r"Get-Content C:\Users\worker\.gemini\antigravity-cli\settings.json", True),
 ])
 def test_guard_keeps_sessions_away_from_the_worker_user(command, powershell):
     assert "Snafi" in (_guard().reason(command, powershell=powershell) or "")

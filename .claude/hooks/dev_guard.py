@@ -155,8 +155,8 @@ SNAFI_PRIVATE = (
     (r"(-m|-c)\s+['\"]?src\.snafi_worker|src/snafi_worker/(__main__|restore|install_task)"
      r"|snafi_worker/deploy/|snafi\.cmd|snafi\.py\b",
      "running the Snafi worker, its restore, its deploy or its task setup (Khalid runs these himself)"),
-    (r"c:/snafiworker|users/snafi-worker|\brunas\b|snafi-worker[^\s]*/(appdata|\.gemini)",
-     "the snafi-worker Windows user's folders and the worker's copy in C:\\SnafiWorker"),
+    (r"c:/snafiworker|users/(snafi-)?worker(/|\b)|\brunas\b|(snafi-)?worker[^\s]*/(appdata|\.gemini)",
+     "the worker Windows user's folders and the worker's copy in C:\\SnafiWorker"),
 )
 
 

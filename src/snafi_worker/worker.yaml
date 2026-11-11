@@ -3,7 +3,7 @@
 # Each outside service is chosen by its provider name; switching one is a one-line change.
 
 brain:
-  provider: agy                 # Antigravity CLI, signed in as snafi-worker (no API key)
+  provider: agy                 # Antigravity CLI, signed in as worker (no API key)
                                 # others: gemini_api (switched off; needs an API key), fake (tests)
   model: gemini-3.8-flash-low   # the fast model for chat
   timeout_seconds: 90
