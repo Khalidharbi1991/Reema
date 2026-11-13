@@ -50,8 +50,10 @@ only `store/` knows the database.
 `brain/gemini_api.py` sends one text request to the Gemini API's `generateContent` endpoint, with
 the key in the `x-goog-api-key` header (never in the URL, never logged). It declares no tools, so
 the model can only answer with text; any action it proposes is data for the permission gate. The
-key belongs to the paid tier funded by Khalid's AI Pro monthly credits, restricted to the Gemini
-API, with a spend cap set in Google's console.
+key belongs to the paid tier funded by Khalid's AI Pro monthly credits and is restricted to the
+Gemini API. The spend cap is a setting in Google AI Studio, not something this code enforces; the
+worker has no daily call limit yet (SEC-47). Paid-tier terms apply only while billing is linked to
+the key's project, and Google still keeps prompts for a limited time for abuse monitoring (SEC-34).
 
 ## The agy brain and its lockdown (switched off)
 

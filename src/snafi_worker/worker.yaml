@@ -16,7 +16,7 @@ store:
 lanes:
   chat:
     poll_seconds: 2
-    timeout_seconds: 120        # whole job, brain call (90 s) included
+    timeout_seconds: 120        # whole job, brain call (60 s) included
     retry_delay_seconds: 5      # one retry (jobs.max_attempts = 2)
   background:
     poll_seconds: 30

@@ -1,6 +1,7 @@
 """Pausing the brain. After a lockdown breach the brain stays paused until Khalid has
-looked and clears it (`snafi reset-brain`). While it is not ready (no passing proof, a new
-agy version, MCP servers or plugins present) it is paused too, without a file.
+looked and clears it (`snafi reset-brain`). Every brain checks the pause file. The agy brain
+(switched off) is also paused while it is not ready (no passing proof, a new agy version, MCP
+servers or plugins present), without a file.
 """
 
 import json
