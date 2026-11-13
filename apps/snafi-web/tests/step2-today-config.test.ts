@@ -95,17 +95,18 @@ describe("PC online / offline", () => {
 
 describe("adapters are chosen by config", () => {
   it("defaults to Supabase and live Today", () => {
-    expect(adapterChoice({})).toEqual({ auth: "supabase", mailbox: "supabase", today: "live" });
+    expect(adapterChoice({})).toEqual({ auth: "supabase", mailbox: "supabase", today: "live", throttle: "supabase" });
   });
 
   it("switches one adapter with one setting and nothing else", () => {
-    expect(adapterChoice({ SNAFI_MAILBOX_ADAPTER: "memory" })).toEqual({ auth: "supabase", mailbox: "memory", today: "live" });
-    expect(adapterChoice({ SNAFI_TODAY_ADAPTER: "placeholder" })).toEqual({ auth: "supabase", mailbox: "supabase", today: "placeholder" });
+    expect(adapterChoice({ SNAFI_MAILBOX_ADAPTER: "memory" })).toEqual({ auth: "supabase", mailbox: "memory", today: "live", throttle: "supabase" });
+    expect(adapterChoice({ SNAFI_TODAY_ADAPTER: "placeholder" })).toEqual({ auth: "supabase", mailbox: "supabase", today: "placeholder", throttle: "supabase" });
   });
 
   it("refuses unknown providers and uses memory in preview mode", () => {
     expect(() => adapterChoice({ SNAFI_MAILBOX_ADAPTER: "mongo" })).toThrow(ConfigError);
     expect(adapterChoice({}, true).mailbox).toBe("memory");
+    expect(adapterChoice({}, true).throttle).toBe("memory");
   });
 
   it("picks providers only from the settings in adapters/index.ts", () => {

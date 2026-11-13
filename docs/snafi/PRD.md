@@ -166,8 +166,9 @@ Each step is built and tested on a real phone before the next starts. Khalid sta
 
 From the step 1 security review (`apps/snafi-web/docs/SECURITY_REVIEW.md`). No Vercel deploy, preview included, until both are done and Agent 16 has re-checked them:
 
-- **SEC-3:** a nonce-based Content-Security-Policy (`default-src 'self'`, `frame-ancestors 'none'`) and `Strict-Transport-Security`.
-- **SEC-4:** an app-side sign-in throttle per email and per client IP (for example 5 failures in 15 minutes, then a delay), a check of Supabase's Auth rate limits, and TOTP MFA before family accounts arrive.
+- **SEC-3:** a nonce-based Content-Security-Policy (`default-src 'self'`, `frame-ancestors 'none'`) and `Strict-Transport-Security`. **Built Nov 13** (phase 1).
+- **SEC-4:** an app-side sign-in throttle per email and per client IP (for example 5 failures in 15 minutes, then a delay), a check of Supabase's Auth rate limits, and TOTP MFA before family accounts arrive. **Throttle built Nov 13** (phase 1: 5 failures in 15 minutes per email, and per client IP on Vercel). The Supabase rate-limit check is Khalid's, in the dashboard. TOTP MFA is proposed, not built.
+- **Fixed site URL:** redirects use `SNAFI_SITE_URL` (or Vercel's own address), never the request's Host. **Built Nov 13.**
 
 ## Later
 

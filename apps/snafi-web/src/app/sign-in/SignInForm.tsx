@@ -33,6 +33,7 @@ export function SignInForm({ t, action, serverSecure }: Props) {
     : error === "missing" ? t.missing
     : error === "not_configured" ? t.notConfigured
     : error === "unavailable" ? t.unavailable
+    : error === "throttled" ? t.throttled
     : error === "insecure" ? t.insecure
     : "";
 

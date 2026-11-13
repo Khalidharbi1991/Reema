@@ -58,6 +58,54 @@ export function supabaseConfig(): SupabaseConfig | null {
 }
 
 /**
+ * The site's own address, for every redirect (never the request's Host header,
+ * which the client controls; SEC-11). In order:
+ *   1. SNAFI_SITE_URL, if set (https, or http only for localhost);
+ *   2. on Vercel, the address Vercel itself sets: the production domain in
+ *      production, the branch address on a preview;
+ *   3. on a development server only: null, meaning "this request's own origin",
+ *      so the phone's Wi-Fi dev mode still works.
+ * A production build with none of these throws: redirects fail closed.
+ */
+export function readSiteUrl(env: EnvSource, nodeEnv: string | undefined): string | null {
+  const explicit = env.SNAFI_SITE_URL?.trim();
+  if (explicit) return checkSiteUrl(explicit, "SNAFI_SITE_URL");
+  const vercelHost = env.VERCEL_ENV === "production"
+    ? env.VERCEL_PROJECT_PRODUCTION_URL
+    : env.VERCEL_ENV === "preview" ? (env.VERCEL_BRANCH_URL || env.VERCEL_URL) : undefined;
+  if (vercelHost?.trim()) return checkSiteUrl(`https://${vercelHost.trim()}`, "the Vercel address");
+  if (nodeEnv === "development") return null;
+  throw new ConfigError("Set SNAFI_SITE_URL to the site's address, for example https://snafi.example.com.");
+}
+
+function checkSiteUrl(value: string, name: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new ConfigError(`${name} is not a valid URL.`);
+  }
+  const local = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+  if (parsed.protocol !== "https:" && !(local && parsed.protocol === "http:")) {
+    throw new ConfigError(`${name} must use https.`);
+  }
+  if (parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) {
+    throw new ConfigError(`${name} must be just the address, like https://snafi.example.com.`);
+  }
+  return parsed.origin;
+}
+
+export function siteUrl(): string | null {
+  return readSiteUrl({
+    SNAFI_SITE_URL: process.env.SNAFI_SITE_URL,
+    VERCEL_ENV: process.env.VERCEL_ENV,
+    VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,
+    VERCEL_BRANCH_URL: process.env.VERCEL_BRANCH_URL,
+    VERCEL_URL: process.env.VERCEL_URL,
+  }, process.env.NODE_ENV);
+}
+
+/**
  * Preview mode: only on a development server with no Supabase keys, so the
  * screens can be looked at before Supabase exists. Never in a production build.
  */

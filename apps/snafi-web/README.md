@@ -39,6 +39,22 @@ it when you finish testing.
 **Session cookies** are HttpOnly, SameSite=Lax, and Secure everywhere except on
 localhost (`src/adapters/supabase/cookie-policy.ts`).
 
+**Headers (SEC-3):** every page gets a nonce-based Content-Security-Policy, made per
+request in `src/proxy.ts` (`src/core/security-headers.ts`), and every response gets
+`Strict-Transport-Security` (`next.config.ts`).
+
+**Sign-in throttle (SEC-4):** each try is counted before Supabase is asked, one at a
+time per key, and taken back unless the password was wrong. After 5 counted tries in
+15 minutes for one email (or, on Vercel, from one client IP) sign-in is refused until
+15 minutes have passed. Anyone who knows the email can use this to block new sign-ins
+for a while; signed-in sessions keep working.
+Counts live in Supabase (`migrations/0005_signin_throttle.sql`) as HMACs keyed with
+`SNAFI_THROTTLE_SECRET`; the app never stores the email or IP. If the store cannot be
+reached, sign-in says "not available" (fails closed).
+
+**Redirects** go to `SNAFI_SITE_URL`, or on Vercel to Vercel's own address, never to
+the Host the request claims. A production build with neither refuses every page.
+
 **Preview mode:** with no Supabase keys, the development server skips sign-in so
 the screens can be checked, and shows a banner saying so. A production build
 never does this.
