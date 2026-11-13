@@ -1,6 +1,6 @@
 import "server-only";
 import { createSupabaseServerClient } from "@/adapters/supabase/server-client";
-import { checkKeys, ThrottleError, type ThrottleAdapter } from "./types";
+import { checkKeys, checkTicket, ThrottleError, type ThrottleAdapter } from "./types";
 
 /**
  * The throttle in Supabase (migration 0005). The table is hidden; the app can only
@@ -13,16 +13,14 @@ export class SupabaseThrottleAdapter implements ThrottleAdapter {
     return client;
   }
 
-  async waitSeconds(keys: string[]) {
-    const { data, error } = await (await this.client()).rpc("signin_wait_seconds", { p_keys: checkKeys(keys) });
+  async begin(keys: string[]) {
+    const { data, error } = await (await this.client()).rpc("signin_begin", { p_keys: checkKeys(keys) });
     if (error) throw new ThrottleError(error.message);
-    const wait = Number(data);
-    if (!Number.isFinite(wait) || wait < 0) throw new ThrottleError("unexpected throttle answer");
-    return wait;
+    return checkTicket(data);
   }
 
-  async recordFailure(keys: string[]) {
-    const { error } = await (await this.client()).rpc("signin_record_failure", { p_keys: checkKeys(keys) });
+  async forget(attempt: string) {
+    const { error } = await (await this.client()).rpc("signin_forget", { p_attempt: attempt });
     if (error) throw new ThrottleError(error.message);
   }
 }

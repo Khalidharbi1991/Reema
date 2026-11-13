@@ -47,7 +47,7 @@ export async function signInThrottle(email: string) {
   const keys = throttleKeys(pepper, email, trustedClientIp((n) => h.get(n), env));
   const store = throttleAdapter();
   return {
-    waitSeconds: () => store.waitSeconds(keys),
-    recordFailure: () => store.recordFailure(keys),
+    begin: () => store.begin(keys),
+    forget: (attempt: string) => store.forget(attempt),
   };
 }

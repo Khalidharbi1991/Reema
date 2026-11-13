@@ -24,6 +24,12 @@ describe("ChatComposer", () => {
     expect(screen.getByRole("status")).not.toHaveTextContent(labels.failed);
   });
 
+  it("SEC-73: posts, never puts the message in a URL", () => {
+    const send = async () => ({ error: false, sentAt: Date.now() });
+    render(<ChatComposer send={send} labels={labels} note="" />);
+    expect(screen.getByRole("textbox").closest("form")!.getAttribute("method")).toBe("post");
+  });
+
   it("shows no failure after a send that worked", async () => {
     const send = async () => ({ error: false, sentAt: Date.now() });
     render(<ChatComposer send={send} labels={labels} note="" />);

@@ -1,29 +1,38 @@
-import { checkKeys, THROTTLE_LIMIT, THROTTLE_WINDOW_SECONDS, type ThrottleAdapter } from "./types";
+import {
+  checkKeys,
+  THROTTLE_GLOBAL_CEILING,
+  THROTTLE_LIMIT,
+  THROTTLE_WINDOW_SECONDS,
+  type ThrottleAdapter,
+  type ThrottleTicket,
+} from "./types";
 
-/** Same rule as signin_wait_seconds in migration 0005, kept in memory. Tests and preview mode only. */
+type Row = { attempt: string; key: string; at: number };
+
+/** Same rule as signin_begin in migration 0005, kept in memory. Tests and preview mode only. */
 export class MemoryThrottleAdapter implements ThrottleAdapter {
-  private readonly failures = new Map<string, number[]>();
+  private rows: Row[] = [];
 
   constructor(private readonly now: () => number = () => Date.now()) {}
 
-  private recent(key: string): number[] {
+  async begin(keys: string[]): Promise<ThrottleTicket> {
+    checkKeys(keys);
     const since = this.now() - THROTTLE_WINDOW_SECONDS * 1000;
-    return (this.failures.get(key) ?? []).filter((t) => t > since).sort((a, b) => b - a);
-  }
-
-  async waitSeconds(keys: string[]) {
+    this.rows = this.rows.filter((r) => r.at > this.now() - 86_400_000);
+    const recent = this.rows.filter((r) => r.at > since);
+    if (recent.length >= THROTTLE_GLOBAL_CEILING) return { wait: 60, attempt: null };
     let wait = 0;
-    for (const key of checkKeys(keys)) {
-      const fifth = this.recent(key)[THROTTLE_LIMIT - 1];
+    for (const key of keys) {
+      const fifth = recent.filter((r) => r.key === key).map((r) => r.at).sort((a, b) => b - a)[THROTTLE_LIMIT - 1];
       if (fifth !== undefined) wait = Math.max(wait, Math.ceil((fifth + THROTTLE_WINDOW_SECONDS * 1000 - this.now()) / 1000));
     }
-    return Math.max(wait, 0);
+    if (wait > 0) return { wait, attempt: null };
+    const attempt = crypto.randomUUID();
+    for (const key of keys) this.rows.push({ attempt, key, at: this.now() });
+    return { wait: 0, attempt };
   }
 
-  async recordFailure(keys: string[]) {
-    for (const key of checkKeys(keys)) {
-      const recent = this.recent(key);
-      if (recent.length < 20) this.failures.set(key, [...recent, this.now()]);
-    }
+  async forget(attempt: string) {
+    this.rows = this.rows.filter((r) => r.attempt !== attempt);
   }
 }

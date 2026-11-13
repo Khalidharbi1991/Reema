@@ -9,6 +9,10 @@
 
 begin;
 
+-- SEC-18: at most one chat.reply job per message, however it is inserted.
+create unique index jobs_one_reply_per_message on public.jobs ((payload->>'message_id'))
+  where kind = 'chat.reply';
+
 create function public.send_chat(p_conversation_id uuid, p_body text, p_lang text)
 returns public.messages
 language plpgsql

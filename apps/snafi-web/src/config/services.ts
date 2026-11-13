@@ -26,13 +26,21 @@ export type AdapterChoice = {
 const DEFAULTS: AdapterChoice = { auth: "supabase", mailbox: "supabase", today: "live", throttle: "supabase" };
 const VARS = { auth: "SNAFI_AUTH_ADAPTER", mailbox: "SNAFI_MAILBOX_ADAPTER", today: "SNAFI_TODAY_ADAPTER", throttle: "SNAFI_THROTTLE_ADAPTER" } as const;
 
-export function adapterChoice(env: Record<string, string | undefined>, preview = false): AdapterChoice {
+/** SEC-74: a production build never runs on the in-memory stand-ins (no throttle, no shared mailbox). */
+const MEMORY_ONLY_OFF_PRODUCTION = new Set(["memory"]);
+
+export function adapterChoice(
+  env: Record<string, string | undefined>, preview = false, nodeEnv: string | undefined = "development",
+): AdapterChoice {
   const choice = { ...DEFAULTS };
   for (const kind of Object.keys(VARS) as (keyof typeof VARS)[]) {
     const value = env[VARS[kind]]?.trim();
     if (!value) continue;
     if (!(ADAPTER_CHOICES[kind] as readonly string[]).includes(value)) {
       throw new ConfigError(`${VARS[kind]}=${value} is not one of: ${ADAPTER_CHOICES[kind].join(", ")}`);
+    }
+    if (nodeEnv === "production" && MEMORY_ONLY_OFF_PRODUCTION.has(value)) {
+      throw new ConfigError(`${VARS[kind]}=${value} is for tests and the development server only.`);
     }
     (choice as Record<string, string>)[kind] = value;
   }
@@ -49,5 +57,5 @@ export function currentChoice(preview: boolean): AdapterChoice {
     SNAFI_MAILBOX_ADAPTER: process.env.SNAFI_MAILBOX_ADAPTER,
     SNAFI_TODAY_ADAPTER: process.env.SNAFI_TODAY_ADAPTER,
     SNAFI_THROTTLE_ADAPTER: process.env.SNAFI_THROTTLE_ADAPTER,
-  }, preview);
+  }, preview, process.env.NODE_ENV);
 }

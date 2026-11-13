@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useActionState, useEffect, useRef, useState } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ChatState } from "../actions";
 
 type Props = {
@@ -9,10 +9,15 @@ type Props = {
   note: string;
 };
 
+const noSubscribe = () => () => {};
+
 /** Text only in step 2; attachments arrive with Drive in step 3. */
 export function ChatComposer({ send, labels, note }: Props) {
   const [state, action, pending] = useActionState(send, { error: false, sentAt: 0 });
   const form = useRef<HTMLFormElement>(null);
+  // SEC-73: Send stays off until the page has loaded, so a native submit can never
+  // put the message in a URL; method="post" is a second guard.
+  const ready = useSyncExternalStore(noSubscribe, () => true, () => false);
   // The failure note belongs to one attempt: typing again hides it, the next send replaces it.
   const [dismissed, setDismissed] = useState(0);
   const failed = state.error && dismissed !== state.sentAt;
@@ -23,8 +28,9 @@ export function ChatComposer({ send, labels, note }: Props) {
   return (
     // Submitted by hand, not with action={...}: React clears a form after every form
     // action, which lost Khalid's text when the send failed. It is cleared only on success.
-    <form ref={form} onSubmit={(e) => {
+    <form ref={form} method="post" onSubmit={(e) => {
       e.preventDefault();
+      if (!ready) return;
       const data = new FormData(e.currentTarget);
       startTransition(() => action(data));
     }} className="sticky bottom-0 bg-bg pt-2 pb-[max(env(safe-area-inset-bottom),1rem)]">
@@ -44,7 +50,7 @@ export function ChatComposer({ send, labels, note }: Props) {
             }
           }}
           className="max-h-32 min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm text-ink placeholder:text-muted focus:outline-none" />
-        <button type="submit" disabled={pending}
+        <button type="submit" disabled={pending || !ready}
           className="min-h-10 rounded-xl bg-gold px-4 text-sm font-medium text-[#0E0E10] disabled:opacity-50">
           {labels.send}
         </button>

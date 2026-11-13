@@ -6,7 +6,9 @@ import type { PGlite } from "@electric-sql/pglite";
 import { NextRequest } from "next/server";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { MemoryThrottleAdapter } from "@/adapters/throttle/memory";
+import { checkTicket } from "@/adapters/throttle/types";
 import { ConfigError, readSiteUrl } from "@/config/env";
+import { adapterChoice } from "@/config/services";
 import { contentSecurityPolicy, HSTS, newNonce } from "@/core/security-headers";
 import { ALICE, as, BOB, CONV, freshDb, migrationFiles } from "./helpers/db";
 
@@ -51,6 +53,13 @@ describe("phase 2: a chat message and its reply job are saved together (send_cha
     expect(left.rows).toHaveLength(0);
   }, 60_000);
 
+  it("SEC-18: allows only one chat.reply job per message", async () => {
+    const r = await as<{ id: string }>(db, "authenticated", ALICE, "select id from public.send_chat($1, 'again', 'en')", [CONV]);
+    await expect(as(db, "authenticated", ALICE,
+      "insert into public.jobs (kind, payload, conversation_id) values ('chat.reply', jsonb_build_object('message_id', $1::text), $2)",
+      [r.rows[0].id, CONV])).rejects.toThrow(/duplicate key/);
+  });
+
   it("is what the Supabase adapter calls, in one request", () => {
     const src = read("src/adapters/mailbox/supabase.ts");
     expect(src).toContain('rpc("send_chat"');
@@ -64,51 +73,71 @@ describe("SEC-4: sign-in throttle in the database (migration 0005)", () => {
     db = await freshDb();
   }, 60_000);
 
-  const wait = async (keys: string[]) =>
-    (await as<{ w: number }>(db, "anon", null, "select public.signin_wait_seconds($1) as w", [keys])).rows[0].w;
-  const fail = (keys: string[]) => as(db, "anon", null, "select public.signin_record_failure($1)", [keys]);
+  type Ticket = { wait: number; attempt: string | null };
+  const begin = async (keys: string[]) =>
+    (await as<{ t: Ticket }>(db, "anon", null, "select public.signin_begin($1) as t", [keys])).rows[0].t;
+  const forget = (attempt: string) => as(db, "anon", null, "select public.signin_forget($1)", [attempt]);
 
-  it("allows 4 wrong tries and blocks after the 5th for about 15 minutes", async () => {
+  it("counts 5 tries, then blocks for about 15 minutes without counting more", async () => {
     const k = [KEY("a")];
-    for (let i = 0; i < 4; i++) await fail(k);
-    expect(await wait(k)).toBe(0);
-    await fail(k);
-    const w = await wait(k);
-    expect(w).toBeGreaterThan(14 * 60);
-    expect(w).toBeLessThanOrEqual(15 * 60);
+    for (let i = 0; i < 5; i++) {
+      const t = await begin(k);
+      expect(t.wait).toBe(0);
+      expect(t.attempt).toMatch(/^[0-9a-f-]{36}$/);
+    }
+    const blocked = await begin(k);
+    expect(blocked.attempt).toBeNull();
+    expect(blocked.wait).toBeGreaterThan(14 * 60);
+    expect(blocked.wait).toBeLessThanOrEqual(15 * 60);
+    const n = await db.query<{ n: number }>(`select count(*)::int as n from public.signin_attempts where key_hash = '${KEY("a")}'`);
+    expect(n.rows[0].n).toBe(5);
   });
 
   it("blocks on either key: a blocked email stays blocked from a new IP", async () => {
-    expect(await wait([KEY("a"), KEY("b")])).toBeGreaterThan(0);
-    expect(await wait([KEY("b")])).toBe(0);
+    expect((await begin([KEY("a"), KEY("b")])).wait).toBeGreaterThan(0);
+    expect((await begin([KEY("b")])).wait).toBe(0);
   });
 
-  it("frees a key once its failures are older than 15 minutes", async () => {
-    await db.exec(`update public.signin_failures set created_at = now() - interval '16 minutes' where key_hash = '${KEY("a")}'`);
-    expect(await wait([KEY("a")])).toBe(0);
+  it("takes back a try that was not a wrong password", async () => {
+    const k = [KEY("f")];
+    for (let i = 0; i < 4; i++) await begin(k);
+    const ok = await begin(k);
+    await forget(ok.attempt!);
+    expect((await begin(k)).wait).toBe(0);
+  });
+
+  it("frees a key once its tries are older than 15 minutes", async () => {
+    await db.exec(`update public.signin_attempts set created_at = now() - interval '16 minutes' where key_hash = '${KEY("a")}'`);
+    expect((await begin([KEY("a")])).wait).toBe(0);
   });
 
   it("keeps the table hidden from the app", async () => {
-    await expect(as(db, "anon", null, "select * from public.signin_failures")).rejects.toThrow(/permission denied/);
-    await expect(as(db, "authenticated", ALICE, "delete from public.signin_failures")).rejects.toThrow(/permission denied/);
+    await expect(as(db, "anon", null, "select * from public.signin_attempts")).rejects.toThrow(/permission denied/);
+    await expect(as(db, "authenticated", ALICE, "delete from public.signin_attempts")).rejects.toThrow(/permission denied/);
   });
 
   it("refuses anything but 1 or 2 hex keys", async () => {
     for (const bad of [[], ["khalid@example.com"], [KEY("a"), KEY("b"), KEY("c")], [KEY("A")]]) {
-      await expect(fail(bad)).rejects.toThrow(/invalid throttle keys/);
-      await expect(wait(bad)).rejects.toThrow(/invalid throttle keys/);
+      await expect(begin(bad)).rejects.toThrow(/invalid throttle keys/);
     }
   });
 
-  it("caps rows per key and deletes rows older than a day", async () => {
-    const k = [KEY("c")];
-    for (let i = 0; i < 25; i++) await fail(k);
-    const n = await db.query<{ n: number }>(`select count(*)::int as n from public.signin_failures where key_hash = '${KEY("c")}'`);
-    expect(n.rows[0].n).toBe(20);
-    await db.exec("update public.signin_failures set created_at = now() - interval '2 days'");
-    await fail([KEY("d")]);
-    const all = await db.query<{ n: number }>("select count(*)::int as n from public.signin_failures");
-    expect(all.rows[0].n).toBe(1);
+  it("SEC-70: refuses all new tries once 10,000 recent tries are stored, and clears day-old rows in batches", async () => {
+    await db.exec(`insert into public.signin_attempts (attempt, key_hash)
+      select gen_random_uuid(), encode(sha256(g::text::bytea), 'hex') from generate_series(1, 10000) g`);
+    expect(await begin([KEY("9")])).toEqual({ wait: 60, attempt: null });
+    await db.exec("update public.signin_attempts set created_at = now() - interval '2 days'");
+    const countOld = async () => (await db.query<{ n: number }>(
+      "select count(*)::int as n from public.signin_attempts where created_at < now() - interval '1 day'")).rows[0].n;
+    const before = await countOld();
+    await begin([KEY("8")]);
+    expect(await countOld()).toBe(before - 500);
+    expect((await begin([KEY("7")])).wait).toBe(0);
+  }, 60_000);
+
+  it("SEC-72: takes a lock per key before counting", () => {
+    const sql = read("supabase/migrations/0005_signin_throttle.sql");
+    expect(sql.indexOf("pg_advisory_xact_lock")).toBeLessThan(sql.indexOf("offset 4 limit 1"));
   });
 
   it("is applied after the earlier migrations", () => {
@@ -121,12 +150,12 @@ describe("SEC-4: throttle keys and the in-memory store", () => {
     let now = 1_000_000;
     const store = new MemoryThrottleAdapter(() => now);
     const k = [KEY("e")];
-    for (let i = 0; i < 4; i++) await store.recordFailure(k);
-    expect(await store.waitSeconds(k)).toBe(0);
-    await store.recordFailure(k);
-    expect(await store.waitSeconds(k)).toBe(900);
+    for (let i = 0; i < 5; i++) expect((await store.begin(k)).wait).toBe(0);
+    expect(await store.begin(k)).toEqual({ wait: 900, attempt: null });
     now += 901_000;
-    expect(await store.waitSeconds(k)).toBe(0);
+    const t = await store.begin(k);
+    expect(t.wait).toBe(0);
+    await store.forget(t.attempt!);
   });
 
   it("never sends the email or IP, only keyed hashes that differ per secret", () => {
@@ -153,11 +182,23 @@ describe("SEC-4: throttle keys and the in-memory store", () => {
     expect(throttlePepper({}, "development")).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it("is checked before Supabase and records only wrong passwords", () => {
+  it("counts the try before Supabase and keeps the count only for a wrong password", () => {
     const src = read("src/app/sign-in/actions.ts");
-    expect(src.indexOf("waitSeconds()")).toBeLessThan(src.indexOf("signInWithPassword("));
-    expect(src).toMatch(/result\.error === "invalid"[\s\S]*recordFailure\(\)/);
+    expect(src.indexOf("throttle.begin()")).toBeLessThan(src.indexOf("signInWithPassword("));
+    expect(src).toMatch(/result\.ok \|\| result\.error !== "invalid"\) \{\s*try \{\s*await throttle\.forget\(attempt\)/);
     expect(src).toMatch(/catch \{\s*return \{ error: "unavailable" \}/);
+  });
+
+  it("rejects a malformed answer from the store", () => {
+    expect(() => checkTicket({ wait: 0, attempt: null })).toThrow();
+    expect(() => checkTicket({ wait: -1, attempt: null })).toThrow();
+    expect(checkTicket({ wait: 30, attempt: "x" })).toEqual({ wait: 30, attempt: null });
+  });
+
+  it("SEC-74: a production build refuses the in-memory stand-ins", () => {
+    expect(() => adapterChoice({ SNAFI_THROTTLE_ADAPTER: "memory" }, false, "production")).toThrow(ConfigError);
+    expect(() => adapterChoice({ SNAFI_MAILBOX_ADAPTER: "memory" }, false, "production")).toThrow(ConfigError);
+    expect(adapterChoice({}, false, "production").throttle).toBe("supabase");
   });
 });
 

@@ -16,31 +16,32 @@ export async function signIn(_prev: SignInState, form: FormData): Promise<SignIn
     if (e instanceof ConfigError) return { error: "not_configured" };
     throw e;
   }
-  const email = String(form.get("email") ?? "");
-  const password = String(form.get("password") ?? "");
-  const creds = cleanCredentials(email, password);
+  const creds = cleanCredentials(String(form.get("email") ?? ""), String(form.get("password") ?? ""));
   if (!creds) return { error: "missing" };
 
-  // SEC-4: 5 wrong passwords in 15 minutes per email (and per client IP on Vercel),
-  // then wait. Checked before Supabase is asked; fails closed if the store is unreachable.
+  // SEC-4: every try is counted BEFORE Supabase is asked, one at a time per key
+  // (SEC-72): 5 in 15 minutes per email (and per client IP on Vercel), then wait.
+  // Fails closed if the store cannot be reached.
   let throttle: Awaited<ReturnType<typeof signInThrottle>>;
+  let attempt: string;
   try {
     throttle = await signInThrottle(creds.email);
-    if ((await throttle.waitSeconds()) > 0) return { error: "throttled" };
+    const ticket = await throttle.begin();
+    if (ticket.wait > 0 || !ticket.attempt) return { error: "throttled" };
+    attempt = ticket.attempt;
   } catch {
     return { error: "unavailable" };
   }
 
   const result = await authAdapter().signInWithPassword(creds.email, creds.password);
-  if (!result.ok) {
-    if (result.error === "invalid") {
-      try {
-        await throttle.recordFailure();
-      } catch {
-        // The answer stays "invalid"; a store outage blocks the next try at waitSeconds.
-      }
+  // Only a wrong password keeps its count; anything else is taken back.
+  if (result.ok || result.error !== "invalid") {
+    try {
+      await throttle.forget(attempt);
+    } catch {
+      // The try stays counted: safe, it only makes the limit stricter.
     }
-    return { error: result.error };
   }
+  if (!result.ok) return { error: result.error };
   redirect("/today");
 }
