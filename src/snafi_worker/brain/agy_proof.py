@@ -80,6 +80,11 @@ def prove(brain: AgyBrain, home: Path, out: Callable[[str], None] = print) -> Di
             init_seen = init_seen or init
             seen = json.dumps(result or {}, ensure_ascii=False) + err.decode("utf-8", errors="replace")
             problems = []
+            if not init:
+                said = next((l.strip() for l in err.decode("utf-8", errors="replace").splitlines() if l.strip()), "")
+                for code in codes.values():
+                    said = said.replace(code, "[code]")
+                problems.append(f"agy started no session: {said[:200] or 'no message'}")
             mode = str(init.get("permission_mode") or "").lower()
             if mode not in SAFE_MODES:
                 problems.append(f"agy did not report a strict permission mode ({mode or 'none'})")

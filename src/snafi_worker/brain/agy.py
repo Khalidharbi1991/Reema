@@ -42,8 +42,11 @@ LOCKDOWN_SETTINGS = {
     "disableSlashCommands": True,
     "permissions": {"deny": DENY_ALL, "ask": [], "allow": []},
 }
-FLAGS = ["--print", "--output-format", "stream-json", "--input-format", "stream-json", "--mode", "plan",
-         "--sandbox", "--disable-slash-commands"]
+# "--print=" is attached and empty: the prompt comes on stdin as stream-json. A bare "--print" takes the
+# next argument as its prompt (agy 1.5.5 swallowed "--output-format" that way), so every value is attached
+# or follows its own flag, and tests check no flag is ever read as another flag's value.
+FLAGS = ["--input-format", "stream-json", "--output-format", "stream-json", "--mode", "plan",
+         "--sandbox", "--disable-slash-commands", "--print="]
 REPLY_SCHEMA = {
     "type": "object",
     "properties": {

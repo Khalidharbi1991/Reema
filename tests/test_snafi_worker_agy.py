@@ -58,8 +58,29 @@ class FakeAgy:
             return 0, self.mcp.encode(), b""
         if rest == ["plugin", "list"]:
             return 0, self.plugins.encode(), b""
+        bad = misread_flag(rest)
+        if bad:  # what agy 1.5.5 does when a flag eats the next flag as its value
+            return 1, b"", f"error: --print took \"{bad}\" as its prompt\n".encode()
         text = json.loads(stdin)["message"]["content"][0]["text"]
         return 0, (self.turn or (lambda t, cwd: events(INIT, ok_result())))(text, cwd), b""
+
+
+VALUE_FLAGS = ("--print", "--output-format", "--input-format", "--mode", "--model", "--print-timeout", "--settings",
+               "--json-schema")
+
+
+def misread_flag(args):
+    """Reads args the way agy's parser does: a value flag takes the next argument unless its value is attached
+    with "=". Returns the first flag that would be eaten as a value, or None."""
+    i = 0
+    while i < len(args):
+        if args[i] in VALUE_FLAGS:
+            if i + 1 >= len(args) or args[i + 1].startswith("--"):
+                return args[i + 1] if i + 1 < len(args) else "(nothing)"
+            i += 2
+        else:
+            i += 1
+    return None
 
 
 def brain_with(fake, tmp_path, proven=True, clock=None, **options):
@@ -82,8 +103,10 @@ def test_every_call_is_locked_down(tmp_path):
     brain_with(fake, tmp_path).think(REQUEST)
     call = fake.calls[-1]
     argv = call["argv"]
-    for flag in ("--print", "--sandbox", "--disable-slash-commands"):
+    for flag in ("--print=", "--sandbox", "--disable-slash-commands"):
         assert flag in argv
+    assert "--print" not in argv and "-p" not in argv  # a bare --print eats the next flag as its prompt
+    assert misread_flag(argv[1:]) is None  # no flag is ever read as another flag's value
     assert argv[argv.index("--mode") + 1] == "plan"
     assert argv[argv.index("--model") + 1] == "gemini-3.8-flash-low"
     assert argv[argv.index("--output-format") + 1] == "stream-json" == argv[argv.index("--input-format") + 1]
@@ -425,6 +448,24 @@ def test_the_proof_fails_without_a_safe_permission_mode(tmp_path, mode):
         return events(init, tool_step(error=True, name=tool_for(text)), ok_result("no"))
     record = prove(brain_with(FakeAgy(turn), tmp_path, proven=False), tmp_path / "home", out=lambda *_: None)
     assert record["passed"] is False
+
+
+def test_the_fake_agy_rejects_a_bare_print_like_agy_1_5_5():
+    assert misread_flag(["--print", "--output-format", "stream-json"]) == "--output-format"
+    assert misread_flag(["--print=", "--output-format", "stream-json"]) is None
+
+
+def test_the_proof_shows_agys_own_error_when_it_starts_no_session(tmp_path):
+    class Failing(FakeAgy):
+        def __call__(self, argv, stdin, cwd, env, timeout):
+            code, out, err = super().__call__(argv, stdin, cwd, env, timeout)
+            if stdin is None:  # --version, mcp list and plugin list still answer
+                return code, out, err
+            return 1, b"", b"\nerror: unknown option --oops\n"
+    record = prove(brain_with(Failing(), tmp_path, proven=False), tmp_path / "home", out=lambda *_: None)
+    assert record["passed"] is False
+    problems = [p for c in record["checks"] for p in c["problems"]]
+    assert "agy started no session: error: unknown option --oops" in problems
 
 
 def test_a_passing_proof_records_the_install_fingerprint(tmp_path):
