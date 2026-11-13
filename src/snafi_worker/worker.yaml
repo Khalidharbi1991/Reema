@@ -3,11 +3,14 @@
 # Each outside service is chosen by its provider name; switching one is a one-line change.
 
 brain:
-  provider: gemini_api          # Gemini API, paid tier funded by Khalid's AI Pro credits; key in Credential Manager
-                                # others: agy (switched off: its search_web tool cannot be denied), fake (tests)
-  model: gemini-3.5-flash-lite  # the fast Flash model for chat
+  provider: claude_api          # Claude API (Anthropic), text only, no tools; key in Credential Manager
+                                # others: gemini_api (switched off; model gemini-3.5-flash-lite),
+                                #         agy (switched off: its search_web tool cannot be denied), fake (tests)
+  model: claude-haiku-5-5       # the cheapest current Haiku
+  effort: low
   timeout_seconds: 60
   max_output_tokens: 1024
+  daily_call_limit: 300         # brain calls per day, retries included (SEC-47); then Ahmad says so until tomorrow
 
 store:
   provider: supabase_rest       # or: memory (offline, for tests)

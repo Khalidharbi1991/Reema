@@ -77,12 +77,25 @@ def check_gemini(value: str) -> str:
     return value
 
 
+def check_anthropic(value: str) -> str:
+    """A Claude API key ("sk-ant-..."), never an admin key. The message never shows the key."""
+    value = check_gemini(value).strip()  # same paste checks (control characters, spaces, length, Supabase values)
+    if value.startswith("sk-ant-admin"):
+        raise ValueError("that is an Admin API key; create a normal API key in the Claude Console")
+    if not value.startswith("sk-ant-"):
+        raise ValueError("does not look like a Claude API key (it starts with sk-ant-)")
+    return value
+
+
 QUESTIONS = (
     ("SNAFI_SUPABASE_URL", "Supabase project URL", check_url, False),
     ("SNAFI_SUPABASE_SECRET_KEY", "Supabase secret key (hidden while you type or paste)", check_secret_key, True),
     ("SNAFI_OWNER_USER_ID", "Your Supabase user UID", check_owner, False),
     ("GEMINI_API_KEY", "Gemini API key (hidden while you type or paste)", check_gemini, True),
+    ("ANTHROPIC_API_KEY", "Claude API key (hidden while you type or paste)", check_anthropic, True),
 )
+# Each brain key is asked for only while that brain is chosen in worker.yaml.
+BRAIN_KEYS = {"GEMINI_API_KEY": "gemini_api", "ANTHROPIC_API_KEY": "claude_api"}
 
 
 def ask(store, name, label, check, hidden, prompt=getpass.getpass, plain=input, out=print) -> bool:
@@ -103,8 +116,8 @@ def ask(store, name, label, check, hidden, prompt=getpass.getpass, plain=input, 
 
 
 def questions(brain_provider: str):
-    """Only what the configured services need: no Gemini key unless the gemini_api brain is chosen."""
-    return [q for q in QUESTIONS if q[0] != "GEMINI_API_KEY" or brain_provider == "gemini_api"]
+    """Only what the configured services need: a brain's key only while that brain is chosen."""
+    return [q for q in QUESTIONS if BRAIN_KEYS.get(q[0], brain_provider) == brain_provider]
 
 
 def run(store, prompt=getpass.getpass, plain=input, out=print, brain_provider: str = "") -> int:

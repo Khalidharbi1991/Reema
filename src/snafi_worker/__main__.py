@@ -22,7 +22,7 @@ from .backup import BackupScheduler, run_backup
 from .config import ConfigError, Secrets, Settings, worker_data_dir
 from .engine import Engine
 from .runner import Heartbeat, Lane, run_job
-from .services import PAUSE_FILE, build, guarded_brain
+from .services import CALLS_FILE, PAUSE_FILE, build, guarded_brain
 
 UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
@@ -54,9 +54,12 @@ def main(argv=None) -> int:
     parser.add_argument("--reset-brain", action="store_true", help="clear a safety pause after you have looked")
     args = parser.parse_args(argv)
     if args.reset_brain:
+        from .brain.limit import DailyLimit
         from .brain.pause import PauseFile
         cleared = PauseFile(worker_data_dir() / PAUSE_FILE).clear()
         print("Brain pause cleared." if cleared else "The brain was not paused.")
+        if DailyLimit(worker_data_dir() / CALLS_FILE, 0, "UTC").clear_if_unreadable():
+            print("A damaged daily call count was removed.")
         return 0
     try:
         settings, secrets = Settings.load(), Secrets.load()
