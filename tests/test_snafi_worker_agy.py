@@ -269,9 +269,12 @@ def test_a_paused_brain_answers_nothing_and_says_so(tmp_path):
 
 
 # ---------- switching brains is one setting ----------
-def test_agy_is_the_configured_brain_and_needs_no_key():
-    settings = Settings.load()
-    assert settings.brain_provider == "agy" and settings.brain_options["model"] == "gemini-3.8-flash-low"
+AGY = {"brain.provider": "agy", "brain.model": "gemini-3.8-flash-low"}
+
+
+def test_agy_is_switched_off_but_still_builds_and_needs_no_key():
+    assert Settings.load().brain_provider == "gemini_api"  # agy's search_web could not be denied
+    settings = Settings.load(overrides=AGY)
     assert isinstance(services.build("brain", settings, Secrets({})), AgyBrain)
 
 
@@ -280,9 +283,11 @@ def test_one_setting_switches_between_all_brains(tmp_path):
     gemini = Settings.load(overrides={"brain.provider": "gemini_api"})
     assert isinstance(services.build("brain", gemini, Secrets({"GEMINI_API_KEY": "k" * 30})), GeminiApiBrain)
     with pytest.raises(Exception, match="GEMINI_API_KEY"):
-        services.build("brain", gemini, Secrets({}))  # switched off: no key is stored or asked for
-    guarded = services.guarded_brain(Settings.load(), Secrets({}), pause_dir=tmp_path)
+        services.build("brain", gemini, Secrets({}))  # fails early, without the key, before any call
+    guarded = services.guarded_brain(Settings.load(overrides=AGY), Secrets({}), pause_dir=tmp_path)
     assert isinstance(guarded, GuardedBrain) and isinstance(guarded.brain, AgyBrain)
+    guarded = services.guarded_brain(Settings.load(), Secrets({"GEMINI_API_KEY": "k" * 30}), pause_dir=tmp_path)
+    assert isinstance(guarded, GuardedBrain) and isinstance(guarded.brain, GeminiApiBrain)
 
 
 def test_only_the_brain_adapter_knows_agy():

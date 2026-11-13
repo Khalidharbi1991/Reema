@@ -26,7 +26,7 @@ Outside content only ever reaches the brain inside `<data>` blocks, as informati
 
 | Service | Setting | Providers |
 | --- | --- | --- |
-| Brain | `brain.provider` | `agy` (Antigravity CLI, `gemini-3.8-flash-low`, locked down; the configured brain), `gemini_api` (text only; switched off, needs a key), `fake` (offline) |
+| Brain | `brain.provider` | `gemini_api` (Gemini API, `gemini-3.5-flash-lite`, text only, key in Credential Manager; the configured brain), `agy` (Antigravity CLI; switched off, see below), `fake` (offline) |
 | Database | `store.provider` | `supabase_rest`, `memory` (offline) |
 
 Switching is one line in `worker.yaml`; tests prove that only `brain/` knows the brain and
@@ -45,7 +45,19 @@ only `store/` knows the database.
   with each table's row count and SHA-256. The newest 30 days are kept. The result is shown
   in the app's menu. No AI call.
 
-## The agy brain and its lockdown
+## The Gemini API brain (configured)
+
+`brain/gemini_api.py` sends one text request to the Gemini API's `generateContent` endpoint, with
+the key in the `x-goog-api-key` header (never in the URL, never logged). It declares no tools, so
+the model can only answer with text; any action it proposes is data for the permission gate. The
+key belongs to the paid tier funded by Khalid's AI Pro monthly credits, restricted to the Gemini
+API, with a spend cap set in Google's console.
+
+## The agy brain and its lockdown (switched off)
+
+Switched off on Nov 13, 2026: the live proof showed agy's `search_web` tool running although
+every tool was denied, and agy documents no setting or deny rule that covers it. The code and
+its tests stay, so the proof can be run again if agy ever adds one.
 
 `agy` runs under the separate `worker` Windows user, signed in with a Snafi-only Google
 account, so Khalid's own agy setup is untouched. Every call (`brain/agy.py`) uses headless plan
@@ -76,7 +88,7 @@ value and never shows the key (`--status` lists which are stored, `--remove` del
 | `SNAFI_SUPABASE_SECRET_KEY` | the secret key (`sb_secret_...`) |
 | `SNAFI_OWNER_USER_ID` | Khalid's Supabase user UID |
 | `SNAFI_BACKUP_SIGNING_KEY` | made at random by the script; signs every backup |
-| `GEMINI_API_KEY` | only if `brain.provider` is ever switched to `gemini_api`; not asked for with agy |
+| `GEMINI_API_KEY` | the Gemini API key; asked for only while `brain.provider` is `gemini_api` |
 
 Each is a generic credential "REEMA-Snafi:<NAME>" for `worker`, encrypted by Windows (DPAPI).
 Khalid's own account, and so any Claude Code session, cannot read another user's credentials,

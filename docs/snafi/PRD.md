@@ -37,7 +37,7 @@ Snafi is Khalid's personal assistant app. Ahmad, the executive assistant inside 
 | --- | --- | --- |
 | App | Next.js web app on Vercel, installable (PWA) | Capacitor-wrapped iOS/Android apps for widgets |
 | Database / mailbox | Supabase (Postgres, free plan), pgvector for memory search | Any Postgres (e.g. Neon) |
-| Brain, personal work | Antigravity CLI (`agy`), signed in with a Snafi-only Google account under its own Windows user (`worker`); model `gemini-3.8-flash-low`; locked down (plan mode, every tool denied, sandbox, no paid credits) and proven by a live test; behind the brain adapter (`src/snafi_worker/brain/`). No API key, no per-message bill. Data use: Google records and may human-review interactions and use them to improve its products; the improvement setting is off for that account, and confidential material should not be sent. | Claude, the Gemini API (kept in code, switched off) or another model, by one setting in `worker.yaml` |
+| Brain, personal work | Gemini API, paid tier funded by Khalid's Google AI Pro monthly credits, with a spend cap; model `gemini-3.5-flash-lite`; text only (no tools on the brain's side; it only proposes actions as data for the permission gate); run by the worker as its own Windows user (`worker`), key in Credential Manager; behind the brain adapter (`src/snafi_worker/brain/`). Paid-tier data is not used to improve Google's products. | Claude, the Antigravity CLI (`agy`, kept in code, switched off: its `search_web` tool cannot be denied) or another model, by one setting in `worker.yaml` |
 | Brain, Documentation and Home Design | Claude (already built and tested) | Any provider via AGENTS.md |
 | Email | Gmail (Google sign-in) and Yahoo (app password, stored on PC only) | Any IMAP provider |
 | Calendar | Google Calendar (main calendar) | Other calendars |
@@ -181,7 +181,7 @@ From the step 1 security review (`apps/snafi-web/docs/SECURITY_REVIEW.md`). No V
 ## Open questions
 
 - [ ] Voice Studio: confirm it speaks Arabic well and has a way for REEMA to call it.
-- [x] Brain: the Antigravity CLI (`agy`), Snafi-only Google account, separate Windows user, `gemini-3.8-flash-low`, no API and no paid credits (decided Nov 10, 2026). Gemini CLI stopped serving personal accounts on June 18, 2026. The Gemini API brain stays in the code, switched off. A new agy version pauses the brain until the lockdown proof is run again. Free use is limited by an unpublished weekly quota.
+- [x] Brain: the Gemini API, paid tier funded by the AI Pro monthly credits, `gemini-3.5-flash-lite`, with a spend cap (decided Nov 13, 2026). The Antigravity CLI (`agy`) was the brain from Nov 10, 2026, but its live lockdown proof failed: its `search_web` tool ran although every tool was denied, and agy has no documented setting or deny rule for it. AgyBrain stays in the code, switched off. Gemini CLI stopped serving personal accounts on June 18, 2026.
 - [ ] Google sign-in: keep the Google app in Testing (reconnect weekly) or complete Google's verification.
 - [ ] Supabase region closest to Khalid.
 - [x] Arabic menu position: mirrored to the top left (decided Nov 7, 2026).

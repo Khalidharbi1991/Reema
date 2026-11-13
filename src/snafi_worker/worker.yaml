@@ -1,12 +1,13 @@
 # Snafi worker settings. No secrets here: they live in Windows Credential Manager
-# (stored once with: python -m src.snafi_worker.set_secrets).
+# (stored once, as the worker Windows user, with: C:\SnafiWorker\snafi.cmd set-secrets).
 # Each outside service is chosen by its provider name; switching one is a one-line change.
 
 brain:
-  provider: agy                 # Antigravity CLI, signed in as worker (no API key)
-                                # others: gemini_api (switched off; needs an API key), fake (tests)
-  model: gemini-3.8-flash-low   # the fast model for chat
-  timeout_seconds: 90
+  provider: gemini_api          # Gemini API, paid tier funded by Khalid's AI Pro credits; key in Credential Manager
+                                # others: agy (switched off: its search_web tool cannot be denied), fake (tests)
+  model: gemini-3.5-flash-lite  # the fast Flash model for chat
+  timeout_seconds: 60
+  max_output_tokens: 1024
 
 store:
   provider: supabase_rest       # or: memory (offline, for tests)

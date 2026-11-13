@@ -42,9 +42,10 @@ commands. Change history is in `docs/reports/CHANGELOG.md`.
 - REEMA makes no model call, with one exception Khalid asked for: the Snafi worker
   (`src/snafi_worker/`) calls Ahmad's brain, and only through its brain adapter
   (`src/snafi_worker/brain/`, chosen by `src/snafi_worker/worker.yaml`; today the
-  Antigravity CLI `agy`, signed in with a Snafi-only Google account under the separate
-  `worker` Windows user, locked down and proven by `brain/agy_proof.py`; the Gemini
-  API brain stays in the code, switched off). Do not add any other model API client, key or paid call unless
+  Gemini API, text only, paid tier funded by Khalid's AI Pro credits with a spend cap,
+  run by the worker as the separate `worker` Windows user; the Antigravity CLI `agy`
+  brain stays in the code, switched off, because its `search_web` tool cannot be
+  denied). Do not add any other model API client, key or paid call unless
   Khalid explicitly asks for it; other model work happens in Claude Code. Tests use
   stand-in workers and the fake brain only. The no-Anthropic guard stays.
 - Every outside service (brain/model, email, calendar, tasks, files, voice,
@@ -56,7 +57,7 @@ commands. Change history is in `docs/reports/CHANGELOG.md`.
   `SNAFI_OWNER_USER_ID`, `GEMINI_API_KEY`, `SNAFI_BACKUP_SIGNING_KEY`) live only in
   Windows Credential Manager for the `worker` Windows user ("REEMA-Snafi:<NAME>",
   encrypted by Windows), stored by Khalid as that user with `C:\SnafiWorker\snafi.cmd
-  set-secrets`; no Gemini key is stored while agy is the brain. The worker runs from its own
+  set-secrets`; the Gemini key is asked for only while `gemini_api` is the brain. The worker runs from its own
   copy in `C:\SnafiWorker` (built by `src/snafi_worker/deploy/deploy.ps1`), and
   `worker` is denied on `D:\Projects` except the backups folder; there is
   no plain-text secrets file. The worker's logs live in `%APPDATA%\REEMA\snafi-worker\logs`
@@ -482,8 +483,8 @@ records the earlier external requirements as they stood before the no-API migrat
 REEMA's CLI and documentation jobs have no model runtime and have not moved to OpenAI
 or any other provider. The single exception is the Snafi worker's brain adapter
 (`src/snafi_worker/brain/`), which Khalid asked for: the brain only proposes actions as text,
-every tool on the brain's side is denied or absent, and its provider is chosen in `src/snafi_worker/worker.yaml` (today `agy`: no API key, no
-paid credits, every tool denied, any tool that runs pauses the brain). Adding any other model
+every tool on the brain's side is denied or absent, and its provider is chosen in `src/snafi_worker/worker.yaml` (today `gemini_api`: text only,
+no tools, paid tier funded by AI Pro credits with a spend cap; `agy` is switched off). Adding any other model
 API is a new feature that needs Khalid's explicit request and must add the client,
 settings, consent, dependencies (regenerated with `uv`), documentation and tests
 together, including the no-API guard. See `docs/migration/CODEX_ADOPTION.md`.

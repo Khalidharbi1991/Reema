@@ -110,7 +110,7 @@ def test_switching_brains_is_one_setting():
     secrets = Secrets({"GEMINI_API_KEY": KEY})
     gemini = Settings.load(overrides={"brain.provider": "gemini_api"})
     fake = Settings.load(overrides={"brain.provider": "fake"})
-    assert Settings.load().brain_provider == "agy"  # the configured brain; gemini_api is switched off
+    assert Settings.load().brain_provider == "gemini_api"  # the configured brain; agy is switched off
     assert isinstance(services.build("brain", gemini, secrets), GeminiApiBrain)
     assert isinstance(services.build("brain", fake, Secrets({})), FakeBrain)
     assert set(registry.providers("brain")) >= {"agy", "gemini_api", "fake"}
