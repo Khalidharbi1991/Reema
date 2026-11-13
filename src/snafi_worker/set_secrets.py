@@ -1,7 +1,7 @@
 """One-time setup: asks Khalid for each Snafi worker setting and stores it in Windows
-Credential Manager for the Windows user that runs it (worker). Keys are typed without being shown (getpass) and
-are never printed, logged or written to a file. Run it yourself, signed in to Windows as
-worker, in a normal PowerShell window:
+Credential Manager for the Windows user that runs it: Khalid, who the worker runs as. Keys are
+typed without being shown (getpass) and are never printed, logged or written to a file. Run it
+yourself, as yourself, in a normal (not admin) PowerShell window, not from Claude Code:
 
   C:\\SnafiWorker\\snafi.cmd set-secrets            ask for each value
   C:\\SnafiWorker\\snafi.cmd set-secrets --status   which are stored (names only)

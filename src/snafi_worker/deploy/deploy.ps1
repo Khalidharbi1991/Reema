@@ -1,7 +1,9 @@
 <#
 .SYNOPSIS
   Builds C:\SnafiWorker (the Snafi worker's own copy, with its own private Python) and sets
-  folder permissions for the worker Windows user.
+  folder permissions for the Windows user the worker runs as: you (Khalid), since Nov 13, 2026.
+  The separate worker user is kept dormant for a possible return to agy; it is not used, only
+  still kept out of your folders.
 
   First, as YOURSELF in a normal (not admin) PowerShell from the repo folder, build Ahmad's
   prompt text (this runs REEMA's own Python, so it must not run as administrator):
@@ -10,8 +12,8 @@
       powershell -ExecutionPolicy Bypass -File src\snafi_worker\deploy\deploy.ps1
 
 .DESCRIPTION
-  1. Locks C:\SnafiWorker first: Administrators and SYSTEM full; worker and you read and
-     run only, so the worker cannot change its own code.
+  1. Locks C:\SnafiWorker first: Administrators and SYSTEM full; you read and run only, so the
+     worker (running as you, not elevated) cannot change its own code.
   2. Refuses if src\snafi_worker has uncommitted changes, then copies only that folder (with the
      prompt text you built) and the launcher. No REEMA code runs as administrator (SEC-30).
   3. Gives the worker its own private Python 3.12.10: python.org's official NuGet package (a zip,
@@ -20,17 +22,19 @@
      It does not touch, need or conflict with any other Python on this PC. Then installs exactly
      pyyaml 6.0.3 and tzdata 2026.6 into it, as wheels whose SHA-256 must match
      requirements-worker.txt.
-  4. Denies worker on D:\Projects and D:\Antigravity_Projects, and lets it write only to
-     the backups folder, which is locked to worker, Administrators and SYSTEM (your normal,
-     non-admin processes, Claude Code included, cannot open it).
+  4. Lets you (and so the worker) change files in the backups folder, with Administrators and
+     SYSTEM; nobody else. Your own processes, Claude Code included, can now open it: only Claude
+     Code's deny rules and its guard keep sessions out (a backstop, not an OS boundary). The dormant
+     worker user, if it exists, stays denied on D:\Projects and D:\Antigravity_Projects.
   5. Makes Administrators the owner of C:\SnafiWorker and the backups folder, so no normal process
-     (yours or the worker's) can change their permissions back.
+     can change their permissions back.
   Run it again after every Snafi worker update; it replaces the app folder and unpacks a fresh Python.
 #>
 param(
     [string]$Repo = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..")).Path,
     [string]$Target = "C:\SnafiWorker",
-    [string]$WorkerUser = "worker",
+    [string]$RunAs = [Security.Principal.WindowsIdentity]::GetCurrent().Name,   # you: the worker runs as this user
+    [string]$DormantUser = "worker",   # kept, unused, in case agy returns
     [string[]]$DenyFolders = @("D:\Projects", "D:\Antigravity_Projects"),
     [string]$Backups = "D:\Projects\IT Consultant\teams\coordination\snafi-backups"
 )
@@ -47,11 +51,10 @@ $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     [Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $admin) { throw "Run this in an administrator PowerShell." }
 Stop-ScheduledTask -TaskName "Snafi Worker" -ErrorAction SilentlyContinue   # files may be in use; start it again afterwards
-$account = Get-LocalUser -Name $WorkerUser -ErrorAction SilentlyContinue
-if (-not $account) { throw "The Windows user '$WorkerUser' does not exist yet. Create it first (README)." }
-if ((Get-LocalGroupMember -Group Administrators | Where-Object { $_.Name -like "*\$WorkerUser" })) {
-    throw "'$WorkerUser' must NOT be an administrator. Remove it from Administrators first."
-}
+try { $runAsSid = (New-Object Security.Principal.NTAccount($RunAs)).Translate([Security.Principal.SecurityIdentifier]).Value }
+catch { throw "The Windows user '$RunAs' was not found." }
+if ($runAsSid -eq "S-1-5-18" -or $runAsSid -eq "S-1-5-32-544") { throw "Run the worker as your own user, not as '$RunAs'." }
+Write-Host "The worker will run as $RunAs."
 $source = Join-Path $Repo "src\snafi_worker"
 if (-not (Test-Path (Join-Path $source "ahmad_base.txt"))) {
     throw "Build Ahmad's prompt text first, as yourself (not admin): .venv\Scripts\python.exe -m src.snafi_worker.prompt --write src\snafi_worker\ahmad_base.txt"
@@ -61,9 +64,8 @@ if ($LASTEXITCODE -ne 0) { throw "Could not check git status of src\snafi_worker
 if ($dirty) { throw "src\snafi_worker has uncommitted changes; commit or discard them before deploying:`n$dirty" }
 
 # 1. Lock the target before anything is copied into it
-$me = [Security.Principal.WindowsIdentity]::GetCurrent().Name
 New-Item -ItemType Directory -Force -Path $Target | Out-Null
-icacls $Target /inheritance:r /grant:r "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" "${WorkerUser}:(OI)(CI)RX" "${me}:(OI)(CI)RX" /Q | Out-Null
+icacls $Target /inheritance:r /grant:r "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" "*${runAsSid}:(OI)(CI)RX" /Q | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "Locking $Target failed." }
 
 # 2. The app copy (files only; nothing from the repo is executed here)
@@ -107,17 +109,21 @@ if (Test-Path $oldVenv) { Remove-Item -Recurse -Force $oldVenv }   # the earlier
 icacls (Join-Path $Target "*") /reset /T /Q | Out-Null   # the contents inherit the lock; the folder keeps it
 icacls $Target /setowner "*S-1-5-32-544" /T /C /Q | Out-Null   # owned by Administrators, so no normal process can re-open it (SEC-36)
 
-# 4. Keep the worker out of your folders; it may write only to the backups folder
-foreach ($folder in $DenyFolders) {
-    if (Test-Path $folder) {
-        icacls $folder /deny "${WorkerUser}:(OI)(CI)F" /Q | Out-Null
-        Write-Host "Denied $WorkerUser on $folder"
+# 4. The dormant worker user stays out of your folders; the backups folder is yours (and the worker's)
+$dormant = Get-LocalUser -Name $DormantUser -ErrorAction SilentlyContinue
+if ($dormant) {
+    foreach ($folder in $DenyFolders) {
+        if (Test-Path $folder) {
+            icacls $folder /deny "*$($dormant.SID.Value):(OI)(CI)F" /Q | Out-Null
+            Write-Host "Kept the dormant $DormantUser user denied on $folder"
+        }
     }
 }
 New-Item -ItemType Directory -Force -Path $Backups | Out-Null
-icacls $Backups /setowner "*S-1-5-32-544" /T /C /Q | Out-Null   # the step 2 worker may have created it as you (SEC-36)
-icacls $Backups /inheritance:r /grant:r "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" "${WorkerUser}:(OI)(CI)M" /Q | Out-Null
+icacls $Backups /setowner "*S-1-5-32-544" /T /C /Q | Out-Null   # a worker run may have created it as you (SEC-36)
+icacls $Backups /inheritance:r /grant:r "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" "*${runAsSid}:(OI)(CI)M" /Q | Out-Null
+if ($dormant) { icacls $Backups /remove:g "*$($dormant.SID.Value)" /Q | Out-Null }   # the dormant user no longer writes backups
 
 Write-Host ""
-Write-Host "Deployed the Snafi worker to $Target with its own Python $PythonVersion."
-Write-Host "Next, as ${WorkerUser}: install and sign in to agy, then run: $Target\snafi.cmd set-secrets, then: $Target\snafi.cmd prove"
+Write-Host "Deployed the Snafi worker to $Target with its own Python $PythonVersion, to run as $RunAs."
+Write-Host "Next, as yourself in a normal PowerShell: $Target\snafi.cmd set-secrets, then $Target\snafi.cmd check"

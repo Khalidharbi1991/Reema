@@ -43,7 +43,7 @@ commands. Change history is in `docs/reports/CHANGELOG.md`.
   (`src/snafi_worker/`) calls Ahmad's brain, and only through its brain adapter
   (`src/snafi_worker/brain/`, chosen by `src/snafi_worker/worker.yaml`; today the
   Gemini API, text only, paid tier funded by Khalid's AI Pro credits with a spend cap,
-  run by the worker as the separate `worker` Windows user; the Antigravity CLI `agy`
+  run by the worker as Khalid's own Windows user; the Antigravity CLI `agy`
   brain stays in the code, switched off, because its `search_web` tool cannot be
   denied). Do not add any other model API client, key or paid call unless
   Khalid explicitly asks for it; other model work happens in Claude Code. Tests use
@@ -55,17 +55,20 @@ commands. Change history is in `docs/reports/CHANGELOG.md`.
   adapter's own file, nothing else.
 - The worker's secrets (`SNAFI_SUPABASE_URL`, `SNAFI_SUPABASE_SECRET_KEY`,
   `SNAFI_OWNER_USER_ID`, `GEMINI_API_KEY`, `SNAFI_BACKUP_SIGNING_KEY`) live only in
-  Windows Credential Manager for the `worker` Windows user ("REEMA-Snafi:<NAME>",
-  encrypted by Windows), stored by Khalid as that user with `C:\SnafiWorker\snafi.cmd
-  set-secrets`; the Gemini key is asked for only while `gemini_api` is the brain. The worker runs from its own
-  copy in `C:\SnafiWorker` (built by `src/snafi_worker/deploy/deploy.ps1`), and
-  `worker` is denied on `D:\Projects` except the backups folder; there is
-  no plain-text secrets file. The worker's logs live in `%APPDATA%\REEMA\snafi-worker\logs`
-  and Snafi's signed daily backups in ignored `teams/coordination/snafi-backups/`. No
-  Claude Code session or agent reads the secrets, logs or backups, or runs the worker,
-  its restore or its setup: `.claude/settings.json` denies the paths and
-  `.claude/hooks/dev_guard.py` blocks commands that name them or Credential Manager (a
-  backstop, not a full guarantee).
+  Windows Credential Manager for Khalid's own Windows user ("REEMA-Snafi:<NAME>",
+  encrypted by Windows), stored by Khalid with `C:\SnafiWorker\snafi.cmd set-secrets`;
+  the Gemini key is asked for only while `gemini_api` is the brain. Since Nov 13, 2026
+  the worker runs as Khalid (scheduled task at his sign-in, not elevated), from its own
+  copy in `C:\SnafiWorker` (built by `src/snafi_worker/deploy/deploy.ps1`, owned by
+  Administrators, read and run only for Khalid). The separate `worker` Windows user and
+  its setup are kept dormant for a possible return to agy (still denied on `D:\Projects`);
+  do not delete them. There is no plain-text secrets file. The worker's logs live in
+  `%APPDATA%\REEMA\snafi-worker\logs` and Snafi's signed daily backups in ignored
+  `teams/coordination/snafi-backups/`. No Claude Code session or agent reads the
+  secrets, logs, backups or `C:\SnafiWorker`, or runs the worker, its restore or its
+  setup: `.claude/settings.json` denies the paths and `.claude/hooks/dev_guard.py`
+  blocks commands that name them or Credential Manager. Claude Code runs as the same
+  Windows user, so these are the only barrier: a backstop, not a full guarantee.
 - Never add API keys, generated documents, logs, local editor settings, or source
   customer documents to Git.
 - Reference material stays in ignored `teams/documentation/input/references/`. Only files explicitly

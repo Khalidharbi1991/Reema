@@ -79,9 +79,12 @@ settings. A new agy version pauses the brain until the proof is run again.
 attempts to write files, run commands, read a file outside its folder, fetch a URL and use MCP.
 It passes only if nothing happened. It uses six requests of the free quota.
 
-## Secrets: Windows Credential Manager (worker)
+## Secrets: Windows Credential Manager (Khalid's own)
 
-Stored once, as `worker`, with `C:\SnafiWorker\snafi.cmd set-secrets`, which asks for each
+Since Nov 13, 2026 the worker runs as Khalid's own Windows user. The separate `worker` user and
+its setup are kept dormant (unused) for a possible return to agy.
+
+Stored once, as Khalid, in a normal (not admin) PowerShell, with `C:\SnafiWorker\snafi.cmd set-secrets`, which asks for each
 value and never shows the key (`--status` lists which are stored, `--remove` deletes them):
 
 | Name | What |
@@ -92,9 +95,12 @@ value and never shows the key (`--status` lists which are stored, `--remove` del
 | `SNAFI_BACKUP_SIGNING_KEY` | made at random by the script; signs every backup |
 | `GEMINI_API_KEY` | the Gemini API key; asked for only while `brain.provider` is `gemini_api` |
 
-Each is a generic credential "REEMA-Snafi:<NAME>" for `worker`, encrypted by Windows (DPAPI).
-Khalid's own account, and so any Claude Code session, cannot read another user's credentials,
-profile or logs. There is no plain-text secrets file.
+Each is a generic credential "REEMA-Snafi:<NAME>" for Khalid's user, encrypted by Windows
+(DPAPI). There is no plain-text secrets file. Claude Code also runs as Khalid, so Windows itself
+no longer keeps sessions away from these keys, the logs in `%APPDATA%\REEMA\snafi-worker` or the
+backups: only Claude Code's deny rules (`.claude/settings.json`) and its guard
+(`.claude/hooks/dev_guard.py`) do. They are a backstop, not an OS boundary: a program a session
+runs could still read them if it does not name them.
 
 ## Where it runs
 
@@ -106,17 +112,19 @@ to `C:\SnafiWorker\app` (no REEMA code runs as admin), gives the worker its own 
 3.12.10 in `C:\SnafiWorker\python` (python.org's official NuGet package: a zip, no installer,
 checked against its pinned SHA-256 and unpacked fresh on every deploy; no other Python on the PC
 is touched or needed), installs exactly pyyaml 6.0.3 and tzdata 2026.6 into it as hash-checked wheels
-(`deploy/requirements-worker.txt`), locks the backups folder to `worker`, and sets permissions: `worker` may read and run `C:\SnafiWorker` but not change it,
-is denied on `D:\Projects` (and `D:\Antigravity_Projects`), and may write only to the backups
-folder. `deploy/install_task.ps1` (admin) registers the task to start with Windows as
-`worker`. Re-run the deploy after every worker update.
+(`deploy/requirements-worker.txt`), and sets permissions: Khalid (and so the worker) may read and
+run `C:\SnafiWorker` but not change it (Administrators own it), and may change files in the
+backups folder; the dormant `worker` user stays denied on `D:\Projects` and
+`D:\Antigravity_Projects`. `deploy/install_task.ps1` (admin) registers the task to start when
+Khalid signs in, as Khalid, not elevated, with no password stored; it runs while he is signed in.
+Re-run the deploy after every worker update.
 
-## Commands (as worker, except where noted)
+## Commands (as Khalid in a normal PowerShell, except where noted)
 
 ```
 C:\SnafiWorker\snafi.cmd check          settings and which secrets exist (never values)
 C:\SnafiWorker\snafi.cmd set-secrets    store the secrets (asks; never shows the key)
-C:\SnafiWorker\snafi.cmd prove          the live lockdown proof
+C:\SnafiWorker\snafi.cmd prove          the live agy lockdown proof (agy only; switched off)
 C:\SnafiWorker\snafi.cmd reset-brain    clear a safety pause after you have looked
 C:\SnafiWorker\snafi.cmd once           answer waiting jobs, then stop
 C:\SnafiWorker\snafi.cmd backup-now

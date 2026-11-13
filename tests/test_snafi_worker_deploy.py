@@ -68,22 +68,30 @@ def test_deploy_sets_admin_owners_and_unpacks_a_fresh_python():
     assert 'Stop-ScheduledTask -TaskName "Snafi Worker"' in s
 
 
-def test_deploy_keeps_the_worker_out_of_khalids_folders():
+def test_deploy_runs_the_worker_as_khalid_read_only_and_keeps_the_dormant_user_out():
     s = text("deploy.ps1")
+    assert "[string]$RunAs = [Security.Principal.WindowsIdentity]::GetCurrent().Name" in s
+    assert '[string]$DormantUser = "worker"' in s  # kept, unused, for a possible return to agy
+    assert "Translate([Security.Principal.SecurityIdentifier])" in s  # grants by SID, not by name (SEC-42)
+    assert '"S-1-5-18"' in s and '"S-1-5-32-544"' in s and "Run the worker as your own user" in s
+    lock = [line for line in s.splitlines() if line.startswith("icacls $Target /inheritance:r")][0]
+    assert '"*${runAsSid}:(OI)(CI)RX"' in lock and ":(OI)(CI)M" not in lock and "WorkerUser" not in s
     assert '[string[]]$DenyFolders = @("D:\\Projects", "D:\\Antigravity_Projects")' in s
-    assert 'icacls $folder /deny "${WorkerUser}:(OI)(CI)F"' in s
+    assert 'icacls $folder /deny "*$($dormant.SID.Value):(OI)(CI)F"' in s
     backups = [line for line in s.splitlines() if line.startswith("icacls $Backups /inheritance:r")][0]
-    assert "/inheritance:r" in backups and '"${WorkerUser}:(OI)(CI)M"' in backups and "${me}" not in backups
-    assert '/inheritance:r /grant:r' in s and '"${WorkerUser}:(OI)(CI)RX"' in s  # cannot change its own code
-    assert "must NOT be an administrator" in s and "Run this in an administrator PowerShell" in s
+    assert '"*${runAsSid}:(OI)(CI)M"' in backups
+    assert 'icacls $Backups /remove:g "*$($dormant.SID.Value)"' in s
+    assert "Remove-LocalUser" not in s and "Disable-LocalUser" not in s  # the dormant user is never deleted
+    assert "Run this in an administrator PowerShell" in s
 
 
-def test_the_task_runs_as_snafi_worker_isolated_and_unelevated():
+def test_the_task_runs_as_khalid_at_sign_in_unelevated_with_no_stored_password():
     s = text("install_task.ps1")
-    for needed in ("-AtStartup", "pythonw.exe", '-Argument "-I `"$Launcher`" worker"', "-RunLevel Limited",
-                   "Get-Credential", "-RestartCount 999", "-MultipleInstances IgnoreNew", '[string]$WorkerUser = "worker"'):
+    for needed in ("-AtLogOn -User $RunAs", "pythonw.exe", '-Argument "-I `"$Launcher`" worker"',
+                   "-LogonType Interactive", "-RunLevel Limited", "-RestartCount 999", "-MultipleInstances IgnoreNew",
+                   "[string]$RunAs = [Security.Principal.WindowsIdentity]::GetCurrent().Name", "-Principal $Principal"):
         assert needed in s
-    assert "Highest" not in s and "-AtLogOn" not in s
+    assert "Highest" not in s and "Get-Credential" not in s and "-Password" not in s
 
 
 def test_the_launcher_and_task_use_the_private_python_isolated():
@@ -116,6 +124,18 @@ def test_the_launcher_dispatches_only_known_commands(monkeypatch, capsys):
 ])
 def test_guard_keeps_sessions_away_from_the_worker_user(command, powershell):
     assert "Snafi" in (_guard().reason(command, powershell=powershell) or "")
+
+
+def test_sessions_are_denied_the_workers_files_now_that_it_runs_as_khalid():
+    import json
+    deny = json.loads((ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))["permissions"]["deny"]
+    for verb in ("Read", "Edit", "Write"):
+        for path in ("~/AppData/Roaming/REEMA/**", "./teams/coordination/snafi-backups/**", "//c/SnafiWorker/**"):
+            assert f"{verb}({path})" in deny
+    guard = _guard()
+    for command in ("cmdkey /list", r"type %APPDATA%\REEMA\snafi-worker\logs\worker.log",
+                    r"dir C:\SnafiWorker\app", "Get-StoredCredential -Target x"):
+        assert "Snafi" in (guard.reason(command, powershell=True) or "")
 
 
 @pytest.mark.parametrize("command,powershell", [
