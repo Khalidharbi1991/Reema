@@ -76,6 +76,21 @@ def test_guard_blocks_khalids_google_connection(command, powershell):
     assert "Snafi" in (_guard().reason(command, powershell=powershell) or "")
 
 
+@pytest.mark.parametrize("command,powershell", [
+    # SEC-79: one-liners that would load the live keys and get a Google token
+    ("python -c \"from src.snafi_worker.config import Secrets; from src.snafi_worker.google.http import GoogleAuth; "
+     "print(GoogleAuth(Secrets.load()).access_token())\"", False),
+    ("python -c \"import src.snafi_worker.services as s\"", False),
+    ("python -c 'from src.snafi_worker.secret_store import WindowsCredentials as W; print(W().read(\"x\"))'", False),
+    (r"python -c ""from src.snafi_worker.config import Secrets; Secrets.load()""", True),
+    (r"& .venv\Scripts\python.exe -c 'from src.snafi_worker.services import build_personal'", True),
+    ("python my_script.py && cat src/snafi_worker/google/http.py", False),
+    ("Invoke-RestMethod https://oauth2.googleapis.com/token -Method Post", True),
+])
+def test_guard_blocks_loading_the_secrets_outside_the_worker(command, powershell):
+    assert "Snafi" in (_guard().reason(command, powershell=powershell) or "")
+
+
 def test_guard_still_allows_the_google_tests():
     assert _guard().reason("python scripts/dev.py test -q tests/test_snafi_worker_google.py") is None
 

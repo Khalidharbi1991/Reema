@@ -152,6 +152,11 @@ SNAFI_PRIVATE = (
     # as him and stores or reads his refresh token).
     (r"connect-google|google[./]connect\b|-m\s+['\"]?src\.snafi_worker\.google",
      "Khalid's Google connection (connect-google)"),
+    # SEC-79: importing the worker's secret loading or Google code from a one-liner or script would
+    # hand a session Khalid's live Gmail, Calendar and Drive token outside the gate.
+    (r"snafi_worker[./](config|services|google|secret_store|set_secrets)\b|secrets\.load|googleauth"
+     r"|build_personal|windowscredentials|oauth2\.googleapis\.com/token",
+     "the worker's secrets and Google connection (loading them outside the worker)"),
     (r"\bcmdkey\b|credread|credwrite|credenumerate|creddelete|vaultcmd|passwordvault|storedcredential"
      r"|credentialmanager|security\.credentials|win32cred|\bkeyring\b",
      "Windows Credential Manager"),

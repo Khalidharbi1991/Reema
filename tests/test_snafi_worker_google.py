@@ -7,6 +7,7 @@ that waits for Khalid.
 
 import base64
 import json
+import sys
 from datetime import datetime, timedelta, timezone
 from email import message_from_bytes
 from email.policy import default as default_policy
@@ -221,6 +222,7 @@ def test_the_cap_counts_to_cc_and_bcc_together():
     {"to": ["sara@example.com\r\nBcc: everyone@example.com"], "subject": "x", "body": "y"},
     {"to": ["not an address"], "subject": "x", "body": "y"},
     {"to": ["sara@example.com"], "subject": "Hi\r\nBcc: x@example.com", "body": "y"},
+    {"to": ["sara@example.com"], "subject": "Hi\nBcc: x@example.com", "body": "y"},  # SEC-82: a bare \n
     {"to": ["sara@example.com"], "subject": "x", "body": "y", "in_reply_to": "../../drafts"},
 ])
 def test_bad_addresses_and_header_injection_are_refused(args):
@@ -412,6 +414,22 @@ def test_the_sign_in_url_uses_pkce_and_offline_access():
     url = connect.auth_url("id.apps.googleusercontent.com", "http://127.0.0.1:1", "st", challenge)
     assert "code_challenge_method=S256" in url and "access_type=offline" in url and verifier not in url
     assert 43 <= len(verifier) <= 128
+
+
+def test_the_live_keys_open_only_from_the_deployed_worker():
+    """SEC-79 / SEC-55 (1): the repository copy, which a session could import, cannot open them."""
+    from src.snafi_worker import secret_store
+    assert secret_store.running_deployed(r"C:\SnafiWorker\app\src\snafi_worker\secret_store.py")
+    assert secret_store.running_deployed(r"c:\snafiworker\APP\src\snafi_worker\secret_store.py")
+    for here in (r"D:\Projects\IT Consultant\src\snafi_worker\secret_store.py",
+                 r"C:\SnafiWorker\app-evil\src\snafi_worker\secret_store.py", r"C:\SnafiWorker\secret_store.py"):
+        assert not secret_store.running_deployed(here)
+    assert not secret_store.running_deployed()  # this test runs from the repository
+    if sys.platform == "win32":
+        with pytest.raises(secret_store.SecretStoreError, match="deployed worker"):
+            secret_store.WindowsCredentials()
+        with pytest.raises(Exception, match="deployed worker"):
+            Secrets.load()
 
 
 def test_disconnect_revokes_and_deletes():

@@ -64,8 +64,11 @@ levels are in `personal_tools.py`:
 - **Outside content is untrusted data.** What a read returns goes to the brain once, in one
   follow-up call in the same turn, inside `<data source="untrusted_...">`. In that call no
   further read runs and any Level 3 action becomes a card marked "suggested after reading
-  outside content". The action log keeps ids and counts, never mail or file text; the chat
-  shows senders and subjects and Ahmad's own summary.
+  outside content". The text Ahmad reads (email bodies, file text, event descriptions) is
+  never logged or stored in Supabase. What is stored there (and so in the daily backup): the
+  chat shows senders, subjects and event titles and Ahmad's own summary, and the action log
+  and approval cards keep the arguments of what Ahmad wrote, so a draft's or a sent email's
+  whole body (SEC-83).
 - **Today feed** (`today_feed.py`): every 10 minutes, with no brain call, the next event and
   up to five important unread emails (unread, inbox, Important, last 24 h; sender name and
   subject only) go to the `today_feed` table. It is a cache, so it is not in the backup.

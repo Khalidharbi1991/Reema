@@ -28,7 +28,7 @@ UNTRUSTED_MAX = 12_000      # characters of outside content given to the brain f
 EMAIL = re.compile(r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
                    r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$")
 SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,200}$")
-CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+CONTROL = re.compile(r"[\x00-\x08\x0a-\x1f\x7f  ]")  # any line break, bare \n included (SEC-82)
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 OFF = {"mail": ("Gmail", "Gmail"), "calendar": ("Google Calendar", "تقويم Google"), "files": ("Google Drive", "Google Drive")}
 
