@@ -172,7 +172,11 @@ def test_any_printable_gemini_key_format_is_accepted(key):
 
 @pytest.mark.parametrize("bad,why", [("\x16", "control character"), ("AIza" + "y" * 35 + "\x16", "control character"),
                                      ("AIza" + "y" * 20 + " " + "y" * 14, "space"), ("AIza" + "y" * 30 + "é", "non-English"),
-                                     ("short", "characters long"), ("", "characters long")])
+                                     ("short", "characters long"), ("", "characters long"),
+                                     ("y" * 600, "20 to 512"),
+                                     ("sb_secret_" + "y" * 30, "Supabase"), ("sb_publishable_" + "y" * 30, "Supabase"),
+                                     ("https://abcd.supabase.co", "Supabase"),
+                                     ("eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.yyyy", "Supabase")])
 def test_a_broken_paste_or_a_wrong_value_is_refused_without_showing_it(bad, why):
     with pytest.raises(ValueError, match=why) as caught:
         check_gemini(bad)

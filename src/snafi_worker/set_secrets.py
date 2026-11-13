@@ -69,7 +69,10 @@ def check_gemini(value: str) -> str:
     if not value.isascii():
         raise ValueError("it contains a non-English character; copy the key again from Google AI Studio")
     if not 20 <= len(value) <= 512:
-        raise ValueError(f"it is {len(value)} characters long; a Gemini API key is longer than 20 characters")
+        raise ValueError(f"it is {len(value)} characters long; a Gemini API key has 20 to 512 characters")
+    lower = value.lower()
+    if lower.startswith(("sb_secret_", "sb_publishable_", "http:", "https:")) or _jwt_role(value):
+        raise ValueError("that is a Supabase value, not the Gemini key; it would be sent to Google (SEC-58)")
     return value
 
 
