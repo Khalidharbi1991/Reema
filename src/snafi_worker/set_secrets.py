@@ -35,9 +35,10 @@ def check_url(value: str) -> str:
 def _jwt_role(token: str) -> str:
     try:
         payload = token.split(".")[1]
-        return json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4))).get("role", "")
+        claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
     except (IndexError, ValueError):
         return ""
+    return str(claims.get("role") or "") if isinstance(claims, dict) else ""  # SEC-61: a non-object payload is no role
 
 
 def check_secret_key(value: str) -> str:

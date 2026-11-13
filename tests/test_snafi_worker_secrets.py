@@ -181,3 +181,9 @@ def test_a_broken_paste_or_a_wrong_value_is_refused_without_showing_it(bad, why)
     with pytest.raises(ValueError, match=why) as caught:
         check_gemini(bad)
     assert "yyyy" not in str(caught.value)
+
+
+@pytest.mark.parametrize("payload", ["MTIz", "WzFd", "InMi"])  # 123, [1], "s": JSON that is not an object
+def test_a_key_whose_middle_part_decodes_to_non_object_json_does_not_crash(payload):
+    key = "AQ" + "x" * 20 + "." + payload + "." + "y" * 10
+    assert check_gemini(key) == key
