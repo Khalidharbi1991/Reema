@@ -1,8 +1,12 @@
 import type { NextConfig } from "next";
 
-// Security headers for every response. The service worker is served from the
-// root with no caching so a new version is picked up at once.
+import { HSTS } from "./src/core/security-headers";
+
+// Security headers for every response. The Content-Security-Policy needs a fresh
+// nonce per page, so src/proxy.ts sets it (SEC-3). The service worker is served
+// from the root with no caching so a new version is picked up at once.
 const securityHeaders = [
+  { key: "Strict-Transport-Security", value: HSTS },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "X-Frame-Options", value: "DENY" },

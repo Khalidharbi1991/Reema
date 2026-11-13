@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 import type { ChatState } from "../actions";
 
 type Props = {
@@ -13,12 +13,21 @@ type Props = {
 export function ChatComposer({ send, labels, note }: Props) {
   const [state, action, pending] = useActionState(send, { error: false, sentAt: 0 });
   const form = useRef<HTMLFormElement>(null);
+  // The failure note belongs to one attempt: typing again hides it, the next send replaces it.
+  const [dismissed, setDismissed] = useState(0);
+  const failed = state.error && dismissed !== state.sentAt;
   useEffect(() => {
     if (state.sentAt && !state.error) form.current?.reset();
   }, [state]);
 
   return (
-    <form ref={form} action={action} className="sticky bottom-0 bg-bg pt-2 pb-[max(env(safe-area-inset-bottom),1rem)]">
+    // Submitted by hand, not with action={...}: React clears a form after every form
+    // action, which lost Khalid's text when the send failed. It is cleared only on success.
+    <form ref={form} onSubmit={(e) => {
+      e.preventDefault();
+      const data = new FormData(e.currentTarget);
+      startTransition(() => action(data));
+    }} className="sticky bottom-0 bg-bg pt-2 pb-[max(env(safe-area-inset-bottom),1rem)]">
       <div className="flex items-end gap-2 rounded-2xl border border-edge bg-card p-2">
         <button type="button" disabled aria-label={labels.attach}
           className="flex h-10 w-10 items-center justify-center rounded-full text-lg text-muted disabled:opacity-40">
@@ -27,6 +36,7 @@ export function ChatComposer({ send, labels, note }: Props) {
         <label htmlFor="chat-input" className="sr-only">{labels.placeholder}</label>
         <textarea id="chat-input" name="body" rows={1} required maxLength={8000} dir="auto"
           placeholder={labels.placeholder}
+          onInput={() => setDismissed(state.sentAt)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
@@ -40,7 +50,7 @@ export function ChatComposer({ send, labels, note }: Props) {
         </button>
       </div>
       <p role="status" aria-live="polite" className="mt-2 min-h-4 text-center text-xs text-muted">
-        {state.error ? labels.failed : note}
+        {failed ? labels.failed : note}
       </p>
     </form>
   );

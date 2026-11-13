@@ -11,6 +11,9 @@ import type { AuthAdapter } from "./auth/types";
 import { createMemoryStore, MemoryMailboxAdapter } from "./mailbox/memory";
 import { SupabaseMailboxAdapter } from "./mailbox/supabase";
 import type { MailboxAdapter } from "./mailbox/types";
+import { MemoryThrottleAdapter } from "./throttle/memory";
+import { SupabaseThrottleAdapter } from "./throttle/supabase";
+import type { ThrottleAdapter } from "./throttle/types";
 import { LiveTodaySource } from "./today/live";
 import { PlaceholderTodaySource } from "./today/placeholder";
 import type { TodaySource } from "./today/types";
@@ -18,6 +21,7 @@ import type { TodaySource } from "./today/types";
 /** Preview mode's owner and conversation (dev server without keys only). */
 export const PREVIEW_USER = "00000000-0000-4000-8000-000000000000";
 const previewStore = createMemoryStore();
+const memoryThrottle = new MemoryThrottleAdapter();
 
 const AUTH: Record<string, () => AuthAdapter> = {
   supabase: () => new SupabaseAuthAdapter(),
@@ -29,6 +33,11 @@ const MAILBOX: Record<string, (userId: string | null) => MailboxAdapter> = {
 const TODAY: Record<string, (mailbox: MailboxAdapter) => TodaySource> = {
   live: (mailbox) => new LiveTodaySource(() => mailbox.pendingApprovals(5)),
   placeholder: () => new PlaceholderTodaySource(),
+};
+
+const THROTTLE: Record<string, () => ThrottleAdapter> = {
+  supabase: () => new SupabaseThrottleAdapter(),
+  memory: () => memoryThrottle,
 };
 
 const choice = () => currentChoice(isPreviewMode());
@@ -43,4 +52,8 @@ export function mailboxAdapter(userId: string | null = null): MailboxAdapter {
 
 export function todaySource(mailbox: MailboxAdapter): TodaySource {
   return TODAY[choice().today](mailbox);
+}
+
+export function throttleAdapter(): ThrottleAdapter {
+  return THROTTLE[choice().throttle]();
 }

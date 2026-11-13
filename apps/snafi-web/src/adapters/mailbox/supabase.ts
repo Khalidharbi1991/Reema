@@ -57,18 +57,17 @@ export class SupabaseMailboxAdapter implements MailboxAdapter {
     return (data as MessageRow[]).map(toMessage).reverse();
   }
 
+  /**
+   * The message and its chat.reply job are saved in one transaction (send_chat,
+   * migration 0004), so a failure never leaves a message in the chat with no reply
+   * queued. send_chat runs as the signed-in user, under the same grants and RLS.
+   */
   async sendChat(input: { conversationId: string; body: string; lang: Lang }) {
-    const client = await this.client();
-    const conversationId = checkId(input.conversationId);
-    const { data, error } = await client.from("messages")
-      .insert({ conversation_id: conversationId, role: "user", body: checkMessageBody(input.body), lang: input.lang })
-      .select("*").single();
+    const { data, error } = await (await this.client()).rpc("send_chat", {
+      p_conversation_id: checkId(input.conversationId), p_body: checkMessageBody(input.body), p_lang: input.lang,
+    });
     if (error) throw new MailboxError(error.message);
-    const message = toMessage(data as MessageRow);
-    const job = await client.from("jobs")
-      .insert({ kind: "chat.reply", payload: { message_id: message.id }, conversation_id: conversationId });
-    if (job.error) throw new MailboxError(job.error.message);
-    return message;
+    return toMessage(data as MessageRow);
   }
 
   async approvals(ids: string[]) {

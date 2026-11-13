@@ -5,6 +5,21 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md). The [finite ledger](PENDING_LEDGER.md) records external
 requirements as they stood before the no-API migration below.
 
+## 2026-11-13 — Snafi phases 1 and 2: ready for a first deploy (not deployed)
+
+Phase 2 fix: chat sometimes showed "Couldn't send. Try again." while Khalid's message
+stayed in the chat with Ahmad "thinking" and no reply queued (the live logs showed
+the message saved and the job refused). The app now saves the message and its
+`chat.reply` job in one transaction (`send_chat`, migration 0004). The composer keeps
+the text after a failed send (React had cleared it) and hides the failure note once
+Khalid types again. Phase 1, before going online: a per-request nonce
+Content-Security-Policy and HSTS (SEC-3); a sign-in throttle of 5 wrong passwords in
+15 minutes per email, and per client IP on Vercel, stored as keyed hashes in Supabase
+(SEC-4, migration 0005, `SNAFI_THROTTLE_SECRET`); and redirects to a fixed site
+address (`SNAFI_SITE_URL` or Vercel's own), never the request's Host. TOTP MFA is
+proposed, not built. Agent 16's review is in `apps/snafi-web/docs/SECURITY_REVIEW.md`.
+Nothing was deployed or pushed.
+
 ## 2026-11-08 — Ahmad becomes Khalid's executive personal assistant
 
 Ahmad is no longer described only as the IT documentation coordinator. He is Khalid's
