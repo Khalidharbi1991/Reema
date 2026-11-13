@@ -19,7 +19,7 @@ LIST_ITEM_MAX = 254
 class ToolResult:
     ok: bool
     summary: Dict[str, str]          # {"en": ..., "ar": ...}: what really happened, written by code
-    data: Dict = field(default_factory=dict)   # kept in the action log: ids and counts, never mail or file text
+    data: Dict = field(default_factory=dict)   # kept in the action log: ids and counts, never text read from mail or files
     undo: Optional[Dict] = None      # how to undo, for Level 2
     untrusted: str = ""              # outside content (mail, events, files) for the brain only, as marked data
 

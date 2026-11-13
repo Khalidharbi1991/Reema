@@ -223,10 +223,19 @@ def test_the_cap_counts_to_cc_and_bcc_together():
     {"to": ["not an address"], "subject": "x", "body": "y"},
     {"to": ["sara@example.com"], "subject": "Hi\r\nBcc: x@example.com", "body": "y"},
     {"to": ["sara@example.com"], "subject": "Hi\nBcc: x@example.com", "body": "y"},  # SEC-82: a bare \n
+    {"to": ["sara@example.com"], "subject": "Hi Bcc: x@example.com", "body": "y"},  # and a Unicode line break
     {"to": ["sara@example.com"], "subject": "x", "body": "y", "in_reply_to": "../../drafts"},
 ])
 def test_bad_addresses_and_header_injection_are_refused(args):
     assert decide(ProposedAction("send_email", args)).verdict == REFUSE
+
+
+def test_ordinary_subjects_titles_and_places_with_spaces_and_tabs_pass():
+    mail = decide(ProposedAction("send_email", {"to": ["sara@example.com"], "subject": "Site visit\tat 4 — زيارة الموقع",
+                                                "body": "Line one\nLine two"}))
+    event = decide(ProposedAction("create_event", {"title": "Site visit", "start": soon(), "end": soon(3),
+                                                   "location": "New Home, Jeddah"}))
+    assert (mail.verdict, event.verdict) == (APPROVE, RUN)
 
 
 def test_delete_event_card_shows_the_event_and_refuses_if_it_changed():
@@ -426,8 +435,11 @@ def test_the_live_keys_open_only_from_the_deployed_worker():
         assert not secret_store.running_deployed(here)
     assert not secret_store.running_deployed()  # this test runs from the repository
     if sys.platform == "win32":
-        with pytest.raises(secret_store.SecretStoreError, match="deployed worker"):
-            secret_store.WindowsCredentials()
+        for prefix in ("REEMA-Snafi:", "reema-snafi:", "REEMA-SNAFI:", "Reema-Snafi"):  # SEC-88: any spelling
+            with pytest.raises(secret_store.SecretStoreError, match="deployed worker"):
+                secret_store.WindowsCredentials(prefix)
+        with pytest.raises(TypeError):
+            secret_store.WindowsCredentials(here=r"C:\SnafiWorker\app\x")  # no way to pretend to be deployed
         with pytest.raises(Exception, match="deployed worker"):
             Secrets.load()
 

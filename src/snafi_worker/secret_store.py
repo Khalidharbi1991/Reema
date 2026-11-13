@@ -77,10 +77,12 @@ class WindowsCredentials:
     open only from the deployed worker in C:\\SnafiWorker\\app, never from the repository copy that a
     Claude Code session can import. Tests use their own throw-away prefix."""
 
-    def __init__(self, prefix: str = PREFIX, here: Optional[str] = None):
+    def __init__(self, prefix: str = PREFIX):
         if sys.platform != "win32":
             raise SecretStoreError("Windows Credential Manager is only available on Windows")
-        if prefix == PREFIX and not running_deployed(here):
+        # SEC-88: target names are not case-sensitive, so any spelling of the live prefix counts.
+        if prefix.lower().startswith(PREFIX.lower().rstrip(":")) and not prefix.lower().startswith("reema-snafi-test-") \
+                and not running_deployed():
             raise SecretStoreError("the live Snafi values open only from the deployed worker; "
                                    "run C:\\SnafiWorker\\snafi.cmd instead of the repository copy")
         self.prefix = prefix
