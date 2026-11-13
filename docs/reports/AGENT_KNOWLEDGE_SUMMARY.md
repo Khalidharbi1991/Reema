@@ -18,7 +18,7 @@ All 5 worker agents have been equipped with **comprehensive, expert-level knowle
 ## Agent Knowledge Files Created
 
 ### 1. Taif (Research Agent) ✅
-**File:** `src/knowledge/taif_research_knowledge.md`
+**File:** `src/knowledge/taif_research_knowledge.md` (removed on 2026-11-07; `taif_research_knowledge_ENHANCED.md` remains)
 - **Size:** 21 KB
 - **Lines:** 702 lines
 - **Coverage:** COMPLETE

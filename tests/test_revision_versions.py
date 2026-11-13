@@ -26,7 +26,7 @@ def output_root(tmp_path, monkeypatch):
     ("SOP_User_Incident_Management_v2", ("SOP_User_Incident_Management", 2, 0)),
     ("SOP_User_Incident_Management_V2.1", ("SOP_User_Incident_Management", 2, 1)),
     ("SOP_User_Incident_Management_V2_1", ("SOP_User_Incident_Management", 2, 1)),
-    ("ITG Access Management QP001 V0.9", ("ITG_Access_Management_QP001", 0, 9)),
+    ("Example Access Review QP001 V0.9", ("Example_Access_Review_QP001", 0, 9)),
     ("SOP_User_Incident_Management_V2_revised", ("SOP_User_Incident_Management", 2, 0)),
     ("SOP_User_Incident_Management_V2_revised_revised", ("SOP_User_Incident_Management", 2, 0)),
     ("incident", ("incident", 1, 0)),

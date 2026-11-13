@@ -82,7 +82,7 @@ commands. Change history is in `docs/reports/CHANGELOG.md`.
   distribution.
 - REEMA never sends email or any external communication without Khalid's
   explicit permission.
-- Customer data is stored locally only. A Claude Code session may read it
+- Former employer material is stored locally only, outside REEMA. A Claude Code session may read it
   (it then goes to Anthropic through Claude Code) only after Khalid's
   explicit yes for that exact file, given as the `--confirm-read` token where a
   prepare step asks for one, in addition to the reference manifest rule.
@@ -376,7 +376,7 @@ Ahmad follows the `reema-agent11-dev-lead` skill; Agent 11 is not a separate ses
   review. Medium and Low findings are listed for Khalid to decide. No online scanner
   is used; the review is not a certification.
 - **Never** push, add a remote, deploy or publish; never touch REEMA's `teams/documentation/input/references/` or
-  `teams/coordination/data/` from a project; no secrets, customer or Customer data in a project;
+  `teams/coordination/data/` from a project; no secrets, customer or former employer data in a project;
   no paid API or model call in a project unless Khalid asks.
 - Deny rules and the hook bind the whole session (Ahmad included). Package installs
   are not blocked; the approved package list is the control. The hook is not

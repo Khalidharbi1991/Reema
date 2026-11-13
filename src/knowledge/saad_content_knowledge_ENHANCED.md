@@ -695,7 +695,7 @@ rounded=0;whiteSpace=wrap;html=1;fillColor=#6A1B9A;fontColor=#FFFFFF;strokeColor
 rhombus;whiteSpace=wrap;html=1;fillColor=#FFC107;fontColor=#000000;strokeColor=#B28704;fontSize=11;fontStyle=1;strokeWidth=2;
 ```
 
-**House Corporate Header**:
+**Corporate Header (Navy)**:
 ```
 rounded=1;whiteSpace=wrap;html=1;fillColor=#1F3A5F;fontColor=#FFFFFF;strokeColor=#142840;fontSize=14;fontStyle=1;strokeWidth=2;arcSize=8;
 ```
@@ -725,7 +725,7 @@ rounded=1;whiteSpace=wrap;html=1;fillColor=#1F3A5F;fontColor=#FFFFFF;strokeColor
 - **Maximum Shapes**: 12-15 shapes per page. If more, break into sub-processes on separate pages
 - **Canvas Size**: pageWidth=1169, pageHeight=827 (A4 landscape) or pageWidth=827, pageHeight=1169 (A4 portrait)
 
-**Color Coding Standards (House Palette Compliant)**:
+**Color Coding Standards (House Palette)**:
 
 | Element | Color Name | Hex Code | Fill Hex | Stroke Hex | Font Color | Usage |
 |---------|-----------|----------|----------|------------|------------|-------|
@@ -737,8 +737,8 @@ rounded=1;whiteSpace=wrap;html=1;fillColor=#1F3A5F;fontColor=#FFFFFF;strokeColor
 | Phase 4 Steps | Purple | #6A1B9A | #6A1B9A | #4A148C | #FFFFFF | Closure & Review |
 | Decision Diamond | Amber | #FFC107 | #FFC107 | #B28704 | #000000 | Decision points |
 | Connector Arrow | Dark Blue | #003366 | N/A | #003366 | N/A | Flow lines |
-| House Corporate | Navy | #1F3A5F | #1F3A5F | #142840 | #FFFFFF | Title headers, brand elements |
-| House Accent | Amber | #FFC107 | #FFC107 | #B28704 | #000000 | Highlights, decision points |
+| Corporate Header | Navy | #1F3A5F | #1F3A5F | #142840 | #FFFFFF | Title headers, brand elements |
+| Accent | Amber | #FFC107 | #FFC107 | #B28704 | #000000 | Highlights, decision points |
 | Exception Path | Light Red | #FFCDD2 | #FFCDD2 | #E57373 | #B71C1C | Error/exception flows |
 | Approval Step | Teal | #00695C | #00695C | #004D40 | #FFFFFF | Approval gates |
 
@@ -1089,7 +1089,7 @@ file.file_path = "output/"
 file.file_name = "decision_example.drawio"
 page = drawpyo.Page(file=file, name="Decision Flow")
 
-# house palette styles
+# House palette styles
 STYLE_START = "ellipse;whiteSpace=wrap;html=1;fillColor=#28A745;fontColor=#FFFFFF;strokeColor=#1B7D32;fontSize=12;fontStyle=1;"
 STYLE_PROCESS = "rounded=0;whiteSpace=wrap;html=1;fillColor=#1565C0;fontColor=#FFFFFF;strokeColor=#0D47A1;fontSize=11;"
 STYLE_DECISION = "rhombus;whiteSpace=wrap;html=1;fillColor=#FFC107;fontColor=#000000;strokeColor=#B28704;fontSize=11;fontStyle=1;"
@@ -1136,7 +1136,7 @@ e5.apply_style_string(STYLE_ARROW)
 file.write()
 ```
 
-**Example 3: Multi-Page IT Process with House Branding**:
+**Example 3: Multi-Page IT Process with Corporate Branding**:
 ```python
 import drawpyo
 
@@ -1223,7 +1223,7 @@ from typing import List, Dict, Optional, Tuple
 class DrawioFlowchartGenerator:
     """Generates .drawio XML files for IT process flowcharts."""
 
-    # House Palette Color Palette
+    # House Color Palette
     COLORS = {
         "start": {"fill": "#28A745", "stroke": "#1B7D32", "font": "#FFFFFF"},
         "end": {"fill": "#DC3545", "stroke": "#A71D2A", "font": "#FFFFFF"},
@@ -1232,8 +1232,8 @@ class DrawioFlowchartGenerator:
         "phase3": {"fill": "#2E7D32", "stroke": "#1B5E20", "font": "#FFFFFF"},
         "phase4": {"fill": "#6A1B9A", "stroke": "#4A148C", "font": "#FFFFFF"},
         "decision": {"fill": "#FFC107", "stroke": "#B28704", "font": "#000000"},
-        "navy": {"fill": "#1F3A5F", "stroke": "#142840", "font": "#FFFFFF"},
-        "amber": {"fill": "#FFC107", "stroke": "#B28704", "font": "#000000"},
+        "corporate": {"fill": "#1F3A5F", "stroke": "#142840", "font": "#FFFFFF"},
+        "accent": {"fill": "#FFC107", "stroke": "#B28704", "font": "#000000"},
         "exception": {"fill": "#FFCDD2", "stroke": "#E57373", "font": "#B71C1C"},
         "approval": {"fill": "#00695C", "stroke": "#004D40", "font": "#FFFFFF"},
     }
@@ -1433,7 +1433,7 @@ with open("output/SOP_Incident_V1_Flowchart_Phase1.drawio", "w") as f:
 
 ### 3.13 IT Process Flowchart Templates
 
-Six complete draw.io XML templates for core IT processes. Each follows house palette color standards.
+Six complete draw.io XML templates for core IT processes. Each follows the house color palette.
 
 **Template 1: Incident Management (4-Phase)**:
 ```
@@ -1985,7 +1985,7 @@ BPMN (Business Process Model and Notation) 2.0 provides standardized notation fo
 - [ ] Line breaks use `&#xa;` (not `\n`) in shape values
 
 **Colors & Formatting (5 items)**:
-- [ ] Colors match house palette guidelines (#1F3A5F, #FFC107)
+- [ ] Colors match the house palette (#1F3A5F, #FFC107)
 - [ ] Color coding is consistent across all pages
 - [ ] Phase colors match standard (blue→orange→green→purple)
 - [ ] No clashing or hard-to-read color combinations
@@ -2068,14 +2068,14 @@ BPMN (Business Process Model and Notation) 2.0 provides standardized notation fo
 | Configuration (CMDB) | #37474F (Blue Gray) | #263238 | #ECEFF1 | Asset, configuration |
 | Knowledge Management | #5D4037 (Brown) | #3E2723 | #EFEBE9 | Documentation, learning |
 
-**House Palette Integration**:
+**Corporate Palette**:
 
 | Element | Color | Hex | Application |
 |---------|-------|-----|-------------|
 | Corporate Header | Navy | #1F3A5F | Page titles, pool headers |
 | Corporate Accent | Amber | #FFC107 | Decision diamonds, highlights |
-| Corporate Dark | Dark Green | #142840 | Borders on corporate elements |
-| Corporate Light | Light Gold | #E3E8EF | Subtle backgrounds |
+| Corporate Dark | Dark Navy | #142840 | Borders on corporate elements |
+| Corporate Light | Light Gray-Blue | #E3E8EF | Subtle backgrounds |
 | Document Footer | Gray | #757575 | Version info, timestamps |
 
 **Phase Gradient Color Scheme** (for multi-phase processes):
@@ -2092,7 +2092,7 @@ BPMN (Business Process Model and Notation) 2.0 provides standardized notation fo
 **Accessibility Contrast Validation**:
 - All text must have WCAG AA contrast ratio (4.5:1 minimum)
 - White text (#FFFFFF) on dark fills: verified for all phase colors
-- Black text (#000000) on gold (#FFC107): contrast ratio 4.8:1 (passes AA)
+- Black text (#000000) on amber (#FFC107): contrast ratio 12.9:1 (passes AA)
 - Avoid relying solely on color to convey information (use shape + label + color)
 
 ### 3.21 Integration with SOP Documents

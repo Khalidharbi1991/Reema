@@ -5,6 +5,16 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md). The [finite ledger](PENDING_LEDGER.md) records external
 requirements as they stood before the no-API migration below.
 
+## 2026-11-14 — Ready for a private GitHub repo (not pushed)
+
+The customer-material clean-up from 2026-11-07 (below) is now on main, with the Snafi
+backups ignore line kept. The last former-employer mentions in AGENTS.md, the Development
+skill, Snafi's security review and `.gitignore` now say "former employer material"; one
+case-insensitive pattern stops a stray copy of it being committed. `.gitignore` now also
+covers key and certificate files (`*.pem`, `*.key`, `*.pfx`, `*.p12`, `id_rsa*`),
+`secrets*.json`, `*.sqlite`, `*.db`, `*.zip` and `*.pptx`. Before the first push, the
+history is rewritten with `git filter-repo` from a backup tag and bundle; nothing was pushed.
+
 ## 2026-11-13 — Snafi phases 1 and 2: ready for a first deploy (not deployed)
 
 Phase 2 fix: chat sometimes showed "Couldn't send. Try again." while Khalid's message
@@ -34,6 +44,16 @@ uses the work area only. AGENTS.md, README.md (whose "12 agent roles" is correct
 to 25), the personal assistant, coordination and architecture guides, his system
 prompt, his knowledge files and his config role were updated. No behavior or test
 changed.
+
+## 2026-11-07 — Customer material moved out of REEMA
+
+Material from an earlier customer engagement now lives outside REEMA, on this PC only: the
+reference folders, process diagrams, handover documents, the drafts, runs and Claude Code work
+folders built from them, 19 one-off scripts and one knowledge file. Each copy was checked by file
+count, bytes and SHA-256 before its original was deleted. The named `.gitignore` entries became two
+generic patterns, the content knowledge file uses a neutral amber/navy palette instead of the
+customer's brand colours, and the data-handling and team-folder docs no longer list the moved
+folders. The consent rules and deny rules are unchanged. Git history was not rewritten.
 
 ## 2026-11-07 — Team folders under `teams/`
 

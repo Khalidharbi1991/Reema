@@ -9,9 +9,6 @@ conservative handling rule, not a legal classification or a content audit.
 | Location | Material | Handling |
 | --- | --- | --- |
 | `teams/documentation/input/references/itom/` | Optional ITOM PDF/DOCX sources | Local; manifest permission and Khalid's yes before a session reads excerpts |
-| `teams/documentation/input/references/access-management/` | Policies and procedures | Local customer material |
-| `teams/documentation/input/references/process-documents/` | Process sources, templates, backups | Local customer material |
-| `teams/documentation/input/references/customer/` | Supplied organizational references | Local customer material |
 | `teams/documentation/input/diagrams/` | Working architecture/process diagrams | Local private source |
 | `teams/documentation/output/` | Generated drafts, Claude Code work folders and approval records | Private, reviewed before distribution |
 | `logs/` | Runtime messages/errors | Potentially sensitive; inspect before sharing |
@@ -20,6 +17,9 @@ conservative handling rule, not a legal classification or a content audit.
 | `src/knowledge/` | Curated agent knowledge shipped with code | Source material; review before sharing code or images |
 
 Git ignores the private locations, except the explanatory `teams/documentation/input/references/README.md`.
+
+Material from earlier customer engagements is kept outside REEMA, on this PC only, and is not
+read from REEMA.
 Ignoring does not remove previous Git history or encrypt data. Keep authoritative
 copies in approved storage; choose retention/access controls before multi-user use.
 
