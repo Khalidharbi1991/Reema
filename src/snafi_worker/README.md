@@ -26,7 +26,7 @@ Outside content only ever reaches the brain inside `<data>` blocks, as informati
 
 | Service | Setting | Providers |
 | --- | --- | --- |
-| Brain | `brain.provider` | `gemini_api` (Gemini API, `gemini-3.5-flash-lite`, text only, key in Credential Manager; the configured brain), `agy` (Antigravity CLI; switched off, see below), `fake` (offline) |
+| Brain | `brain.provider` | `claude_api` (Claude API, `claude-haiku-5-5`, text only, key in Credential Manager; the configured brain), `gemini_api` (Gemini API; switched off), `agy` (Antigravity CLI; switched off, see below), `fake` (offline) |
 | Database | `store.provider` | `supabase_rest`, `memory` (offline) |
 
 Switching is one line in `worker.yaml`; tests prove that only `brain/` knows the brain and
@@ -45,15 +45,28 @@ only `store/` knows the database.
   with each table's row count and SHA-256. The newest 30 days are kept. The result is shown
   in the app's menu. No AI call.
 
-## The Gemini API brain (configured)
+## The Claude API brain (configured)
+
+`brain/claude_api.py` sends one text request to Anthropic's Messages API (`claude-haiku-5-5`, low
+effort, thinking off, the reply forced into a JSON schema), with the key in the `x-api-key` header
+(never in the URL, never logged, never resent on a redirect: redirects are refused). The request
+holds only model, max_tokens, system, messages, thinking and output_config: no tools, no server
+tools, no MCP. A reply with any block other than text, or that stops for a tool, is refused, or is
+cut off, is rejected; any action it proposes is data for the permission gate. It is plain HTTP with
+the standard library: the Anthropic SDK is not installed in the worker's hash-pinned Python. This is
+REEMA's only Anthropic call; `tests/test_no_api_guard.py` allows it in this file and nowhere else.
+The monthly spend limit is a setting in the Claude Console, not something this code enforces.
+
+**Daily call limit (SEC-47):** every brain call, retries included, counts against
+`brain.daily_call_limit` (300) for the day in Jeddah time (`brain/limit.py`, count in
+`%APPDATA%\REEMA\snafi-worker\brain_calls.json`). At the limit the brain is not called and Ahmad
+says he can answer again tomorrow. A damaged count fails closed; `snafi.cmd reset-brain` removes it.
+
+## The Gemini API brain (switched off)
 
 `brain/gemini_api.py` sends one text request to the Gemini API's `generateContent` endpoint, with
-the key in the `x-goog-api-key` header (never in the URL, never logged). It declares no tools, so
-the model can only answer with text; any action it proposes is data for the permission gate. The
-key belongs to the paid tier funded by Khalid's AI Pro monthly credits and is restricted to the
-Gemini API. The spend cap is a setting in Google AI Studio, not something this code enforces; the
-worker has no daily call limit yet (SEC-47). Paid-tier terms apply only while billing is linked to
-the key's project, and Google still keeps prompts for a limited time for abuse monitoring (SEC-34).
+the key in the `x-goog-api-key` header. It declares no tools. It was the brain on Nov 13, 2026,
+before the Claude API; set `brain.provider: gemini_api` (and its model) to use it again.
 
 ## The agy brain and its lockdown (switched off)
 
@@ -93,6 +106,7 @@ value and never shows the key (`--status` lists which are stored, `--remove` del
 | `SNAFI_SUPABASE_SECRET_KEY` | the secret key (`sb_secret_...`) |
 | `SNAFI_OWNER_USER_ID` | Khalid's Supabase user UID |
 | `SNAFI_BACKUP_SIGNING_KEY` | made at random by the script; signs every backup |
+| `ANTHROPIC_API_KEY` | the Claude API key (`sk-ant-...`, never an admin key); asked for only while `brain.provider` is `claude_api` |
 | `GEMINI_API_KEY` | the Gemini API key; asked for only while `brain.provider` is `gemini_api` |
 
 Each is a generic credential "REEMA-Snafi:<NAME>" for Khalid's user, encrypted by Windows

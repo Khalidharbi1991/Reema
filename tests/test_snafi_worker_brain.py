@@ -110,14 +110,14 @@ def test_switching_brains_is_one_setting():
     secrets = Secrets({"GEMINI_API_KEY": KEY})
     gemini = Settings.load(overrides={"brain.provider": "gemini_api"})
     fake = Settings.load(overrides={"brain.provider": "fake"})
-    assert Settings.load().brain_provider == "gemini_api"  # the configured brain; agy is switched off
+    assert Settings.load().brain_provider == "claude_api"  # the configured brain; gemini_api and agy are off
     assert isinstance(services.build("brain", gemini, secrets), GeminiApiBrain)
     assert isinstance(services.build("brain", fake, Secrets({})), FakeBrain)
-    assert set(registry.providers("brain")) >= {"agy", "gemini_api", "fake"}
+    assert set(registry.providers("brain")) >= {"agy", "claude_api", "gemini_api", "fake"}
 
 
 def test_unknown_brain_and_missing_key_fail_clearly():
-    with pytest.raises(registry.UnknownProvider, match="known: agy, fake, gemini_api"):
+    with pytest.raises(registry.UnknownProvider, match="known: agy, claude_api, fake, gemini_api"):
         services.build("brain", Settings.load(overrides={"brain.provider": "nope"}), Secrets({}))
     with pytest.raises(Exception, match="GEMINI_API_KEY is not stored"):
         services.build("brain", Settings.load(overrides={"brain.provider": "gemini_api"}), Secrets({}))
@@ -125,7 +125,7 @@ def test_unknown_brain_and_missing_key_fail_clearly():
 
 def test_no_file_outside_the_brain_adapter_knows_the_brain():
     """Only src/snafi_worker/brain/ may name the model service, its endpoint or its key."""
-    pattern = re.compile(r"gemini|generativelanguage|googleapis|GEMINI_API_KEY", re.I)
+    pattern = re.compile(r"gemini|generativelanguage|googleapis|GEMINI_API_KEY|anthropic|claude_api|claude-(haiku|sonnet|opus|fable)", re.I)
     setup = {"secret_store.py", "set_secrets.py"}  # the one-time secret setup names every key on purpose
     offenders = [str(p.relative_to(WORKER)) for p in WORKER.rglob("*.py")
                  if "brain" not in p.relative_to(WORKER).parts and p.name not in setup

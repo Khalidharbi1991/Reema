@@ -41,23 +41,27 @@ commands. Change history is in `docs/reports/CHANGELOG.md`.
   `docs/guides/DATA_HANDLING.md`.
 - REEMA makes no model call, with one exception Khalid asked for: the Snafi worker
   (`src/snafi_worker/`) calls Ahmad's brain, and only through its brain adapter
-  (`src/snafi_worker/brain/`, chosen by `src/snafi_worker/worker.yaml`; today the
-  Gemini API, text only, paid tier funded by Khalid's AI Pro credits with a spend cap,
-  run by the worker as Khalid's own Windows user; the Antigravity CLI `agy`
-  brain stays in the code, switched off, because its `search_web` tool cannot be
-  denied). Do not add any other model API client, key or paid call unless
-  Khalid explicitly asks for it; other model work happens in Claude Code. Tests use
-  stand-in workers and the fake brain only. The no-Anthropic guard stays.
+  (`src/snafi_worker/brain/`, chosen by `src/snafi_worker/worker.yaml`; since Nov 13,
+  2026 the Claude API brain, `claude_api`, model `claude-haiku-5-5`, text only, no tools,
+  at most 300 brain calls a day, run by the worker as Khalid's own Windows user; the
+  Gemini API brain and the Antigravity CLI `agy` brain stay in the code, switched off).
+  Do not add any other model API client, key or paid call unless Khalid explicitly
+  asks for it; other model work happens in Claude Code. Tests use stand-in workers and
+  the fake brain only. The no-Anthropic guard (`tests/test_no_api_guard.py`) stays for
+  everything else: only `src/snafi_worker/brain/claude_api.py` may name Anthropic's
+  endpoint, and only it, the worker's secret list and its one-time setup may name
+  `ANTHROPIC_API_KEY`; no file imports or declares the `anthropic` package.
 - Every outside service (brain/model, email, calendar, tasks, files, voice,
   database, hosting) stays behind its own adapter, chosen by config: the worker's in
   `src/snafi_worker/` (`worker.yaml`), the web app's in `apps/snafi-web/src/adapters/`
   (`SNAFI_*_ADAPTER` settings). Switching a provider is a config change plus the new
   adapter's own file, nothing else.
 - The worker's secrets (`SNAFI_SUPABASE_URL`, `SNAFI_SUPABASE_SECRET_KEY`,
-  `SNAFI_OWNER_USER_ID`, `GEMINI_API_KEY`, `SNAFI_BACKUP_SIGNING_KEY`) live only in
-  Windows Credential Manager for Khalid's own Windows user ("REEMA-Snafi:<NAME>",
-  encrypted by Windows), stored by Khalid with `C:\SnafiWorker\snafi.cmd set-secrets`;
-  the Gemini key is asked for only while `gemini_api` is the brain. Since Nov 13, 2026
+  `SNAFI_OWNER_USER_ID`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `SNAFI_BACKUP_SIGNING_KEY`)
+  live only in Windows Credential Manager for Khalid's own Windows user
+  ("REEMA-Snafi:<NAME>", encrypted by Windows), stored by Khalid with
+  `C:\SnafiWorker\snafi.cmd set-secrets`; a brain's key is asked for only while that
+  brain is chosen. Never ask Khalid to paste a key into chat. Since Nov 13, 2026
   the worker runs as Khalid (scheduled task at his sign-in, not elevated), from its own
   copy in `C:\SnafiWorker` (built by `src/snafi_worker/deploy/deploy.ps1`, owned by
   Administrators, read and run only for Khalid). The separate `worker` Windows user and
@@ -486,8 +490,8 @@ records the earlier external requirements as they stood before the no-API migrat
 REEMA's CLI and documentation jobs have no model runtime and have not moved to OpenAI
 or any other provider. The single exception is the Snafi worker's brain adapter
 (`src/snafi_worker/brain/`), which Khalid asked for: the brain only proposes actions as text,
-every tool on the brain's side is denied or absent, and its provider is chosen in `src/snafi_worker/worker.yaml` (today `gemini_api`: text only,
-no tools, paid tier funded by AI Pro credits with a spend cap; `agy` is switched off). Adding any other model
+every tool on the brain's side is denied or absent, and its provider is chosen in `src/snafi_worker/worker.yaml` (today `claude_api`: `claude-haiku-5-5`,
+text only, no tools, raw HTTP with no SDK, 300 calls a day; `gemini_api` and `agy` are switched off). Adding any other model
 API is a new feature that needs Khalid's explicit request and must add the client,
 settings, consent, dependencies (regenerated with `uv`), documentation and tests
 together, including the no-API guard. See `docs/migration/CODEX_ADOPTION.md`.

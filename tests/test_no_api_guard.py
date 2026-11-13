@@ -1,4 +1,9 @@
-"""No code path can reach the Anthropic API. Strict: any reference, declaration or import fails the suite.
+"""No code path can reach the Anthropic API, except the one Khalid asked for (Nov 13, 2026): the Snafi
+worker's Claude brain. Strict: any reference, declaration or import outside ALLOWED fails the suite.
+
+ALLOWED lists the exact files and the exact kinds of reference each may hold: the brain adapter may name
+the endpoint and the key; the secret list and the one-time setup may name the key. No file may import the
+anthropic package or declare it, and the allowed files are themselves checked to hold nothing more.
 
 The scan covers code, configuration and packaging files that Git tracks or would add. Ignored files,
 Markdown, docs/ history and src/knowledge/ source material are skipped. A fresh process with every
@@ -27,6 +32,12 @@ PATTERNS = {
     "setting": re.compile(r"\banthropic_api_key\b"),
     "consent": re.compile(r"allow_external_ai|ALLOW_EXTERNAL_AI|allow-external-ai"),
     "package": re.compile(r"^\s*[\"']?anthropic\s*(==|>=|~=|<|\[|[\"'])", re.M),
+}
+ALLOWED = {
+    "src/snafi_worker/brain/claude_api.py": {"endpoint", "key"},
+    "src/snafi_worker/secret_store.py": {"key"},
+    "src/snafi_worker/set_secrets.py": {"key"},
+    "tests/test_snafi_worker_claude.py": {"endpoint", "key"},
 }
 SCRIPTS = ["claude_code_generate.py", "claude_code_review.py", "claude_code_revise.py", "evaluate_agents.py"]
 
@@ -71,7 +82,17 @@ def scan():
 
 
 def test_no_file_references_the_anthropic_api():
-    assert scan() == {}
+    found = scan()
+    outside = {name: kinds for name, kinds in found.items() if name not in ALLOWED}
+    assert outside == {}
+    too_much = {name: kinds for name, kinds in found.items() if name in ALLOWED and not set(kinds) <= ALLOWED[name]}
+    assert too_much == {}  # e.g. an import or a package line in an allowed file still fails
+
+
+def test_the_only_anthropic_endpoint_is_in_the_snafi_claude_brain():
+    found = scan()
+    assert [name for name, kinds in found.items() if "endpoint" in kinds and not name.startswith("tests/")] == [
+        "src/snafi_worker/brain/claude_api.py"]
 
 
 def test_anthropic_is_neither_declared_nor_installed():
