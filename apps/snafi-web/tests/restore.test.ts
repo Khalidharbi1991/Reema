@@ -22,7 +22,7 @@ from src.snafi_worker import backup, restore
 from src.snafi_worker.store.memory import MemoryStore
 owner, folder = sys.argv[1], Path(sys.argv[2])
 s = MemoryStore()
-job = s.insert("jobs", {"user_id": owner, "kind": "chat.reply", "conversation_id": "33333333-3333-4333-8333-333333333333", "payload": {"message_id": "m"}})
+job = s.insert("jobs", {"user_id": owner, "kind": "chat.reply", "conversation_id": "33333333-3333-4333-8333-333333333333", "payload": {"message_id": "44444444-4444-4444-8444-444444444444"}})
 card = s.insert("approvals", {"user_id": owner, "conversation_id": "33333333-3333-4333-8333-333333333333", "job_id": job["id"], "tool": "send_test_message", "args": {"text": "x"}, "summary": "Test send"})
 s.insert("messages", {"user_id": owner, "conversation_id": "33333333-3333-4333-8333-333333333333", "role": "user", "body": "It's مرحبا", "lang": "ar", "job_id": job["id"]})
 s.insert("messages", {"user_id": owner, "conversation_id": "33333333-3333-4333-8333-333333333333", "role": "assistant", "body": "card", "lang": "en", "approval_id": card["id"], "meta": {"kind": "approval_card"}})

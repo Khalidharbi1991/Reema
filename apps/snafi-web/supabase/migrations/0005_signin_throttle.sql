@@ -12,7 +12,7 @@
 -- keep working.
 -- SEC-70: a direct caller can add rows only for keys of its own choosing, at most 5
 -- per key per 15 minutes, and the whole table refuses new tries (fails closed) once
--- it holds 10,000 tries from the last 15 minutes. Rows older than a day are deleted,
+-- it holds 10,000 tries from the last 15 minutes. Rows older than an hour are deleted,
 -- at most 500 per call, through an index.
 -- The table is hidden from the app; only the two functions below touch it.
 -- Run once in the Supabase SQL Editor after 0004_send_chat.sql.
@@ -58,7 +58,7 @@ begin
   end loop;
 
   delete from public.signin_attempts where id in (
-    select id from public.signin_attempts where created_at < now() - interval '1 day' limit 500);
+    select id from public.signin_attempts where created_at < now() - interval '1 hour' limit 500);
 
   if (select count(*) from public.signin_attempts where created_at > now() - interval '15 minutes') >= 10000 then
     return jsonb_build_object('wait', 60, 'attempt', null);

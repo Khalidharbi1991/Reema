@@ -58,6 +58,9 @@ describe("phase 2: a chat message and its reply job are saved together (send_cha
     await expect(as(db, "authenticated", ALICE,
       "insert into public.jobs (kind, payload, conversation_id) values ('chat.reply', jsonb_build_object('message_id', $1::text), $2)",
       [r.rows[0].id, CONV])).rejects.toThrow(/duplicate key/);
+    await expect(as(db, "authenticated", ALICE,
+      "insert into public.jobs (kind, payload, conversation_id) values ('chat.reply', jsonb_build_object('message_id', upper(replace($1::text, '-', ''))), $2)",
+      [r.rows[0].id, CONV])).rejects.toThrow(/duplicate key/);
   });
 
   it("is what the Supabase adapter calls, in one request", () => {

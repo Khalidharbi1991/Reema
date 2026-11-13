@@ -18,7 +18,7 @@ export class MemoryThrottleAdapter implements ThrottleAdapter {
   async begin(keys: string[]): Promise<ThrottleTicket> {
     checkKeys(keys);
     const since = this.now() - THROTTLE_WINDOW_SECONDS * 1000;
-    this.rows = this.rows.filter((r) => r.at > this.now() - 86_400_000);
+    this.rows = this.rows.filter((r) => r.at > this.now() - 3_600_000);
     const recent = this.rows.filter((r) => r.at > since);
     if (recent.length >= THROTTLE_GLOBAL_CEILING) return { wait: 60, attempt: null };
     let wait = 0;

@@ -9,8 +9,9 @@
 
 begin;
 
--- SEC-18: at most one chat.reply job per message, however it is inserted.
-create unique index jobs_one_reply_per_message on public.jobs ((payload->>'message_id'))
+-- SEC-18: at most one chat.reply job per message, however it is inserted. Cast to
+-- uuid so other spellings of the same id (upper case, no hyphens) count as the same.
+create unique index jobs_one_reply_per_message on public.jobs (((payload->>'message_id')::uuid))
   where kind = 'chat.reply';
 
 create function public.send_chat(p_conversation_id uuid, p_body text, p_lang text)
