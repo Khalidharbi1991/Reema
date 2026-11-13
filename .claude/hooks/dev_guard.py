@@ -145,8 +145,13 @@ def _first_operand(words):
 # environment variables and wildcards do not get around it. A backstop, not a full guarantee.
 SNAFI_PRIVATE = (
     (r"appdata.*reema|reema.*appdata|appdata[^\s'\"]*[*?\[]", "the worker's folder under %APPDATA%\\REEMA\\"),
-    (r"reema-snafi|snafi_worker[./]secret_store|snafi_worker[./]set_secrets|secret_store|set_secrets",
+    (r"reema-snafi|snafi_worker[./]secret_store|snafi_worker[./]set_secrets|secret_store|set_secrets"
+     r"|google_refresh_token|google_client_secret",
      "the worker's secrets in Credential Manager"),
+    # Step 3: connecting, checking or cancelling Khalid's Google connection is his alone (it signs in
+    # as him and stores or reads his refresh token).
+    (r"connect-google|google[./]connect\b|-m\s+['\"]?src\.snafi_worker\.google",
+     "Khalid's Google connection (connect-google)"),
     (r"\bcmdkey\b|credread|credwrite|credenumerate|creddelete|vaultcmd|passwordvault|storedcredential"
      r"|credentialmanager|security\.credentials|win32cred|\bkeyring\b",
      "Windows Credential Manager"),

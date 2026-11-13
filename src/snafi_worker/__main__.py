@@ -1,6 +1,6 @@
 """Run the Snafi worker.
 
-  python -m src.snafi_worker            run until stopped (lanes, heartbeat, daily backup)
+  python -m src.snafi_worker            run until stopped (lanes, heartbeat, daily backup, Today feed)
   python -m src.snafi_worker --check    check worker.yaml and the stored secrets (names, never values)
   python -m src.snafi_worker --once     answer the jobs waiting now, then stop
   python -m src.snafi_worker --backup-now
@@ -22,7 +22,8 @@ from .backup import BackupScheduler, run_backup
 from .config import ConfigError, Secrets, Settings, worker_data_dir
 from .engine import Engine
 from .runner import Heartbeat, Lane, run_job
-from .services import CALLS_FILE, PAUSE_FILE, build, guarded_brain
+from .services import CALLS_FILE, PAUSE_FILE, build, build_personal, guarded_brain
+from .today_feed import TodayFeed
 
 UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
@@ -66,15 +67,18 @@ def main(argv=None) -> int:
         owner_id = owner(secrets)
         secrets.get("SNAFI_BACKUP_SIGNING_KEY")  # backups are signed (SEC-17)
         store, brain = build("store", settings, secrets), guarded_brain(settings, secrets)
+        # Google: a missing connection does not stop the worker; connect-google is picked up within minutes.
+        personal = build_personal(settings, secrets, reload=Secrets.load)
     except ConfigError as exc:
         print(f"Snafi worker not started: {exc}", file=sys.stderr)
         return 2
     if args.check:
         print(f"Snafi worker {VERSION}: brain={settings.brain_provider} store={settings.store_provider} "
+              f"mail={settings.mail_provider} calendar={settings.calendar_provider} files={settings.files_provider} "
               f"secrets present={secrets.names()} backups={settings.backup_folder}")
         return 0
     setup_logging()
-    engine = Engine(store, brain, settings.time_zone)
+    engine = Engine(store, brain, settings.time_zone, personal)
     if args.backup_now:
         outcome = run_backup(store, settings.backup_folder, owner_id, settings.worker_id, settings.time_zone,
                              settings.backup_keep_days, signing_key=secrets.get("SNAFI_BACKUP_SIGNING_KEY"))
@@ -91,7 +95,8 @@ def main(argv=None) -> int:
         signal.signal(sig, lambda *_: stop.set())
     lanes = {name: Lane(name, s, store, engine, settings.worker_id, stop) for name, s in settings.lanes.items()}
     threads = [*lanes.values(), Heartbeat(store, owner_id, settings.worker_id, lanes, settings.heartbeat_seconds, stop),
-               BackupScheduler(store, settings, owner_id, stop, secrets.get("SNAFI_BACKUP_SIGNING_KEY"))]
+               BackupScheduler(store, settings, owner_id, stop, secrets.get("SNAFI_BACKUP_SIGNING_KEY")),
+               TodayFeed(store, personal, owner_id, settings.today_feed_minutes, stop)]
     for thread in threads:
         thread.start()
     logging.getLogger("snafi_worker").info("worker %s started (brain=%s)", VERSION, settings.brain_provider)

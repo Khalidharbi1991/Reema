@@ -5,9 +5,13 @@ import re
 from typing import Dict, List, Optional, Protocol
 
 TABLES = ("messages", "jobs", "approvals", "action_log", "notes", "reminders", "facts", "worker_status")
+# Rebuilt by the worker every few minutes, so never backed up or restored: today_feed (step 3) holds
+# only the next event and the senders and subjects of important unread mail.
+CACHE_TABLES = ("today_feed",)
+KEYED_BY_USER = ("worker_status", "today_feed")
 NAME = re.compile(r"^[a-z_][a-z0-9_]{0,62}$")
 # Stable order for paging and backups.
-ORDER = {"worker_status": "user_id"}
+ORDER = {"worker_status": "user_id", "today_feed": "user_id"}
 
 
 class StoreError(Exception):

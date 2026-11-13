@@ -15,12 +15,15 @@ coordination run inside Claude Code; REEMA's own commands make no model call.
 Snafi, Khalid's personal assistant web app, is part of REEMA: a Next.js app in
 `apps/snafi-web/` that talks to a Supabase mailbox, and a worker on the PC
 (`src/snafi_worker/`) that picks up its jobs. Its plan is `docs/snafi/PRD.md` (source
-of truth). Steps 1 and 2 are built: sign-in, Today (real Umm al-Qura prayer times and
-Hijri date for Jeddah), Chat with Ahmad's brain, approval cards, the action log with
-Undo, the PC online/offline banner and a daily backup with a tested restore.
+of truth). Steps 1 to 3 are built: sign-in, Today (real Umm al-Qura prayer times and
+Hijri date for Jeddah, and the next Google Calendar event and important unread Gmail),
+Chat with Ahmad's brain, approval cards, the action log with Undo, the PC online/offline
+banner, a daily backup with a tested restore, and Khalid's personal Gmail, Google
+Calendar and Google Drive behind the permission gate (step 3; see
+`docs/snafi/GOOGLE_SETUP.md`).
 
 Not yet built: patch report PowerPoint (PPTX export), SCCM/Intune export intake, and
-Snafi steps 3–8.
+Snafi steps 4–8.
 
 It is a Python CLI that makes no model call: Claude Code writes the text, and REEMA
 plans, checks, exports and records it. It has no model settings and has not moved
@@ -57,11 +60,15 @@ commands. Change history is in `docs/reports/CHANGELOG.md`.
   (`SNAFI_*_ADAPTER` settings). Switching a provider is a config change plus the new
   adapter's own file, nothing else.
 - The worker's secrets (`SNAFI_SUPABASE_URL`, `SNAFI_SUPABASE_SECRET_KEY`,
-  `SNAFI_OWNER_USER_ID`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `SNAFI_BACKUP_SIGNING_KEY`)
+  `SNAFI_OWNER_USER_ID`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `SNAFI_BACKUP_SIGNING_KEY`,
+  `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`)
   live only in Windows Credential Manager for Khalid's own Windows user
   ("REEMA-Snafi:<NAME>", encrypted by Windows), stored by Khalid with
   `C:\SnafiWorker\snafi.cmd set-secrets`; a brain's key is asked for only while that
-  brain is chosen. Never ask Khalid to paste a key into chat. Since Nov 13, 2026
+  brain is chosen. The Google refresh token is written only by Khalid's own
+  `snafi.cmd connect-google` (never typed, shown, logged, or sent to Supabase or Vercel);
+  connecting, checking or cancelling it is his alone, and the guard blocks it for every
+  session. Never ask Khalid to paste a key into chat. Since Nov 13, 2026
   the worker runs as Khalid (scheduled task at his sign-in, not elevated), from its own
   copy in `C:\SnafiWorker` (built by `src/snafi_worker/deploy/deploy.ps1`, owned by
   Administrators, read and run only for Khalid). The separate `worker` Windows user and

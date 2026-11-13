@@ -5,6 +5,21 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md). The [finite ledger](PENDING_LEDGER.md) records external
 requirements as they stood before the no-API migration below.
 
+## 2026-11-14 — Snafi step 3: Gmail, Google Calendar and Google Drive (not pushed)
+
+Khalid's personal Google account behind the permission gate, each service its own adapter
+chosen in `worker.yaml` (`gmail`, `google_calendar`, `google_drive`; raw HTTPS, no SDK, no new
+package). Google's installed-app sign-in with PKCE (`snafi.cmd connect-google`, Khalid's alone;
+the guard blocks it for every session) stores the refresh token only in his Credential
+Manager. Reads are Level 1; a draft and an event with only Khalid are Level 2 with Undo;
+send, invite and delete are Level 3 cards showing the exact content; more than 5 people at
+once is refused. Mail, event and file text reaches the brain only as untrusted data in one
+follow-up call; a test proves an email saying "send X to Y" can at most open a card. Today
+shows the next event and up to five important unread emails (sender and subject only) from
+the worker's 10-minute snapshot (`today_feed`, migration 0006). Setup and the 7-day Testing
+limit: `docs/snafi/GOOGLE_SETUP.md`. Agent 16's review is in
+`apps/snafi-web/docs/SECURITY_REVIEW.md`. MFA is still postponed.
+
 ## 2026-11-14 — Ready for a private GitHub repo (not pushed)
 
 The customer-material clean-up from 2026-11-07 (below) is now on main, with the Snafi

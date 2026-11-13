@@ -33,8 +33,8 @@ describe("Today screen", () => {
     render(<TodayView lang="en" hour={19} today={await today("en")} decide={decide} />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Good evening, Khalid");
     expect(screen.getByRole("img", { name: /Next prayer Asr at 15:12, 62%/ })).toBeInTheDocument();
-    // event, tasks and Ahmad's cards are still samples; approvals are real since step 2
-    expect(screen.getAllByText("Sample")).toHaveLength(3);
+    // the placeholder source marks event, emails, tasks and Ahmad's cards as samples; approvals are real since step 2
+    expect(screen.getAllByText("Sample")).toHaveLength(4);
     expect(screen.getByRole("link", { name: "Talk to Ahmad" })).toHaveAttribute("href", "/chat");
     expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();

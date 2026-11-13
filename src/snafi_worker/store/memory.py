@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List
 
 from ..registry import register
-from .base import ORDER, TABLES, StoreError, check_name
+from .base import CACHE_TABLES, KEYED_BY_USER, ORDER, TABLES, StoreError, check_name
 
 DEFAULTS = {
     "jobs": {"status": "queued", "lane": "chat", "attempts": 0, "max_attempts": 2, "payload": {},
@@ -19,7 +19,7 @@ DEFAULTS = {
     "action_log": {"undoable": False, "undo": None, "undo_requested_at": None, "undone_at": None,
                    "result": None, "args": {}, "job_id": None, "approval_id": None, "conversation_id": None},
     "notes": {"deleted_at": None}, "reminders": {"deleted_at": None, "due_at": None}, "facts": {"deleted_at": None},
-    "worker_status": {},
+    "worker_status": {}, "today_feed": {},
 }
 
 
@@ -32,7 +32,7 @@ class MemoryStore:
     SECRET_NAMES = ()
 
     def __init__(self, options: dict = None, secrets=None):
-        self.tables: Dict[str, List[Dict]] = {t: [] for t in TABLES}
+        self.tables: Dict[str, List[Dict]] = {t: [] for t in TABLES + CACHE_TABLES}
         self._lock = threading.Lock()
 
     def _table(self, name):
@@ -43,9 +43,10 @@ class MemoryStore:
     def insert(self, table, row):
         with self._lock:
             full = {**copy.deepcopy(DEFAULTS.get(table, {})), **copy.deepcopy(row)}
-            if table == "worker_status":  # keyed by user_id; no id or created_at, as in the database
+            if table in KEYED_BY_USER:  # keyed by user_id; no id or created_at, as in the database
                 full.setdefault("updated_at", now_iso())
-                full.setdefault("last_seen", now_iso())
+                if table == "worker_status":
+                    full.setdefault("last_seen", now_iso())
                 self._table(table).append(full)
                 return copy.deepcopy(full)
             full.setdefault("id", str(uuid.uuid4()))

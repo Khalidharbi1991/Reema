@@ -126,10 +126,17 @@ def test_unknown_brain_and_missing_key_fail_clearly():
 def test_no_file_outside_the_brain_adapter_knows_the_brain():
     """Only src/snafi_worker/brain/ may name the model service, its endpoint or its key."""
     pattern = re.compile(r"gemini|generativelanguage|googleapis|GEMINI_API_KEY|anthropic|claude_api|claude-(haiku|sonnet|opus|fable)", re.I)
+    # Step 3: the Google adapters (google/) may name Google's own API hosts, and nothing of the brain's.
+    google_only = re.compile(r"gemini|generativelanguage|GEMINI_API_KEY|anthropic|claude_api|claude-(haiku|sonnet|opus|fable)", re.I)
     setup = {"secret_store.py", "set_secrets.py"}  # the one-time secret setup names every key on purpose
-    offenders = [str(p.relative_to(WORKER)) for p in WORKER.rglob("*.py")
-                 if "brain" not in p.relative_to(WORKER).parts and p.name not in setup
-                 and pattern.search(p.read_text(encoding="utf-8"))]
+    offenders = []
+    for p in WORKER.rglob("*.py"):
+        parts = p.relative_to(WORKER).parts
+        if "brain" in parts or p.name in setup:
+            continue
+        check = google_only if parts[0] == "google" else pattern
+        if check.search(p.read_text(encoding="utf-8")):
+            offenders.append(str(p.relative_to(WORKER)))
     assert offenders == []
 
 

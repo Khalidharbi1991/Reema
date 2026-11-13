@@ -6,6 +6,7 @@ export const SAMPLE = {
   en: {
     hijri: "Sample Hijri date",
     event: { title: "Sample: site visit with the architect", time: "16:30", place: "New Home" },
+    emails: [{ id: "e1", from: "Sample sender", subject: "Sample: drawings for review", time: "09:10" }],
     tasks: [
       { id: "t1", title: "Sample: review the patching SOP draft", due: "Today" },
       { id: "t2", title: "Sample: call the contractor", due: "Today" },
@@ -16,6 +17,7 @@ export const SAMPLE = {
   ar: {
     hijri: "تاريخ هجري تجريبي",
     event: { title: "نموذج: زيارة الموقع مع المهندس", time: "16:30", place: "البيت الجديد" },
+    emails: [{ id: "e1", from: "مرسل تجريبي", subject: "نموذج: مخططات للمراجعة", time: "09:10" }],
     tasks: [
       { id: "t1", title: "نموذج: مراجعة مسودة إجراء التحديثات", due: "اليوم" },
       { id: "t2", title: "نموذج: الاتصال بالمقاول", due: "اليوم" },
@@ -40,10 +42,12 @@ export class PlaceholderTodaySource implements TodaySource {
       hijriDate: s.hijri,
       nextPrayer: { key: "asr", time: "15:12", progress: 0.62 },
       nextEvent: { ...s.event },
+      emails: s.emails.map((m) => ({ ...m })),
+      google: "ok",
       tasks: s.tasks.map((t) => ({ ...t })),
       cards: s.cards.map((c) => ({ ...c })),
       approvals: [],
-      samples: { prayer: true, nextEvent: true, tasks: true, cards: true },
+      samples: { prayer: true, nextEvent: true, emails: true, tasks: true, cards: true },
     };
   }
 }

@@ -18,6 +18,7 @@ import json
 import re
 import secrets
 import sys
+from typing import Optional
 from urllib.parse import urlparse
 
 from .secret_store import NAMES, SecretStoreError, WindowsCredentials
@@ -87,15 +88,35 @@ def check_anthropic(value: str) -> str:
     return value
 
 
+def check_google_client_id(value: str) -> str:
+    """The OAuth client ID of the Desktop app client in Google Cloud (it is not secret, but stays here too)."""
+    value = value.strip()
+    if not re.fullmatch(r"[0-9]{6,30}-[a-z0-9]{10,64}\.apps\.googleusercontent\.com", value):
+        raise ValueError("does not look like a Google OAuth client ID (…apps.googleusercontent.com)")
+    return value
+
+
+def check_google_client_secret(value: str) -> str:
+    """The Desktop client's secret ("GOCSPX-..."). The message never shows it."""
+    value = check_gemini(value).strip()  # same paste checks (control characters, spaces, length, Supabase values)
+    if value.startswith(("sk-ant-", "AIza")) or value.endswith(".apps.googleusercontent.com"):
+        raise ValueError("that is not the client secret (copy the Client secret, not the ID or another key)")
+    return value
+
+
 QUESTIONS = (
     ("SNAFI_SUPABASE_URL", "Supabase project URL", check_url, False),
     ("SNAFI_SUPABASE_SECRET_KEY", "Supabase secret key (hidden while you type or paste)", check_secret_key, True),
     ("SNAFI_OWNER_USER_ID", "Your Supabase user UID", check_owner, False),
     ("GEMINI_API_KEY", "Gemini API key (hidden while you type or paste)", check_gemini, True),
     ("ANTHROPIC_API_KEY", "Claude API key (hidden while you type or paste)", check_anthropic, True),
+    ("GOOGLE_CLIENT_ID", "Google OAuth client ID (Desktop app)", check_google_client_id, False),
+    ("GOOGLE_CLIENT_SECRET", "Google OAuth client secret (hidden while you type or paste)", check_google_client_secret, True),
 )
 # Each brain key is asked for only while that brain is chosen in worker.yaml.
 BRAIN_KEYS = {"GEMINI_API_KEY": "gemini_api", "ANTHROPIC_API_KEY": "claude_api"}
+# The Google client is asked for only while a Google service is chosen (mail, calendar or files).
+GOOGLE_KEYS = ("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET")
 
 
 def ask(store, name, label, check, hidden, prompt=getpass.getpass, plain=input, out=print) -> bool:
@@ -115,17 +136,28 @@ def ask(store, name, label, check, hidden, prompt=getpass.getpass, plain=input, 
     return False
 
 
-def questions(brain_provider: str):
-    """Only what the configured services need: a brain's key only while that brain is chosen."""
-    return [q for q in QUESTIONS if BRAIN_KEYS.get(q[0], brain_provider) == brain_provider]
+def questions(brain_provider: str, google: bool = False):
+    """Only what the configured services need: a brain's key only while that brain is chosen, and the
+    Google client only while a Google service is."""
+    return [q for q in QUESTIONS if BRAIN_KEYS.get(q[0], brain_provider) == brain_provider
+            and (google or q[0] not in GOOGLE_KEYS)]
 
 
-def run(store, prompt=getpass.getpass, plain=input, out=print, brain_provider: str = "") -> int:
-    if not brain_provider:
+def run(store, prompt=getpass.getpass, plain=input, out=print, brain_provider: str = "",
+        google: Optional[bool] = None) -> int:
+    if not brain_provider:  # from worker.yaml, as the worker will run
         from .config import Settings
-        brain_provider = Settings.load().brain_provider
+        from .services import GOOGLE_PROVIDERS
+        settings = Settings.load()
+        brain_provider = settings.brain_provider
+        if google is None:
+            google = bool(GOOGLE_PROVIDERS & {settings.mail_provider, settings.calendar_provider,
+                                              settings.files_provider})
+    google = bool(google)
     ok = all([ask(store, n, label, check, hidden, prompt, plain, out)
-              for n, label, check, hidden in questions(brain_provider)])
+              for n, label, check, hidden in questions(brain_provider, google)])
+    if google and ok:
+        out("Next, connect your Google account once: C:\\SnafiWorker\\snafi.cmd connect-google")
     if store.read("SNAFI_BACKUP_SIGNING_KEY") is None:
         store.write("SNAFI_BACKUP_SIGNING_KEY", secrets.token_hex(32))
         out("  made SNAFI_BACKUP_SIGNING_KEY (random, never shown)")

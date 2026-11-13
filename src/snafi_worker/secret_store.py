@@ -16,7 +16,9 @@ from typing import Dict, Iterable, Optional
 
 PREFIX = "REEMA-Snafi:"
 NAMES = ("SNAFI_SUPABASE_URL", "SNAFI_SUPABASE_SECRET_KEY", "SNAFI_OWNER_USER_ID", "GEMINI_API_KEY",
-         "ANTHROPIC_API_KEY", "SNAFI_BACKUP_SIGNING_KEY")
+         "ANTHROPIC_API_KEY", "SNAFI_BACKUP_SIGNING_KEY",
+         # Step 3: Google. The refresh token is written only by connect-google, never typed or shown.
+         "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REFRESH_TOKEN")
 CRED_TYPE_GENERIC = 1
 CRED_PERSIST_LOCAL_MACHINE = 2  # this user, this PC, survives restarts; not roamed
 ERROR_NOT_FOUND = 1168

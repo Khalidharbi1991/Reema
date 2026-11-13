@@ -7,6 +7,7 @@ import {
   type ApprovalCard,
   type MailboxAdapter,
   type MailboxMessage,
+  type TodayFeed,
   type WorkerStatus,
 } from "./types";
 
@@ -17,6 +18,7 @@ type Store = {
   approvals: (ApprovalCard & { userId: string })[];
   actions: (ActionEntry & { userId: string })[];
   status: Record<string, WorkerStatus>;
+  feeds: Record<string, TodayFeed>;
 };
 
 /**
@@ -24,7 +26,7 @@ type Store = {
  * mirroring the row-level security rules: a user sees and changes only their own rows.
  */
 export function createMemoryStore(): Store {
-  return { messages: [], jobs: [], approvals: [], actions: [], status: {} };
+  return { messages: [], jobs: [], approvals: [], actions: [], status: {}, feeds: {} };
 }
 
 export class MemoryMailboxAdapter implements MailboxAdapter {
@@ -110,5 +112,9 @@ export class MemoryMailboxAdapter implements MailboxAdapter {
 
   async workerStatus() {
     return this.store.status[this.me()] ?? null;
+  }
+
+  async todayFeed() {
+    return this.store.feeds[this.me()] ?? null;
   }
 }

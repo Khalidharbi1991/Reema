@@ -82,6 +82,12 @@ class Settings:
     backup_keep_days: int
     time_zone: str
     worker_id: str = field(default="")
+    # Step 3: personal services ("none" switches one off). Google options: timeout_seconds.
+    mail_provider: str = "none"
+    calendar_provider: str = "none"
+    files_provider: str = "none"
+    google_options: Dict[str, object] = field(default_factory=dict)
+    today_feed_minutes: float = 10.0
 
     @classmethod
     def load(cls, path: Optional[Path] = None, overrides: Optional[dict] = None) -> "Settings":
@@ -108,6 +114,11 @@ class Settings:
                 backup_keep_days=int(backup["keep_days"]),
                 time_zone=str(data["time_zone"]),
                 worker_id=str(data.get("worker_id") or os.environ.get("COMPUTERNAME", "pc")),
+                mail_provider=str((data.get("mail") or {}).get("provider") or "none"),
+                calendar_provider=str((data.get("calendar") or {}).get("provider") or "none"),
+                files_provider=str((data.get("files") or {}).get("provider") or "none"),
+                google_options=dict(data.get("google") or {}),
+                today_feed_minutes=float((data.get("today_feed") or {}).get("minutes", 10)),
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise ConfigError(f"worker.yaml is incomplete or invalid: {exc}") from None
