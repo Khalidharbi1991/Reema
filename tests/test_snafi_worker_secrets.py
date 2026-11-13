@@ -89,8 +89,8 @@ def test_setup_refuses_the_publishable_key_and_bad_values():
         check_url("https://abcd.supabase.co/rest/v1")
     with pytest.raises(ValueError):
         check_owner("me")
-    with pytest.raises(ValueError):
-        check_gemini("has spaces in it")
+    with pytest.raises(ValueError, match="space"):
+        check_gemini("has spaces in it but is long")
     creds, printed = MemoryCredentials(), []
     run(creds, prompt=answers("sb_publishable_x", "sb_publishable_x", "sb_publishable_x", "AIza" + "y" * 35),
         plain=answers("https://a.supabase.co", OWNER), out=printed.append, brain_provider="gemini_api")
@@ -163,3 +163,17 @@ def test_with_the_agy_brain_no_gemini_key_is_ever_asked_for():
                brain_provider="agy") == 0
     assert len(hidden_prompts) == 1 and "Supabase" in hidden_prompts[0]
     assert "GEMINI_API_KEY" not in creds.values
+
+
+@pytest.mark.parametrize("key", ["AIza" + "y" * 35, "AQ.Ab8RN6" + "x" * 40, "  AIza" + "Z9_-" * 9 + "  "])
+def test_any_printable_gemini_key_format_is_accepted(key):
+    assert check_gemini(key) == key.strip()
+
+
+@pytest.mark.parametrize("bad,why", [("\x16", "control character"), ("AIza" + "y" * 35 + "\x16", "control character"),
+                                     ("AIza" + "y" * 20 + " " + "y" * 14, "space"), ("AIza" + "y" * 30 + "é", "non-English"),
+                                     ("short", "characters long"), ("", "characters long")])
+def test_a_broken_paste_or_a_wrong_value_is_refused_without_showing_it(bad, why):
+    with pytest.raises(ValueError, match=why) as caught:
+        check_gemini(bad)
+    assert "yyyy" not in str(caught.value)

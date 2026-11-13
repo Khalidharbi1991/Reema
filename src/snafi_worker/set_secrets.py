@@ -57,9 +57,19 @@ def check_owner(value: str) -> str:
 
 
 def check_gemini(value: str) -> str:
+    """Google's key formats change (classic keys are "AIza..." with letters, digits, _ and -; newer ones
+    may hold other characters, such as dots), so any printable ASCII is accepted. Refused only: what cannot
+    be a working key, or a broken paste. The message never shows the key."""
     value = value.strip()
-    if not re.fullmatch(r"[A-Za-z0-9_\-]{20,200}", value):
-        raise ValueError("does not look like an API key")
+    if any(ord(c) < 32 or ord(c) == 127 for c in value):
+        raise ValueError("it contains a control character, so the paste did not work; "
+                         "paste with a right-click (or Ctrl+Shift+V) instead of Ctrl+V")
+    if any(c.isspace() for c in value):
+        raise ValueError("it contains a space; copy the key again from Google AI Studio")
+    if not value.isascii():
+        raise ValueError("it contains a non-English character; copy the key again from Google AI Studio")
+    if not 20 <= len(value) <= 512:
+        raise ValueError(f"it is {len(value)} characters long; a Gemini API key is longer than 20 characters")
     return value
 
 
