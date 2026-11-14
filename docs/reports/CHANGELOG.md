@@ -13,6 +13,10 @@ his stored GitHub sign-in or change the shell a push runs in. Decision (Khalid):
 stays manual. Kept as a backstop: `git credential` and credential helpers, `git config` changes, any
 path through a `.git` folder, shell and PowerShell profiles and `setx` are blocked, and the file
 tools refuse `.git` folders and profiles. Agent 16's Snafi review scope now includes the guard files.
+SEC-102 (High, also on main before): one-off git settings (`git -c`, `--config-env`) are blocked on
+every git command, setting GIT_*, GCM_*, proxy, certificate and BASH_ENV variables is blocked in every
+form, and git's push plumbing (send-pack, http-push, remote-*) is blocked. The repository is private,
+so every git command that reaches GitHub uses Khalid's stored sign-in.
 
 ## 2026-11-14 — Snafi: connect-google callback fix, SEC-89 closed (not pushed)
 

