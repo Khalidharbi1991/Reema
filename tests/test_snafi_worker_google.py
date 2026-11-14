@@ -444,6 +444,26 @@ def test_the_live_keys_open_only_from_the_deployed_worker():
             Secrets.load()
 
 
+def test_the_full_credential_name_is_checked_not_only_the_prefix():
+    """SEC-88: splitting the live name between the prefix and the name does not reach it."""
+    from src.snafi_worker import secret_store
+    for target in ("REEMA-Snafi:GOOGLE_REFRESH_TOKEN", "reema-snafi:X", "REEMA-SNAFI:X", "  Reema-Snafi:X",
+                   "REEMA-Snafi", "\tREEMA-Snafi:X"):
+        assert secret_store.is_live_target(target), target
+        with pytest.raises(secret_store.SecretStoreError, match="deployed worker"):
+            secret_store.check_target(target)
+    for target in ("REEMA-Snafi-TEST-abc:X", "reema-snafi-test-abc:X", "Other:X", "", "REEMA-"):
+        assert not secret_store.is_live_target(target), target
+        assert secret_store.check_target(target) == target
+    if sys.platform == "win32":
+        for prefix, name in (("", "REEMA-Snafi:GOOGLE_REFRESH_TOKEN"), ("REEMA-", "Snafi:X"),
+                             ("REEMA-Sna", "fi:X"), ("", "reema-snafi:X")):
+            store = secret_store.WindowsCredentials(prefix)  # an innocent-looking prefix is allowed ...
+            for call in (lambda: store.read(name), lambda: store.write(name, "v"), lambda: store.delete(name)):
+                with pytest.raises(secret_store.SecretStoreError, match="deployed worker"):
+                    call()  # ... but every read, write and delete of a live name is refused
+
+
 def test_disconnect_revokes_and_deletes():
     creds = Creds(GOOD)
     wire = Wire((200, {}))
