@@ -44,9 +44,16 @@ def test_an_out_of_range_limit_is_brought_into_range(name, asked, expected):
     assert decision.args["limit"] == (most if expected == "max" else min(expected, most))
 
 
-@pytest.mark.parametrize("bad", [True, "lots", [5], {"n": 5}, 2.5])
+@pytest.mark.parametrize("bad", [True, "lots", [5], {"n": 5}, 2.5, "²", "①", "٣", "9" * 5000, "-5",
+                                 float("nan"), float("inf")])
 def test_a_limit_that_is_not_a_number_is_still_refused(bad):
+    # SEC-116: always a normal refusal, never an exception that breaks the whole reply
     assert decide(ProposedAction("search_tasks", {"query": "x", "limit": bad})).verdict == REFUSE
+
+
+def test_only_level_one_reads_have_a_clamped_limit():
+    """SEC-117: clamping is safe only for how many results a read shows."""
+    assert all(TOOLS[name].level == 1 for name in WITH_LIMIT)
 
 
 def test_other_numbers_are_not_clamped():

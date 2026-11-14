@@ -65,7 +65,7 @@ CLAMPED = frozenset({"limit"})
 
 
 def _clamped(name: str, value, highest: int) -> int:
-    if isinstance(value, str) and value.strip().isdigit():
+    if isinstance(value, str) and re.fullmatch(r"[0-9]{1,9}", value.strip()):  # ASCII digits only (SEC-116)
         value = int(value.strip())
     elif isinstance(value, float) and value.is_integer():
         value = int(value)
