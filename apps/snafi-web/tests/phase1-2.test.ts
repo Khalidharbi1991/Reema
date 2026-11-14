@@ -144,7 +144,8 @@ describe("SEC-4: sign-in throttle in the database (migration 0005)", () => {
   });
 
   it("is applied after the earlier migrations", () => {
-    expect(migrationFiles().slice(-2)).toEqual(["0004_send_chat.sql", "0005_signin_throttle.sql"]);
+    const files = migrationFiles();
+    expect(files.indexOf("0005_signin_throttle.sql")).toBe(files.indexOf("0004_send_chat.sql") + 1);
   });
 });
 

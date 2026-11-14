@@ -1,4 +1,4 @@
-# Snafi worker (step 2)
+# Snafi worker (steps 2 and 3)
 
 The worker runs on Khalid's PC. It picks up jobs from the Snafi database mailbox, asks
 Ahmad's brain for a reply, decides every proposed action in code, and writes the results
@@ -28,6 +28,9 @@ Outside content only ever reaches the brain inside `<data>` blocks, as informati
 | --- | --- | --- |
 | Brain | `brain.provider` | `claude_api` (Claude API, `claude-haiku-5-5`, text only, key in Credential Manager; the configured brain), `gemini_api` (Gemini API; switched off), `agy` (Antigravity CLI; switched off, see below), `fake` (offline) |
 | Database | `store.provider` | `supabase_rest`, `memory` (offline) |
+| Mail | `mail.provider` | `gmail` (step 3), `fake` (offline), `none` |
+| Calendar | `calendar.provider` | `google_calendar` (step 3), `fake` (offline), `none` |
+| Files | `files.provider` | `google_drive` (step 3), `fake` (offline), `none` |
 
 Switching is one line in `worker.yaml`; tests prove that only `brain/` knows the brain and
 only `store/` knows the database.
@@ -44,6 +47,33 @@ only `store/` knows the database.
   every Snafi table goes to `teams/coordination/snafi-backups/snafi-backup-YYYYMMDD-HHMM.json.gz`,
   with each table's row count and SHA-256. The newest 30 days are kept. The result is shown
   in the app's menu. No AI call.
+
+## Google: Gmail, Calendar, Drive (step 3)
+
+Setup for Khalid: `docs/snafi/GOOGLE_SETUP.md`. The adapters are in `google/` (raw HTTPS
+with the standard library, Google's API hosts only, redirects refused); the tools and their
+levels are in `personal_tools.py`:
+
+| Level | Tools |
+| --- | --- |
+| 1 | `search_mail`, `read_mail`, `list_events`, `search_files`, `read_file` |
+| 2 (Undo) | `create_draft` (Undo deletes the draft), `create_event` with only Khalid (Undo deletes it, only if Snafi made it) |
+| 3 (card) | `send_email`, `invite_to_event`, `delete_event` (guests not notified), `delete_draft` |
+| 4 | more than 5 people in one send or invite; forwarding, filters, sharing, trashing |
+
+- **Outside content is untrusted data.** What a read returns goes to the brain once, in one
+  follow-up call in the same turn, inside `<data source="untrusted_...">`. In that call no
+  further read runs and any Level 3 action becomes a card marked "suggested after reading
+  outside content". The text Ahmad reads (email bodies, file text, event descriptions) is
+  never logged or stored in Supabase. What is stored there (and so in the daily backup): the
+  chat shows senders, subjects and event titles and Ahmad's own summary, and the action log
+  and approval cards keep the arguments of what Ahmad wrote, so a draft's or a sent email's
+  whole body (SEC-83).
+- **Today feed** (`today_feed.py`): every 10 minutes, with no brain call, the next event and
+  up to five important unread emails (unread, inbox, Important, last 24 h; sender name and
+  subject only) go to the `today_feed` table. It is a cache, so it is not in the backup.
+- **Not connected yet** does not stop the worker: the tools say so, Today shows how to
+  connect, and a new connection is picked up within five minutes without a restart.
 
 ## The Claude API brain (configured)
 
@@ -108,6 +138,8 @@ value and never shows the key (`--status` lists which are stored, `--remove` del
 | `SNAFI_BACKUP_SIGNING_KEY` | made at random by the script; signs every backup |
 | `ANTHROPIC_API_KEY` | the Claude API key (`sk-ant-...`, never an admin key); asked for only while `brain.provider` is `claude_api` |
 | `GEMINI_API_KEY` | the Gemini API key; asked for only while `brain.provider` is `gemini_api` |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | the Desktop app OAuth client from Google Cloud; asked for only while a Google service is chosen |
+| `GOOGLE_REFRESH_TOKEN` | never typed: written by `snafi.cmd connect-google` after Khalid signs in |
 
 Each is a generic credential "REEMA-Snafi:<NAME>" for Khalid's user, encrypted by Windows
 (DPAPI). There is no plain-text secrets file. Claude Code also runs as Khalid, so Windows itself

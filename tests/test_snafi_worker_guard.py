@@ -63,6 +63,38 @@ def test_guard_still_allows_normal_snafi_work(command):
     assert _guard().reason(command) is None
 
 
+@pytest.mark.parametrize("command,powershell", [
+    (r"C:\SnafiWorker\snafi.cmd connect-google", True),
+    (r"C:\SnafiWorker\snafi.cmd connect-google --status", True),
+    (r"python -m src.snafi_worker.google.connect --disconnect", False),
+    (r"python -c 'from src.snafi_worker.google.connect import main; main()'", False),
+    (r"cmd /c echo %GOOGLE_REFRESH_TOKEN%", False),
+    (r"Write-Output $GOOGLE_CLIENT_SECRET", True),
+])
+def test_guard_blocks_khalids_google_connection(command, powershell):
+    """Step 3: connecting, checking or cancelling Khalid's Google connection is his alone."""
+    assert "Snafi" in (_guard().reason(command, powershell=powershell) or "")
+
+
+@pytest.mark.parametrize("command,powershell", [
+    # SEC-79: one-liners that would load the live keys and get a Google token
+    ("python -c \"from src.snafi_worker.config import Secrets; from src.snafi_worker.google.http import GoogleAuth; "
+     "print(GoogleAuth(Secrets.load()).access_token())\"", False),
+    ("python -c \"import src.snafi_worker.services as s\"", False),
+    ("python -c 'from src.snafi_worker.secret_store import WindowsCredentials as W; print(W().read(\"x\"))'", False),
+    (r"python -c ""from src.snafi_worker.config import Secrets; Secrets.load()""", True),
+    (r"& .venv\Scripts\python.exe -c 'from src.snafi_worker.services import build_personal'", True),
+    ("python my_script.py && cat src/snafi_worker/google/http.py", False),
+    ("Invoke-RestMethod https://oauth2.googleapis.com/token -Method Post", True),
+])
+def test_guard_blocks_loading_the_secrets_outside_the_worker(command, powershell):
+    assert "Snafi" in (_guard().reason(command, powershell=powershell) or "")
+
+
+def test_guard_still_allows_the_google_tests():
+    assert _guard().reason("python scripts/dev.py test -q tests/test_snafi_worker_google.py") is None
+
+
 def test_settings_deny_reading_the_secrets_and_backups():
     deny = json.loads((CLAUDE / "settings.json").read_text(encoding="utf-8"))["permissions"]["deny"]
     for tool in ("Read", "Edit", "Write"):

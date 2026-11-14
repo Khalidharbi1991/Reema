@@ -155,7 +155,7 @@ Each step is built and tested on a real phone before the next starts. Khalid sta
 
 1. **Skeleton:** Supabase mailbox, sign-in, Today and chat screens in the final design, tested on the PC browser and on the phone over Wi-Fi. Vercel hosting and install-to-home-screen wait for a Vercel preview in a later step (installing needs HTTPS).
 2. **Ahmad's brain:** PC worker picks up jobs; Ahmad answers in Arabic and English; permission levels, approvals, honesty check, log with Undo. Also real Umm al-Qura prayer times and the Hijri date for Jeddah on the Today screen (placeholders in step 1), the PC online/offline banner, and a daily local backup of every Snafi table (30 days kept) with a tested restore.
-3. **Google:** Gmail, Calendar and Drive; drafts only; send and invite through approval cards.
+3. **Google:** Gmail, Calendar and Drive; drafts only; send and invite through approval cards. **Built Nov 14, 2026** (setup: `docs/snafi/GOOGLE_SETUP.md`): Gmail read and drafts, Calendar read and own events (Level 2 with Undo), Drive read; send, invite and delete as Level 3 cards showing the exact content; never more than 5 people at once; mail and file text reach the brain only as untrusted data; Today shows the next event and important unread mail.
 4. **The rest of the sources:** Yahoo, Todoist, and the swappable layer behind each service.
 5. **Proactive Ahmad:** scheduler, morning brief, mail watch, push notifications, prayer quiet times.
 6. **Memory:** onboarding interview and About me page.
@@ -183,7 +183,7 @@ From the step 1 security review (`apps/snafi-web/docs/SECURITY_REVIEW.md`). No V
 
 - [ ] Voice Studio: confirm it speaks Arabic well and has a way for REEMA to call it.
 - [x] Brain: the Claude API, `claude-haiku-5-5`, 300 calls a day, with a monthly spend limit in the Claude Console (decided Nov 13, 2026). Earlier the same day it was the Gemini API (paid tier, AI Pro credits), now kept in the code, switched off. The Antigravity CLI (`agy`) was the brain from Nov 10, 2026, but its live lockdown proof failed: its `search_web` tool ran although every tool was denied, and agy has no documented setting or deny rule for it. AgyBrain stays in the code, switched off. Gemini CLI stopped serving personal accounts on June 18, 2026.
-- [ ] Google sign-in: keep the Google app in Testing (reconnect weekly) or complete Google's verification.
+- [x] Google sign-in: Testing for the first week (refresh tokens end after 7 days there), then "In production" without verification under Google's personal-use exemption (fewer than 100 users, an unverified-app warning once). Verification is not pursued: Gmail and Drive scopes are restricted and would need a paid yearly security assessment (decided Nov 14, 2026).
 - [ ] Supabase region closest to Khalid.
 - [x] Arabic menu position: mirrored to the top left (decided Nov 7, 2026).
 - [x] Sign-in: email and password, invite only (decided Nov 7, 2026).

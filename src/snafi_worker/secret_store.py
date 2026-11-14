@@ -10,13 +10,17 @@ Standard library only (ctypes); nothing is installed.
 """
 
 import ctypes
+import ntpath
 import sys
+from pathlib import Path
 from ctypes import wintypes
 from typing import Dict, Iterable, Optional
 
 PREFIX = "REEMA-Snafi:"
 NAMES = ("SNAFI_SUPABASE_URL", "SNAFI_SUPABASE_SECRET_KEY", "SNAFI_OWNER_USER_ID", "GEMINI_API_KEY",
-         "ANTHROPIC_API_KEY", "SNAFI_BACKUP_SIGNING_KEY")
+         "ANTHROPIC_API_KEY", "SNAFI_BACKUP_SIGNING_KEY",
+         # Step 3: Google. The refresh token is written only by connect-google, never typed or shown.
+         "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REFRESH_TOKEN")
 CRED_TYPE_GENERIC = 1
 CRED_PERSIST_LOCAL_MACHINE = 2  # this user, this PC, survives restarts; not roamed
 ERROR_NOT_FOUND = 1168
@@ -57,12 +61,30 @@ if sys.platform == "win32":
         ]
 
 
+DEPLOYED_APP = r"C:\SnafiWorker\app"
+
+
+def running_deployed(here: Optional[str] = None) -> bool:
+    """True only for the worker's own copy in C:\\SnafiWorker\\app (built by deploy.ps1, owned by Administrators)."""
+    path = ntpath.normcase(ntpath.normpath(here or str(Path(__file__).resolve())))
+    return path.startswith(ntpath.normcase(DEPLOYED_APP) + "\\")
+
+
 class WindowsCredentials:
-    """Windows Credential Manager for the current user (CredWriteW / CredReadW / CredDeleteW)."""
+    """Windows Credential Manager for the current user (CredWriteW / CredReadW / CredDeleteW).
+
+    SEC-55 (1) / SEC-79: the live values ("REEMA-Snafi:<NAME>", including the Google refresh token)
+    open only from the deployed worker in C:\\SnafiWorker\\app, never from the repository copy that a
+    Claude Code session can import. Tests use their own throw-away prefix."""
 
     def __init__(self, prefix: str = PREFIX):
         if sys.platform != "win32":
             raise SecretStoreError("Windows Credential Manager is only available on Windows")
+        # SEC-88: target names are not case-sensitive, so any spelling of the live prefix counts.
+        if prefix.lower().startswith(PREFIX.lower().rstrip(":")) and not prefix.lower().startswith("reema-snafi-test-") \
+                and not running_deployed():
+            raise SecretStoreError("the live Snafi values open only from the deployed worker; "
+                                   "run C:\\SnafiWorker\\snafi.cmd instead of the repository copy")
         self.prefix = prefix
         api = ctypes.WinDLL("advapi32", use_last_error=True)
         self._write = api.CredWriteW

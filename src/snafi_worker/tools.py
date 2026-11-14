@@ -5,63 +5,12 @@ Khalid's Approve on an approval card. Level 4 is never run. A tool that is not l
 refused. The brain can only propose; it cannot change a tool's level.
 """
 
-import hashlib
-import json
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Callable, Dict, Optional, Tuple
+from typing import Dict, Optional
 
-ArgSpec = Dict[str, Tuple[type, int, bool]]  # name -> (type, max length, required)
-
-
-@dataclass
-class ToolResult:
-    ok: bool
-    summary: Dict[str, str]          # {"en": ..., "ar": ...}: what really happened, written by code
-    data: Dict = field(default_factory=dict)
-    undo: Optional[Dict] = None      # how to undo, for Level 2
-
-
-@dataclass(frozen=True)
-class Tool:
-    name: str
-    level: int
-    args: ArgSpec
-    run: Callable
-    undo: Optional[Callable] = None
-    describe: Callable = lambda args: {"en": "", "ar": ""}
-    validate: Optional[Callable] = None   # extra checks, run by the gate before anything runs
-
-
-class ToolArgError(ValueError):
-    pass
-
-
-def clean_args(tool: Tool, args: Dict) -> Dict:
-    clean = {}
-    for name, (kind, limit, required) in tool.args.items():
-        value = args.get(name)
-        if value is None or (isinstance(value, str) and not value.strip()):
-            if required:
-                raise ToolArgError(f"{name} is required")
-            continue
-        if kind is str:
-            if not isinstance(value, str):
-                raise ToolArgError(f"{name} must be text")
-            value = value.strip()
-            if len(value) > limit:
-                raise ToolArgError(f"{name} is too long")
-        elif kind is int:
-            if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= limit:
-                raise ToolArgError(f"{name} must be a number from 1 to {limit}")
-        clean[name] = value
-    return tool.validate(clean) if tool.validate else clean
-
-
-def args_hash(tool: str, args: Dict) -> str:
-    """SHA-256 of exactly what an approval card shows and what will run (SEC-13)."""
-    text = json.dumps({"tool": tool, "args": args}, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+from .personal_tools import PERSONAL_TOOLS
+from .tool_types import (LIST_ITEM_MAX, ArgSpec, NeverError, Tool, ToolArgError, ToolResult,  # noqa: F401
+                         args_hash, clean_args)
 
 
 def _now() -> str:
@@ -85,7 +34,7 @@ def _adder(table: str, en: str, ar: str):
     return run
 
 
-def _soft_delete(store, undo: Dict):
+def _soft_delete(store, undo: Dict, ctx: Optional[Dict] = None):
     store.update(undo["table"], undo["id"], {"deleted_at": _now()})
 
 
@@ -150,5 +99,13 @@ NEVER = {
     "make_payment", "pay", "transfer_money", "send_money", "buy", "purchase", "change_password",
     "reset_password", "share_password", "change_security_settings", "disable_2fa", "send_mass_message",
     "mass_message", "broadcast",
+    # Step 3: mail rules and sharing change who receives Khalid's data; never done by Ahmad.
+    "forward_all_mail", "set_forwarding", "create_mail_filter", "share_file", "change_sharing",
+    "delete_email", "trash_email", "empty_trash", "delete_file",
 }
-NEVER_WORDS = ("pay", "money", "transfer", "purchase", "password", "security", "2fa", "mass", "broadcast", "bank")
+NEVER_WORDS = ("pay", "money", "transfer", "purchase", "password", "security", "2fa", "mass", "broadcast", "bank",
+               "forwarding", "filter", "share", "sharing", "trash")
+
+# Step 3: Gmail, Calendar and Drive (personal_tools.py), each level fixed there.
+
+TOOLS.update({t.name: t for t in PERSONAL_TOOLS})

@@ -5,6 +5,7 @@ import {
   checkId,
   checkMessageBody,
   MailboxError,
+  toTodayFeed,
   type ActionEntry,
   type ApprovalCard,
   type MailboxAdapter,
@@ -114,5 +115,12 @@ export class SupabaseMailboxAdapter implements MailboxAdapter {
     if (!data) return null;
     const r = data as { last_seen: string; last_backup_at: string | null; last_backup_ok: boolean | null; last_backup_error: string | null };
     return { lastSeen: r.last_seen, lastBackupAt: r.last_backup_at, lastBackupOk: r.last_backup_ok, lastBackupError: r.last_backup_error };
+  }
+
+  async todayFeed() {
+    const { data, error } = await (await this.client()).from("today_feed")
+      .select("next_event, emails, google_status, updated_at").maybeSingle();
+    if (error) throw new MailboxError(error.message);
+    return data ? toTodayFeed(data) : null;
   }
 }

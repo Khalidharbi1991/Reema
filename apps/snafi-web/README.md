@@ -1,4 +1,4 @@
-# Snafi web (steps 1 and 2)
+# Snafi web (steps 1 to 3)
 
 Snafi is Khalid's personal assistant app and part of REEMA. The plan is
 `docs/snafi/PRD.md`.
@@ -7,8 +7,12 @@ Snafi is Khalid's personal assistant app and part of REEMA. The plan is
 - **Step 2:** Chat with Ahmad through the PC worker (`src/snafi_worker/`), approval
   cards with Approve / Reject, Undo on logged actions, a "PC offline" banner with the
   last backup's result in the menu, and real Umm al-Qura prayer times and Hijri date
-  for Jeddah on Today. The event, tasks and Ahmad's cards on Today stay marked
-  samples until steps 3-5.
+  for Jeddah on Today.
+- **Step 3:** Today shows the next Google Calendar event and up to five important unread
+  emails (sender and subject only) from the PC worker's snapshot (`today_feed`, migration
+  0006), with a note when Google needs connecting or reconnecting. Gmail, Calendar and
+  Drive actions run on the PC; sends, invites and deletes arrive as approval cards showing
+  the exact content. Tasks and Ahmad's cards stay marked samples until steps 4-5.
 
 The web app never calls a model; the worker on the PC does. No deploy.
 

@@ -41,17 +41,48 @@ export function TodayView({ lang, hour, today, decide }: Props) {
 
       {anySample && <p className="rise-in mt-3 text-xs text-muted" style={{ ["--i" as string]: 1 }}>{t.placeholderNote}</p>}
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        {today.nextEvent && (
-          <Card title={t.nextEvent} index={1} badge={today.samples.nextEvent ? sample : null}>
-            <p className="text-base">{today.nextEvent.title}</p>
-            <p className="mt-1 text-sm text-muted">
-              <span dir="ltr" className="tabular-nums">{today.nextEvent.time}</span> · {today.nextEvent.place}
-            </p>
-          </Card>
-        )}
+      {today.google !== "ok" && (
+        <p role="status" data-testid="google-status" data-state={today.google}
+          className="rise-in mt-3 rounded-xl border border-gold/40 px-3 py-2 text-xs text-gold-ink" style={{ ["--i" as string]: 1 }}>
+          {t.google[today.google]}
+        </p>
+      )}
 
-        <Card title={t.topTasks} index={2} badge={today.samples.tasks ? sample : null}>
+      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <Card title={t.nextEvent} index={1} badge={today.samples.nextEvent ? sample : null}>
+          {today.nextEvent ? (
+            <>
+              <p className="text-base" dir="auto">{today.nextEvent.title}</p>
+              <p className="mt-1 text-sm text-muted">
+                <span dir="ltr" className="tabular-nums">{today.nextEvent.time}</span>
+                {today.nextEvent.place && <> · <span dir="auto">{today.nextEvent.place}</span></>}
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-muted">{today.google === "ok" ? t.noEvents : "—"}</p>
+          )}
+        </Card>
+
+        <Card title={t.importantEmail} index={2} badge={today.samples.emails ? sample : null}>
+          {today.emails.length === 0 ? (
+            <p className="text-sm text-muted">{today.google === "ok" ? t.noImportantEmail : "—"}</p>
+          ) : (
+            <ul className="space-y-3" data-testid="important-emails">
+              {today.emails.map((m) => (
+                <li key={m.id} className="flex items-start gap-3">
+                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-gold" aria-hidden="true" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium" dir="auto">{m.from}</span>
+                    <span className="block truncate text-sm text-muted" dir="auto">{m.subject}</span>
+                  </span>
+                  <span dir="ltr" className="shrink-0 text-xs tabular-nums text-muted">{m.time}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card title={t.topTasks} index={3} badge={today.samples.tasks ? sample : null}>
           <ul className="space-y-3">
             {today.tasks.map((task) => (
               <li key={task.id} className="flex items-start gap-3">
@@ -64,13 +95,13 @@ export function TodayView({ lang, hour, today, decide }: Props) {
         </Card>
 
         {today.cards.map((card, i) => (
-          <Card key={card.id} title={t.ahmadCards} index={3 + i} badge={today.samples.cards ? sample : null}>
+          <Card key={card.id} title={t.ahmadCards} index={4 + i} badge={today.samples.cards ? sample : null}>
             <p className="text-sm font-medium">{card.title}</p>
             <p className="mt-1 text-sm text-muted">{card.body}</p>
           </Card>
         ))}
 
-        <Card title={t.approvals} index={4 + today.cards.length}>
+        <Card title={t.approvals} index={5 + today.cards.length}>
           {today.approvals.length === 0 ? (
             <p className="text-sm text-muted">{t.approvalsEmpty}</p>
           ) : (

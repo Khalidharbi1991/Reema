@@ -55,6 +55,15 @@ export type WorkerStatus = {
   lastBackupError: string | null;
 };
 
+/** The worker's Google snapshot for Today (step 3). Written by the PC only; senders and subjects, never bodies. */
+export type GoogleStatus = "ok" | "off" | "not_connected" | "reconnect" | "error";
+export type TodayFeed = {
+  nextEvent: { title: string; start: string; end: string; location: string; allDay: boolean } | null;
+  emails: { from: string; subject: string; receivedAt: string }[];
+  googleStatus: GoogleStatus;
+  updatedAt: string;
+};
+
 export const MAX_MESSAGE_LENGTH = 8000;
 /** The app shows "PC offline" when the worker's heartbeat is older than this. */
 export const OFFLINE_AFTER_MS = 45_000;
@@ -72,6 +81,28 @@ export interface MailboxAdapter {
   /** Asks the worker to undo a Level 2 action. */
   requestUndo(actionId: string): Promise<void>;
   workerStatus(): Promise<WorkerStatus | null>;
+  /** The worker's latest Google snapshot for Today, or null before the first one. */
+  todayFeed(): Promise<TodayFeed | null>;
+}
+
+const STATUSES: readonly GoogleStatus[] = ["ok", "off", "not_connected", "reconnect", "error"];
+const text = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
+
+/** A today_feed row made safe for the screen: known fields only, text cut to size, at most five emails. */
+export function toTodayFeed(row: { next_event?: unknown; emails?: unknown; google_status?: unknown; updated_at?: unknown }): TodayFeed {
+  const e = row.next_event && typeof row.next_event === "object" ? (row.next_event as Record<string, unknown>) : null;
+  const emails = Array.isArray(row.emails) ? row.emails : [];
+  return {
+    nextEvent: e && text(e.start, 40)
+      ? { title: text(e.title, 200), start: text(e.start, 40), end: text(e.end, 40), location: text(e.location, 200), allDay: e.all_day === true }
+      : null,
+    emails: emails.slice(0, 5).filter((m) => m && typeof m === "object").map((m) => {
+      const r = m as Record<string, unknown>;
+      return { from: text(r.from, 120), subject: text(r.subject, 200), receivedAt: text(r.received_at, 40) };
+    }),
+    googleStatus: STATUSES.includes(row.google_status as GoogleStatus) ? (row.google_status as GoogleStatus) : "error",
+    updatedAt: text(row.updated_at, 40),
+  };
 }
 
 export class MailboxError extends Error {}

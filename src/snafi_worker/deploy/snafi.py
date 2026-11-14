@@ -8,6 +8,7 @@ PYTHONPATH and no user site-packages can be loaded with the worker's keys (SEC-1
     snafi.cmd backup-now
     snafi.cmd reset-brain      clear a safety pause after you have looked
     snafi.cmd set-secrets      store the worker's secrets (asks; never shows keys)
+    snafi.cmd connect-google   connect your Google account once (--status, --disconnect)
     snafi.cmd prove            the live lockdown proof for the brain
     snafi.cmd restore BACKUP --verify | --to-sql OUT.sql | --to-database [...]
 """
@@ -16,7 +17,7 @@ import sys
 from pathlib import Path
 
 APP = Path(__file__).resolve().parent
-COMMANDS = ("worker", "check", "once", "backup-now", "reset-brain", "set-secrets", "prove", "restore")
+COMMANDS = ("worker", "check", "once", "backup-now", "reset-brain", "set-secrets", "connect-google", "prove", "restore")
 
 
 def main(argv=None) -> int:
@@ -29,6 +30,9 @@ def main(argv=None) -> int:
         sys.path.insert(0, str(APP))  # -I leaves the script's own folder off sys.path; add only this one
     if command == "set-secrets":
         from src.snafi_worker.set_secrets import main as run
+        return run(argv)
+    if command == "connect-google":
+        from src.snafi_worker.google.connect import main as run
         return run(argv)
     if command == "prove":
         from src.snafi_worker.brain.agy_proof import main as run

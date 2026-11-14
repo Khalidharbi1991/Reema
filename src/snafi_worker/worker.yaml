@@ -26,6 +26,21 @@ lanes:
     timeout_seconds: 600
     retry_delay_seconds: 60
 
+# Step 3: Khalid's personal Google account. Each service is its own adapter; "none" switches it off,
+# "fake" is for tests. Until Khalid runs `snafi.cmd connect-google`, the tools say "not connected"
+# and the worker keeps running.
+mail:
+  provider: gmail               # scopes gmail.readonly + gmail.compose (drafts; sends only after Approve)
+calendar:
+  provider: google_calendar     # scope calendar.events (main calendar)
+files:
+  provider: google_drive        # scope drive.readonly
+google:
+  timeout_seconds: 20
+
+today_feed:
+  minutes: 10                   # next event and important unread mail for the Today screen (no brain call)
+
 heartbeat:
   seconds: 15                   # the app shows "PC offline" after 45 seconds
 

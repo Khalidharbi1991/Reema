@@ -11,15 +11,15 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 
 from .brain import ProposedAction
-from .tools import NEVER, NEVER_WORDS, TOOLS, Tool, ToolArgError, clean_args
+from .tools import NEVER, NEVER_WORDS, TOOLS, NeverError, Tool, ToolArgError, clean_args
 
 RUN, APPROVE, REFUSE = "run", "approve", "refuse"
 
 REASONS = {
     "never": {"en": "I never do this (payments, passwords, security settings or mass messages).",
               "ar": "لا أقوم بهذا أبداً (المدفوعات أو كلمات المرور أو إعدادات الأمان أو الرسائل الجماعية)."},
-    "unknown": {"en": "I can't do that yet: in this step I only have notes, facts, reminders and a test action.",
-                "ar": "لا أستطيع ذلك بعد: في هذه المرحلة لديّ الملاحظات والمعلومات والتذكيرات وإجراء تجريبي فقط."},
+    "unknown": {"en": "I can't do that yet: I have notes, facts, reminders, Gmail, Google Calendar and Google Drive.",
+                "ar": "لا أستطيع ذلك بعد: لديّ الملاحظات والمعلومات والتذكيرات وGmail وتقويم Google وGoogle Drive."},
 }
 
 
@@ -41,6 +41,9 @@ def decide(action: ProposedAction) -> Decision:
         return Decision(REFUSE, 0, None, {}, REASONS["unknown"])
     try:
         args = clean_args(tool, dict(action.args))
+    except NeverError as exc:  # e.g. more than five recipients: a mass message (Level 4)
+        return Decision(REFUSE, 4, tool, {}, {"en": f"{REASONS['never']['en']} ({exc})",
+                                              "ar": f"{REASONS['never']['ar']} ({exc})"})
     except ToolArgError as exc:
         return Decision(REFUSE, tool.level, tool, {}, {"en": f"I couldn't do that: {exc}.",
                                                         "ar": f"تعذّر ذلك: {exc}."})
