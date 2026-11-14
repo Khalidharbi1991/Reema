@@ -70,6 +70,26 @@ def running_deployed(here: Optional[str] = None) -> bool:
     return path.startswith(ntpath.normcase(DEPLOYED_APP) + "\\")
 
 
+TEST_PREFIX = "reema-snafi-test-"
+
+
+def is_live_target(target: str) -> bool:
+    """True for any spelling of a live Snafi credential name. Windows compares target names without
+    regard to case, so they are compared case-folded (and without leading spaces) here too. Only the
+    throw-away test names ("REEMA-Snafi-TEST-<random>:...") are not live."""
+    folded = (target or "").lstrip().casefold()
+    return folded.startswith(PREFIX.casefold().rstrip(":")) and not folded.startswith(TEST_PREFIX)
+
+
+def check_target(target: str) -> str:
+    """SEC-88: the full target name (prefix + name) is checked on every read, write and delete, so a
+    live value cannot be reached by splitting its name between the prefix and the name."""
+    if is_live_target(target) and not running_deployed():
+        raise SecretStoreError("the live Snafi values open only from the deployed worker; "
+                               "run C:\\SnafiWorker\\snafi.cmd instead of the repository copy")
+    return target
+
+
 class WindowsCredentials:
     """Windows Credential Manager for the current user (CredWriteW / CredReadW / CredDeleteW).
 
@@ -80,11 +100,8 @@ class WindowsCredentials:
     def __init__(self, prefix: str = PREFIX):
         if sys.platform != "win32":
             raise SecretStoreError("Windows Credential Manager is only available on Windows")
-        # SEC-88: target names are not case-sensitive, so any spelling of the live prefix counts.
-        if prefix.lower().startswith(PREFIX.lower().rstrip(":")) and not prefix.lower().startswith("reema-snafi-test-") \
-                and not running_deployed():
-            raise SecretStoreError("the live Snafi values open only from the deployed worker; "
-                                   "run C:\\SnafiWorker\\snafi.cmd instead of the repository copy")
+        # SEC-88: refused early for any spelling of the live prefix; _target checks the full name too.
+        check_target(prefix)
         self.prefix = prefix
         api = ctypes.WinDLL("advapi32", use_last_error=True)
         self._write = api.CredWriteW
@@ -100,7 +117,7 @@ class WindowsCredentials:
         self._free.argtypes = [ctypes.c_void_p]
 
     def _target(self, name: str) -> str:
-        return self.prefix + name
+        return check_target(self.prefix + name)
 
     def read(self, name: str) -> Optional[str]:
         pointer = ctypes.POINTER(_CREDENTIAL)()

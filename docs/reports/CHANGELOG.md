@@ -5,6 +5,14 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md). The [finite ledger](PENDING_LEDGER.md) records external
 requirements as they stood before the no-API migration below.
 
+## 2026-11-14 — Snafi: SEC-88 closed (not pushed)
+
+The worker's secret store now checks the full credential name (prefix and name together) on every
+read, write and delete, so a live value cannot be reached from the repository copy by splitting its
+name. Agent 16 closed SEC-88 and added SEC-89 (Low: non-ASCII lookalike names; fix by allowing only
+ASCII test names outside the deployed copy). Khalid confirmed his acceptance of SEC-51, SEC-80 and
+SEC-83 in his own words. Python 1029 passed, web 142 passed, lint clean.
+
 ## 2026-11-14 — Snafi step 3: Gmail, Google Calendar and Google Drive (not pushed)
 
 Khalid's personal Google account behind the permission gate, each service its own adapter
