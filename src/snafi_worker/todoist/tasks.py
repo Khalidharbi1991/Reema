@@ -155,6 +155,26 @@ class TodoistTasks:
     def today(self, limit):
         return self._list("today | overdue", limit)
 
+    PAGE = 200      # the most the API gives per page
+    PAGES = 5       # so at most 1,000 open tasks are read
+
+    def all_open(self, most):
+        """Every open task (GET /tasks, page by page with next_cursor), at most `most` and PAGES pages."""
+        most = max(1, min(int(most), self.PAGE * self.PAGES))
+        found: List[TaskItem] = []
+        cursor = None
+        for _ in range(self.PAGES):
+            params = {"limit": self.PAGE}
+            if cursor:
+                params["cursor"] = cursor
+            data = self._call("GET", "/tasks", params)
+            rows = data.get("results") if isinstance(data, dict) else data
+            found += [i for i in (_item(r) for r in (rows or []) if isinstance(r, dict)) if i is not None and not i.done]
+            cursor = data.get("next_cursor") if isinstance(data, dict) else None
+            if not isinstance(cursor, str) or not cursor or len(cursor) > 500 or len(found) >= most:
+                break
+        return found[:most]
+
     def search(self, query, limit):
         words = " ".join(FILTER_CHARS.sub(" ", query or "").split())[:200]
         return self._list(f"search: {words}" if words else "today | overdue", limit)

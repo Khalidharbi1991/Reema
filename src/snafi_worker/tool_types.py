@@ -59,6 +59,21 @@ def _text_list(name: str, value, limit: int):
     return items
 
 
+# How many results to show is not a safety question: a number out of range is brought into range
+# (the brain asked for "all", say 100, and gets the most there is) instead of refusing the read.
+CLAMPED = frozenset({"limit"})
+
+
+def _clamped(name: str, value, highest: int) -> int:
+    if isinstance(value, str) and value.strip().isdigit():
+        value = int(value.strip())
+    elif isinstance(value, float) and value.is_integer():
+        value = int(value)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ToolArgError(f"{name} must be a number from 1 to {highest}")
+    return max(1, min(value, highest))
+
+
 def clean_args(tool: Tool, args: Dict) -> Dict:
     clean = {}
     for name, (kind, limit, required) in tool.args.items():
@@ -79,6 +94,8 @@ def clean_args(tool: Tool, args: Dict) -> Dict:
             value = value.strip()
             if len(value) > limit:
                 raise ToolArgError(f"{name} is too long")
+        elif kind is int and name in CLAMPED:
+            value = _clamped(name, value, limit)
         elif kind is int:
             if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= limit:
                 raise ToolArgError(f"{name} must be a number from 1 to {limit}")

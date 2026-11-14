@@ -161,6 +161,9 @@ class FakeTasks:
     def today(self, limit):
         return [self.tasks[t] for t in self.today_ids if t in self.tasks and not self.tasks[t].done][:limit]
 
+    def all_open(self, most):
+        return [t for t in self.tasks.values() if not t.done][:most]
+
     def search(self, query, limit):
         q = (query or "").lower()
         return [t for t in self.tasks.values() if not t.done and q in t.content.lower()][:limit]
