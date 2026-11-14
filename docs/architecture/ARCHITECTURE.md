@@ -115,7 +115,9 @@ and their knowledge files remain in `src/knowledge/`.
   confirm-read token and the manifest decide what it may read.
 - File text is untrusted data for every subagent.
 - No agent or session approves: `.claude/settings.json` denies approve, reject,
-  publish and `git push` (plus remotes, package publishing, deploy tools, `sudo` and
+  publish and every `git push` except the exact `git push origin main` from the main
+  session on main, which asks Khalid each time (plus remotes, git's remote/push/branch
+  settings, package publishing, deploy tools, `sudo` and
   network tools, also caught inside wrappers by `.claude/hooks/dev_guard.py`); approval records bind file SHA-256 values to a
   self-declared human reviewer.
 - There is no container image, CI workflow, deployed service, mailbox or calendar

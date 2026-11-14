@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """PreToolUse guard for Bash and PowerShell in REEMA's Claude Code sessions (Development section, decision D3).
 
-Blocks pushing, adding or changing remotes, publishing, deploying, sudo and network tools, also
+Blocks pushing (except the exact `git push origin main` from the main session in REEMA's repository
+on main, which settings.json's "ask" rule puts to Khalid each time), adding or changing remotes and
+git's remote/push/branch/url/include settings, publishing, deploying, sudo and network tools, also
 when wrapped (sh -c, bash -c, eval, env, xargs, command substitution, powershell -Command, pwsh -c,
 cmd /c, Invoke-Expression), and commands that name REEMA's task store (teams/coordination/data/,
 formerly output/assistant/) or REEMA's references (teams/documentation/input/references/, formerly
@@ -18,8 +20,10 @@ airtight: a program can still open a connection itself.
 import hashlib
 import json
 import ntpath
+import os
 import re
 import shlex
+import shutil
 import sys
 from pathlib import Path
 
@@ -36,6 +40,23 @@ PS_SHELLS = {"powershell", "pwsh", "cmd", "iex", "invoke-expression"}
 OPERATORS = {";", "&&", "||", "|", "&", "|&", ";;", "(", ")", "{", "}", "$"}
 REDIRECTS = {">", ">>", "<", "<<", "<<<", ">&", "&>", "2>", "2>>"}
 GIT_VALUE_OPTIONS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
+# Pushing main to GitHub (Khalid, Nov 14, 2026): the only push allowed is this exact command, typed
+# alone (no wrapper, chain, env prefix, option or other refspec), from the main session (not a
+# subagent), in REEMA's own repository (not a Development project's repo) with main checked out.
+# settings.json makes it an "ask" rule, so Khalid approves each push at the permission prompt.
+PUSH_MAIN = "git push origin main"
+# Settings that could redirect or widen a push: where it goes (remote.*, url.*.pushInsteadOf), what
+# it sends (push.*, remote.*.mirror, branch.*) or config pulled in from elsewhere (include*).
+GIT_CONFIG_KEYS = re.compile(r"(remote|push|branch|url|include|includeif)\.", re.I)
+GIT_CONFIG_FILES = re.compile(r"(^|[\s'\"/])\.git/config\b|\.gitconfig\b|/etc/gitconfig\b")
+# SEC-90 / SEC-91: any path through a .git folder (written with either slash, or `cd .git`), so its
+# config, hooks and commondir are changed only by git itself. ".gitignore" and ".github" are not ".git".
+GIT_FOLDER = re.compile(r"(^|[\s'\"=/:;&|(<>,])\.git([/\s'\";&|)<>,]|$)", re.I)
+# SEC-92: start-up files that could set environment variables, aliases or a `git` function for the push.
+PROFILE_NAME = r"\.(bashrc|bash_profile|bash_login|profile|zshrc|zshenv|zprofile)\b|profile\.ps1\b"
+PROFILES = re.compile(PROFILE_NAME + r"|\$profile\b", re.I)
+PERSISTENT_ENV = re.compile(r"\bsetx\b|setenvironmentvariable|hkcu:?/+environment|hkey_current_user/+environment"
+                            r"|currentversion/+policies/+system|session manager/+environment", re.I)
 # Home Design section: only reema-agent22-3d-modeler runs these, by these installed paths (checked
 # 2026-11-03), with every path inside the New Home project; they are blocked for everyone else.
 AGENT22 = "reema-agent22-3d-modeler"
@@ -215,6 +236,20 @@ def _after_options(words, depth):
     return None
 
 
+GIT_CONFIG_READS = {"--get", "--get-all", "--get-regexp", "--list", "-l", "get", "list"}
+GIT_CONFIG_WRITES = {"--add", "--unset", "--unset-all", "--replace-all", "--rename-section", "--remove-section",
+                     "--edit", "-e", "set", "unset", "rename-section", "remove-section", "edit"}
+
+
+def _git_config_read(args):
+    """True only for a read of git config (--get, --list, ...), never a change."""
+    lowered = {a.lower().split("=", 1)[0] for a in args}
+    if lowered & GIT_CONFIG_WRITES:
+        return False
+    positional = [a for a in args if not a.startswith("-")]
+    return bool(lowered & GIT_CONFIG_READS) or len(positional) == 1  # `git config user.name` reads
+
+
 def _check(words, depth, powershell=False):
     words = [w for i, w in enumerate(words) if w not in REDIRECTS and (i == 0 or words[i - 1] not in REDIRECTS)]
     for word in words:
@@ -260,10 +295,19 @@ def _check(words, depth, powershell=False):
             j += 2 if rest[j] in GIT_VALUE_OPTIONS else 1
         sub = rest[j:]
         if sub[:1] == ["push"]:
-            return "`git push` is blocked: REEMA and its projects are local only"
-        if sub[:1] == ["remote"] and _first_operand(sub[1:]) in {"add", "set-url"}:
+            return ("`git push` is blocked: only the exact `git push origin main`, from REEMA's main branch, "
+                    "unwrapped and from the main session, may run (Khalid approves it at the prompt)")
+        if sub[:1] == ["remote"] and _first_operand(sub[1:]) in {"add", "set-url", "rename", "remove", "rm"}:
             return "adding or changing a git remote is blocked"
+        if sub[:1] == ["config"] and any(GIT_CONFIG_KEYS.match(word) for word in sub[1:]):
+            return "git config of remote, push, branch, url or include settings is blocked"
+        if sub[:1] == ["config"] and not _git_config_read(sub[1:]):
+            return "changing git config is blocked (only --get and --list reads may run)"
+        if sub[:1] and sub[0].lower().startswith("credential"):
+            return "`git credential` is blocked: it would hand out Khalid's stored GitHub sign-in (SEC-93)"
         return None
+    if name.startswith("git-credential"):
+        return "git's credential helpers are blocked: they would hand out Khalid's stored GitHub sign-in (SEC-93)"
     if name.startswith("python") and rest[:2] == ["-m", "twine"]:
         return "publishing packages is blocked"
     if (name, _first_operand(rest)) in PAIRS:
@@ -277,6 +321,15 @@ def reason(command, depth=0, powershell=False):
         return "command is nested too deeply to check"
     if why := _snafi_reason(command):
         return why
+    slashed = command.replace("\\", "/")
+    if GIT_CONFIG_FILES.search(slashed.lower()):
+        return "git's config files (.git/config, .gitconfig) are not touched from a session"
+    if GIT_FOLDER.search(slashed):
+        return "the .git folder (config, hooks, commondir) is not touched from a session (SEC-90, SEC-91)"
+    if PROFILES.search(slashed):
+        return "shell and PowerShell profiles are not touched from a session (SEC-92)"
+    if PERSISTENT_ENV.search(slashed):
+        return "setting persistent environment variables is blocked (SEC-92)"
     if not powershell:
         command, shell_bodies = _split_heredocs(command)
         for body in shell_bodies:
@@ -426,6 +479,12 @@ def agent22_reason(command, tool):
 def write_reason(tool_input, agent):
     """Why this write may not happen, or None. In New Home every result is a named file in output\\."""
     path = str(tool_input.get("file_path") or tool_input.get("notebook_path") or "")
+    if re.search(r"(^|\\)(\.git\\config|\.gitconfig)$", _win(path)):
+        return "git's config files (.git/config, .gitconfig) are not written from a session"
+    if ".git" in _win(path).split("\\"):
+        return "the .git folder is not written from a session (SEC-90, SEC-91)"
+    if re.search(PROFILE_NAME + r"$", _win(path), re.I):
+        return "shell and PowerShell profiles are not written from a session (SEC-92)"
     if agent and _win(path) == _win(SCRIPT_LEDGER):
         return "only Ahmad records script approvals in reviews\\script_reviews.json"
     if agent in HOME_AGENT_WRITES:
@@ -445,6 +504,241 @@ def write_reason(tool_input, agent):
                                      ".gitignore and reviews\\script_reviews.json")
 
 
+def _on_main(root=ROOT):
+    """True when REEMA's own repository has main checked out."""
+    try:
+        return (Path(root) / ".git" / "HEAD").read_text(encoding="utf-8").strip() == "ref: refs/heads/main"
+    except OSError:
+        return False
+
+
+def _at_root(cwd, root=ROOT):
+    """True when the session's folder is exactly REEMA's root (SEC-91: not a sub-folder, where a
+    nested repository or a .git file could point git at another config and remote)."""
+    return bool(cwd) and _win(cwd).rstrip("\\") == _win(root).rstrip("\\")
+
+
+CONFIG_HEADER = re.compile(r'\s*\[\s*([A-Za-z0-9.-]+)(?:\s+"((?:[^"\\\n]|\\.)*)")?\s*\]\s*([#;].*)?')
+CONFIG_KEY = re.compile(r"\s*([A-Za-z][A-Za-z0-9-]*)\s*(?:=(.*))?")
+
+
+class ConfigError(ValueError):
+    pass
+
+
+def _config_value(raw):
+    """A git config value: quotes removed, escapes decoded, an unquoted # or ; starts a comment.
+    A trailing backslash (a continued line) is refused: a plain config never needs one."""
+    out, quoted, i = [], False, 0
+    while i < len(raw):
+        c = raw[i]
+        if c == "\\":
+            if i + 1 >= len(raw):
+                raise ConfigError("continued line")
+            out.append({"n": "\n", "t": "\t", "b": "\b", '"': '"', "\\": "\\"}.get(raw[i + 1]) or "")
+            if raw[i + 1] not in 'ntb"\\':
+                raise ConfigError("unknown escape")
+            i += 2
+            continue
+        if c == '"':
+            quoted = not quoted
+        elif c in "#;" and not quoted:
+            break
+        else:
+            out.append(c)
+        i += 1
+    if quoted:
+        raise ConfigError("unclosed quote")
+    return "".join(out).strip()
+
+
+def read_git_config(path):
+    """[(section, subsection, key, value)] from one config file, read directly (so GIT_CONFIG_*
+    overrides cannot change what is checked). Anything this reader does not understand is refused."""
+    entries, section, sub = [], None, None
+    text = Path(path).read_text(encoding="utf-8-sig")
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped[0] in "#;":
+            continue
+        if stripped.startswith("["):
+            match = CONFIG_HEADER.fullmatch(line)
+            if not match:
+                raise ConfigError("unreadable section header")
+            name = match.group(1).lower()
+            if match.group(2) is not None:
+                section, sub = name, re.sub(r"\\(.)", r"\1", match.group(2))
+            else:  # the old [section.subsection] form
+                section, _, rest = name.partition(".")
+                sub = rest or None
+            continue
+        match = CONFIG_KEY.fullmatch(line)
+        if not match or section is None:
+            raise ConfigError("unreadable line")
+        value = _config_value(match.group(2)) if match.group(2) is not None else "true"
+        entries.append((section, sub, match.group(1).lower(), value))
+    return entries
+
+
+# The repository push goes to (Khalid's GitHub repository as configured; GitHub treats the name's
+# case as the same repository, but this must match exactly).
+ORIGIN_URL = "https://github.com/Khalidharbi1991/REEMA.git"
+BOOL = r"(?i:true|false|yes|no|on|off|1|0)"
+BRANCH = r"[A-Za-z0-9._/-]{1,200}"
+# SEC-90: the only git settings allowed, in any config file git reads, when the push runs. Anything
+# else refuses the push: no credential helper other than Git for Windows' own "manager", no hooksPath,
+# fsmonitor, sshCommand or other program settings, no http.* other than the schannel TLS backend
+# (so no proxy, extra header or switched-off certificate check), no url.*.insteadOf, include,
+# includeIf, push.*, submodule.*, and on origin only its url and fetch (no pushurl, mirror or push
+# refspec). Rows: (section, subsection pattern or None, key, value pattern, repository config only).
+ALLOWED_SETTINGS = (
+    ("core", None, "repositoryformatversion", r"[01]", False),
+    ("core", None, "filemode", BOOL, False),
+    ("core", None, "bare", r"(?i:false|no|off|0)", False),
+    ("core", None, "logallrefupdates", BOOL, False),
+    ("core", None, "symlinks", BOOL, False),
+    ("core", None, "ignorecase", BOOL, False),
+    ("core", None, "fscache", BOOL, False),
+    ("core", None, "autocrlf", r"(?i:true|false|input)", False),
+    ("extensions", None, "worktreeconfig", BOOL, True),
+    ("user", None, "name", r"[^\x00-\x1f\x7f]{1,200}", False),
+    ("user", None, "email", r"[^\s\x00-\x1f\x7f]{1,200}", False),
+    ("pull", None, "rebase", BOOL, False),
+    ("init", None, "defaultbranch", BRANCH, False),
+    ("http", None, "sslbackend", r"schannel", False),
+    ("credential", None, "helper", r"manager", False),
+    ("credential", re.escape("https://dev.azure.com"), "usehttppath", BOOL, False),
+    ("diff", "astextplain", "textconv", r"astextplain", False),
+    ("filter", "lfs", "clean", re.escape("git-lfs clean -- %f"), False),
+    ("filter", "lfs", "smudge", re.escape("git-lfs smudge -- %f"), False),
+    ("filter", "lfs", "process", re.escape("git-lfs filter-process"), False),
+    ("filter", "lfs", "required", BOOL, False),
+    ("remote", "origin", "url", re.escape(ORIGIN_URL), True),
+    ("remote", "origin", "fetch", r"\+?refs/heads/\*:refs/remotes/origin/\*", True),
+    ("branch", BRANCH, "remote", r"origin", True),
+    ("branch", BRANCH, "merge", r"refs/heads/" + BRANCH, True),
+)
+# SEC-90 / SEC-92: environment that could change where or how git pushes (or log its secrets). Only
+# GIT_EDITOR (set by Claude Code) and GIT_TERMINAL_PROMPT may be set; NO_PROXY is harmless.
+ALLOWED_GIT_ENV = {"GIT_EDITOR", "GIT_TERMINAL_PROMPT", "NO_PROXY"}
+RISKY_ENV = re.compile(r"GIT_.*|GCM_.*|.*_PROXY|SSL_CERT_(FILE|DIR)|CURL_CA_BUNDLE|REQUESTS_CA_BUNDLE"
+                       r"|BASH_ENV|ENV|PROMPT_COMMAND|SSH_ASKPASS|LD_PRELOAD", re.I)
+GIT_HOME = r"C:\Program Files\Git"
+
+
+def git_config_files(env=None, home=None):
+    """Every config file git may read besides the repository's own: global, XDG and system."""
+    env = os.environ if env is None else env
+    home = Path(home or Path.home())
+    xdg = Path(env["XDG_CONFIG_HOME"]) if env.get("XDG_CONFIG_HOME") else home / ".config"
+    program_data = Path(env.get("PROGRAMDATA") or r"C:\ProgramData")
+    return [home / ".gitconfig", xdg / "git" / "config", program_data / "Git" / "config",
+            Path(GIT_HOME, "etc", "gitconfig"), Path(GIT_HOME, "mingw64", "etc", "gitconfig"),
+            Path(GIT_HOME, "ucrt64", "etc", "gitconfig")]
+
+
+def profile_files(env=None, home=None):
+    """The shell and PowerShell start-up files that could set variables, aliases or a `git` function."""
+    env = os.environ if env is None else env
+    home = Path(home or Path.home())
+    files = [home / name for name in (".bashrc", ".bash_profile", ".bash_login", ".profile", ".zshrc",
+                                      ".zshenv", ".zprofile")]
+    documents = {home / "Documents", home / "OneDrive" / "Documents"}
+    if env.get("OneDrive"):
+        documents.add(Path(env["OneDrive"]) / "Documents")
+    for folder in sorted(documents):
+        for shell in ("PowerShell", "WindowsPowerShell"):
+            files += [folder / shell / name for name in ("profile.ps1", "Microsoft.PowerShell_profile.ps1",
+                                                         "Microsoft.VSCode_profile.ps1")]
+    return files
+
+
+def _setting_allowed(section, sub, key, value, repo_config):
+    for s, sub_pattern, k, value_pattern, repo_only in ALLOWED_SETTINGS:
+        if s == section and k == key and (repo_config or not repo_only) \
+                and ((sub_pattern is None) == (sub is None)) \
+                and (sub is None or re.fullmatch(sub_pattern, sub)) and re.fullmatch(value_pattern, value):
+            return True
+    return False
+
+
+def _is_link(path):
+    path = Path(path)
+    return path.is_symlink() or bool(getattr(os.path, "isjunction", lambda p: False)(path))
+
+
+def push_environment_reason(root=ROOT, env=None, other_files=None, profiles=None, git_path=None):
+    """Why the push may not run, or None. SEC-90: every git setting is on the allow-list and
+    .git/hooks holds only .sample files. SEC-91: .git is a real folder of this repository, not a link,
+    with no commondir. SEC-92: no risky environment variable and no shell or PowerShell profile that
+    could set one, and git is Git for Windows."""
+    env = os.environ if env is None else env
+    risky = sorted(name for name in env if RISKY_ENV.fullmatch(name) and name.upper() not in ALLOWED_GIT_ENV)
+    if risky:
+        return f"environment variables that could change the push are set ({', '.join(risky)})"
+    for path in (profile_files(env) if profiles is None else profiles):
+        try:
+            if Path(path).exists() and Path(path).read_text(encoding="utf-8", errors="replace").strip():
+                return f"a shell or PowerShell profile exists ({path}); it could change git or its environment"
+        except OSError:
+            return f"a profile could not be checked ({path})"
+    if git_path is None:
+        git_path = shutil.which("git", path=env.get("PATH"))
+    if not git_path or not _win(git_path).startswith(_win(GIT_HOME) + "\\"):
+        return f"git is not Git for Windows in {GIT_HOME}"
+    git_dir = Path(root) / ".git"
+    if _is_link(git_dir) or not git_dir.is_dir():
+        return ".git is not a real folder of this repository"
+    for name in ("commondir", "gitdir"):
+        if (git_dir / name).exists():
+            return f".git/{name} exists (git would use another repository's config)"
+    hooks = git_dir / "hooks"
+    if hooks.exists():
+        if _is_link(hooks) or not hooks.is_dir():
+            return ".git/hooks is not a real folder"
+        active = sorted(p.name for p in hooks.iterdir() if p.is_dir() or _is_link(p) or not p.name.endswith(".sample"))
+        if active:
+            return f"active git hooks exist in .git/hooks ({', '.join(active)})"
+    files = [(git_dir / "config", True), (git_dir / "config.worktree", False)]
+    files += [(Path(f), False) for f in (git_config_files(env) if other_files is None else other_files)]
+    origin = []
+    for path, repo_config in files:
+        if not path.exists():
+            if repo_config:
+                return "the repository's .git/config is missing"
+            continue
+        try:
+            entries = read_git_config(path)
+        except (OSError, UnicodeDecodeError, ConfigError) as exc:
+            return f"git config {path} could not be checked ({exc})"
+        for section, sub, key, value in entries:
+            if not _setting_allowed(section, sub, key, value, repo_config):
+                name = f"{section}.{sub}.{key}" if sub is not None else f"{section}.{key}"
+                return f"git config {path} sets {name}, which is not on the push allow-list"
+            if (section, sub, key) == ("remote", "origin", "url"):
+                origin.append(value)
+    if origin != [ORIGIN_URL]:
+        return f"origin does not point only at {ORIGIN_URL}"
+    return None
+
+
+def push_main_check(command, agent, cwd, tool="Bash", root=ROOT, env=None, other_files=None, profiles=None,
+                    git_path=None):
+    """None when this is not the one allowed push (the normal checks then block it), "" when it may
+    run, or why it is refused (the exact command, but the repository or git's settings are not safe)."""
+    if command != PUSH_MAIN or tool != "Bash" or agent or not _at_root(cwd, root) or not _on_main(root):
+        return None
+    why = push_environment_reason(root, env, other_files, profiles, git_path)
+    return f"`git push origin main` is refused: {why}" if why else ""
+
+
+def push_main_allowed(command, agent, cwd, tool="Bash", root=ROOT, env=None, other_files=None, profiles=None,
+                      git_path=None):
+    """The one push that may run: exactly `git push origin main` through the Bash tool, nothing around
+    it, from the main session, in REEMA's root with main checked out, and every check above passing."""
+    return push_main_check(command, agent, cwd, tool, root, env, other_files, profiles, git_path) == ""
+
+
 def main():
     try:
         event = json.load(sys.stdin)
@@ -459,6 +753,8 @@ def main():
         return 0
     elif agent == AGENT22:
         found = agent22_reason(str(tool_input.get("command", "")), tool)
+    elif (push := push_main_check(tool_input.get("command"), agent, event.get("cwd"), tool)) is not None:
+        found = push or None  # "" = allowed; settings.json's "ask" rule then puts it to Khalid
     else:
         found = reason(str(tool_input.get("command", "")), powershell=tool == "PowerShell")
     if found:
