@@ -4,12 +4,18 @@ import type { Lang } from "@/i18n/messages";
 import {
   checkId,
   checkMessageBody,
+  checkPushKeys,
+  checkSettings,
+  DEFAULT_SETTINGS,
   MailboxError,
+  toCard as toAhmadCard,
   toTodayFeed,
   type ActionEntry,
   type ApprovalCard,
   type MailboxAdapter,
   type MailboxMessage,
+  type PushKeys,
+  type Settings,
 } from "./types";
 
 type MessageRow = {
@@ -122,5 +128,55 @@ export class SupabaseMailboxAdapter implements MailboxAdapter {
       .select("next_event, emails, tasks, google_status, yahoo_status, todoist_status, updated_at").maybeSingle();
     if (error) throw new MailboxError(error.message);
     return data ? toTodayFeed(data) : null;
+  }
+
+  // ---------- step 5 ----------
+  async cards(limit = 10) {
+    const { data, error } = await (await this.client()).from("cards").select("id, kind, title, body, created_at")
+      .is("dismissed_at", null).order("created_at", { ascending: false }).limit(limit);
+    if (error) throw new MailboxError(error.message);
+    return (data ?? []).map(toAhmadCard);
+  }
+
+  async dismissCard(id: string) {
+    const { error } = await (await this.client()).rpc("dismiss_card", { p_id: checkId(id) });
+    if (error) throw new MailboxError(error.message);
+  }
+
+  async settings(): Promise<Settings> {
+    const { data, error } = await (await this.client()).from("user_settings")
+      .select("push_enabled, brief_time, daily_cap, lang").maybeSingle();
+    if (error) throw new MailboxError(error.message);
+    if (!data) return { ...DEFAULT_SETTINGS };
+    const r = data as { push_enabled: boolean; brief_time: string; daily_cap: number; lang: "en" | "ar" };
+    return { pushEnabled: r.push_enabled, briefTime: r.brief_time, dailyCap: r.daily_cap, lang: r.lang };
+  }
+
+  async saveSettings(s: Settings) {
+    const v = checkSettings(s);
+    const { error } = await (await this.client()).rpc("save_settings", {
+      p_push_enabled: v.pushEnabled, p_brief_time: v.briefTime, p_daily_cap: v.dailyCap, p_lang: v.lang,
+    });
+    if (error) throw new MailboxError(error.message);
+    return v;
+  }
+
+  async savePushSubscription(k: PushKeys) {
+    const v = checkPushKeys(k);
+    const { error } = await (await this.client()).rpc("save_push_subscription", {
+      p_endpoint: v.endpoint, p_p256dh: v.p256dh, p_auth: v.auth,
+    });
+    if (error) throw new MailboxError(error.message);
+  }
+
+  async removePushSubscription(endpoint: string) {
+    if (typeof endpoint !== "string" || endpoint.length > 1000) throw new MailboxError("invalid push address");
+    const { error } = await (await this.client()).rpc("remove_push_subscription", { p_endpoint: endpoint });
+    if (error) throw new MailboxError(error.message);
+  }
+
+  async requestTestPush() {
+    const { error } = await (await this.client()).rpc("request_test_push");
+    if (error) throw new MailboxError(error.message);
   }
 }

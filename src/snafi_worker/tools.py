@@ -8,6 +8,9 @@ refused. The brain can only propose; it cannot change a tool's level.
 from datetime import datetime, timezone
 from typing import Dict, Optional
 
+from zoneinfo import ZoneInfo
+
+from .clock import day_clock
 from .personal_tools import PERSONAL_TOOLS
 from .tool_types import (LIST_ITEM_MAX, ArgSpec, NeverError, Tool, ToolArgError, ToolResult,  # noqa: F401
                          args_hash, clean_args)
@@ -62,8 +65,20 @@ def _check_due(args):
     return args
 
 
-_add_reminder = _adder("reminders", "Saved a reminder (it will alert you from step 5)",
-                       "حفظت تذكيراً (سينبّهك ابتداءً من المرحلة الخامسة)")
+def _add_reminder(store, user_id, args, ctx):
+    """Step 5: a reminder with a time goes off then, as a card on Today and a push to the phone."""
+    row = {"user_id": user_id, "body": args["body"]}
+    if args.get("due"):
+        row["due_at"] = args["due"]
+    saved = store.insert("reminders", row)
+    text = _short(args["body"])
+    if args.get("due"):
+        when = datetime.fromisoformat(args["due"]).astimezone(ZoneInfo((ctx or {}).get("time_zone") or "Asia/Riyadh"))
+        en = f"Saved a reminder for {day_clock(when, 'en')}; I'll alert you then: {text}"
+        ar = f"حفظت تذكيراً في {day_clock(when, 'ar')}، وسأنبّهك حينها: {text}"
+    else:
+        en, ar = f"Saved a reminder (no time, so it won't alert you): {text}", f"حفظت تذكيراً (بلا وقت، فلن ينبّهك): {text}"
+    return ToolResult(True, {"en": en, "ar": ar}, {"id": saved["id"]}, {"table": "reminders", "id": saved["id"]})
 
 
 # ---------- the fake Level 3 action: proves approvals end to end, sends nothing ----------

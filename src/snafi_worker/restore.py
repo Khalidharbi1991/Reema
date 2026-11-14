@@ -30,8 +30,10 @@ from typing import Dict, List, Optional
 from .backup import FORMAT, digest, signature_ok
 
 # Parents before children (foreign keys).
-ORDER = ("jobs", "approvals", "messages", "action_log", "notes", "reminders", "facts", "worker_status")
-JSON_COLUMNS = {"payload", "result", "args", "meta", "undo", "lanes"}
+ORDER = ("jobs", "approvals", "messages", "action_log", "notes", "reminders", "facts", "worker_status",
+         "notifications", "cards", "user_settings")
+JSON_COLUMNS = {"payload", "result", "args", "meta", "undo", "lanes", "card"}
+WAITING_NOTICES = {"new", "held", "delivering"}
 COLUMN = re.compile(r"^[a-z_][a-z0-9_]{0,62}$")
 UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 LIVE_JOBS = {"queued", "claimed", "running"}
@@ -75,6 +77,10 @@ def neutralise(tables: Dict[str, List[Dict]]) -> Dict[str, List[Dict]]:
                         for a in tables.get("approvals", [])]
     out["action_log"] = [({**a, "undo_requested_at": None} if a.get("undo_requested_at") and not a.get("undone_at") else a)
                          for a in tables.get("action_log", [])]
+    # Step 5: a notification that was waiting (for example held for prayer time) is not sent after a
+    # restore; the ledger's other rows stay, so nothing already sent is ever sent again.
+    out["notifications"] = [({**n, "status": "cancelled", "reason": "cancelled by restore"}
+                             if n.get("status") in WAITING_NOTICES else n) for n in tables.get("notifications", [])]
     return out
 
 

@@ -29,7 +29,7 @@ describe("approval card shows exactly what will run", () => {
     expect(args).toHaveTextContent("send_test_message");
     expect(args).toHaveTextContent("Tell the architect: site visit moved to 16:30. لا تنسَ المخططات.");
     expect(args).toHaveTextContent("copies2");
-    expect(screen.getByText(/Expires 10 Nov, 12:00 if not decided/)).toBeInTheDocument();
+    expect(screen.getByText(/Expires 10 Nov, 12:00 PM if not decided/)).toBeInTheDocument();
   });
 
   it("sends the arguments' hash with Approve", async () => {

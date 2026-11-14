@@ -30,7 +30,7 @@ from .store import TABLES
 
 log = logging.getLogger("snafi_worker")
 FORMAT = "snafi-backup/1"
-SCHEMA = 2  # database layout version (Snafi step 2)
+SCHEMA = 5  # database layout version (Snafi step 5: notifications, cards, user_settings)
 NAME = re.compile(r"^snafi-backup-(\d{8})-(\d{4})\.json\.gz$")
 PAGE = 1000
 

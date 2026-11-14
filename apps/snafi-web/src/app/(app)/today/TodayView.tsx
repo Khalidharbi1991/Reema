@@ -1,5 +1,6 @@
 import { ApprovalCard } from "@/components/ApprovalCard";
 import { Card, PlaceholderBadge } from "@/components/Card";
+import { DismissButton } from "@/components/DismissButton";
 import { Orb } from "@/components/Orb";
 import { PrayerRing } from "@/components/PrayerRing";
 import { greetingFor } from "@/core/preferences";
@@ -11,10 +12,12 @@ type Props = {
   hour: number;
   today: TodaySnapshot;
   decide: (id: string, decision: "approved" | "rejected", argsHash: string) => Promise<{ ok: boolean; status?: string }>;
+  /** Step 5: hide one of Ahmad's cards. */
+  dismiss?: (id: string) => Promise<{ ok: boolean }>;
 };
 
 /** The Today screen. Pure view: all data comes in through props. */
-export function TodayView({ lang, hour, today, decide }: Props) {
+export function TodayView({ lang, hour, today, decide, dismiss }: Props) {
   const t = messages(lang);
   const sample = <PlaceholderBadge label={t.placeholder} />;
   const anySample = Object.values(today.samples).some(Boolean);
@@ -108,8 +111,16 @@ export function TodayView({ lang, hour, today, decide }: Props) {
 
         {today.cards.map((card, i) => (
           <Card key={card.id} title={t.ahmadCards} index={4 + i} badge={today.samples.cards ? sample : null}>
-            <p className="text-sm font-medium">{card.title}</p>
-            <p className="mt-1 text-sm text-muted">{card.body}</p>
+            <div data-testid="ahmad-card" data-kind={card.kind ?? "test"}>
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-sm font-medium" dir="auto">{card.title}</p>
+                {card.time && <span dir="ltr" className="shrink-0 text-xs tabular-nums text-muted">{card.time}</span>}
+              </div>
+              <p className="mt-1 whitespace-pre-line text-sm text-muted" dir="auto">{card.body}</p>
+              {dismiss && !today.samples.cards && (
+                <div className="mt-2 flex justify-end"><DismissButton id={card.id} label={t.dismiss} dismiss={dismiss} /></div>
+              )}
+            </div>
           </Card>
         ))}
 
@@ -120,7 +131,7 @@ export function TodayView({ lang, hour, today, decide }: Props) {
             <ul className="space-y-3">
               {today.approvals.map((card) => (
                 <li key={card.id}>
-                  <ApprovalCard card={card} decide={decide}
+                  <ApprovalCard card={card} decide={decide} lang={lang}
                     labels={{ approve: t.approve, reject: t.reject, status: t.cardStatus, failed: t.decideFailed, exactly: t.exactly, expires: t.expires }} />
                 </li>
               ))}

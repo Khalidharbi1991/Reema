@@ -18,8 +18,13 @@ DEFAULTS = {
                   "result": None, "job_id": None, "args_hash": ""},
     "action_log": {"undoable": False, "undo": None, "undo_requested_at": None, "undone_at": None,
                    "result": None, "args": {}, "job_id": None, "approval_id": None, "conversation_id": None},
-    "notes": {"deleted_at": None}, "reminders": {"deleted_at": None, "due_at": None}, "facts": {"deleted_at": None},
-    "worker_status": {}, "today_feed": {},
+    "notes": {"deleted_at": None}, "reminders": {"deleted_at": None, "due_at": None, "fired_at": None},
+    "facts": {"deleted_at": None}, "worker_status": {}, "today_feed": {},
+    "notifications": {"status": "new", "content_hash": "", "counts_to_cap": True, "card": None, "hold_until": None,
+                      "pushed": False, "reason": None, "delivered_at": None},
+    "cards": {"notification_id": None, "dismissed_at": None},
+    "user_settings": {"push_enabled": False, "brief_time": "07:00", "daily_cap": 10, "lang": "en"},
+    "push_subscriptions": {"failures": 0, "last_ok_at": None},
 }
 
 
@@ -92,6 +97,17 @@ class MemoryStore:
                     existing.update(copy.deepcopy(row))
                     return copy.deepcopy(existing)
         return self.insert(table, row)
+
+    def insert_once(self, table, row, keys):
+        with self._lock:
+            if any(all(existing.get(k) == row.get(k) for k in keys) for existing in self._table(table)):
+                return None
+        return self.insert(table, row)
+
+    def delete(self, table, row_id):
+        with self._lock:
+            rows = self._table(table)
+            rows[:] = [r for r in rows if r.get("id") != row_id]
 
     def claim_job(self, lane, worker_id):
         with self._lock:

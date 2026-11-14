@@ -125,6 +125,14 @@ class GmailMail:
         since = datetime.now(timezone.utc).timestamp() - hours * 3600
         return [m for m in found if not m.date or datetime.fromisoformat(m.date).timestamp() >= since]
 
+    def watch_unread(self, hours, limit):
+        """Mail watch (step 5): "truly important" in Gmail is unread, in the Inbox, marked Important by
+        Gmail and in the Primary category (Khalid, Nov 14, 2026)."""
+        days = max(1, -(-int(hours) // 24))
+        found = self._list(f"is:unread in:inbox is:important category:primary newer_than:{days}d", limit)
+        since = datetime.now(timezone.utc).timestamp() - hours * 3600
+        return [m for m in found if not m.date or datetime.fromisoformat(m.date).timestamp() >= since]
+
     def read(self, message_id):
         data = self.api.call("GET", f"{BASE}/messages/{_id(message_id)}", {"format": "full"})
         payload = data.get("payload") or {}

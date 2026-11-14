@@ -134,7 +134,8 @@ def test_no_file_outside_the_brain_adapter_knows_the_brain():
         parts = p.relative_to(WORKER).parts
         if "brain" in parts or p.name in setup:
             continue
-        check = google_only if parts[0] == "google" else pattern
+        # Step 5: the Web Push sender names Google's push host (fcm.googleapis.com), and nothing of the brain's.
+        check = google_only if parts[0] == "google" or parts == ("proactive", "webpush.py") else pattern
         if check.search(p.read_text(encoding="utf-8")):
             offenders.append(str(p.relative_to(WORKER)))
     assert offenders == []

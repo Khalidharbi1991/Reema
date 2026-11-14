@@ -4,6 +4,8 @@
  * The city lives in config/app.ts.
  */
 import { CalculationMethod, Coordinates, PrayerTimes } from "adhan";
+import { clock12 } from "@/core/clock";
+import type { Lang } from "@/i18n/messages";
 import type { PrayerKey } from "./types";
 
 export type City = { name: string; latitude: number; longitude: number; timeZone: string };
@@ -42,12 +44,13 @@ function shiftDay(y: number, m: number, d: number, delta: number): [number, numb
   return [t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate()];
 }
 
-export function clock(date: Date, timeZone: string): string {
-  return new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(date);
+/** A prayer time as Snafi shows every time: 12-hour, AM/PM or ص/م. */
+export function clock(date: Date, timeZone: string, lang: Lang = "en"): string {
+  return clock12(date, lang, timeZone);
 }
 
 /** The next prayer after `now`, and how much of the wait since the previous one has passed (0..1). */
-export function nextPrayer(city: City, now: Date): { key: PrayerKey; at: Date; time: string; progress: number } {
+export function nextPrayer(city: City, now: Date, lang: Lang = "en"): { key: PrayerKey; at: Date; time: string; progress: number } {
   const [y, m, d] = localDay(now, city.timeZone);
   const today = prayerTimesFor(city, y, m, d);
   let key = ORDER.find((k) => today[k] > now);
@@ -64,7 +67,7 @@ export function nextPrayer(city: City, now: Date): { key: PrayerKey; at: Date; t
   }
   const span = at.getTime() - previous.getTime();
   const progress = span > 0 ? Math.min(1, Math.max(0, (now.getTime() - previous.getTime()) / span)) : 0;
-  return { key, at, time: clock(at, city.timeZone), progress };
+  return { key, at, time: clock(at, city.timeZone, lang), progress };
 }
 
 /** Hijri date from the Umm al-Qura calendar, in Arabic or English. */

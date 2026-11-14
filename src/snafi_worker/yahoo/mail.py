@@ -24,7 +24,7 @@ from datetime import datetime, timedelta, timezone
 from email import message_from_bytes
 from email.message import EmailMessage
 from email.policy import default as default_policy
-from email.utils import formatdate, make_msgid, parsedate_to_datetime
+from email.utils import formatdate, getaddresses, make_msgid, parseaddr, parsedate_to_datetime
 from typing import Callable, Dict, List, Optional, Tuple
 
 from ..personal.base import (MAX_BODY, AuthRefused, Draft, MailMessage, MailSummary, PartlySent,
@@ -38,6 +38,10 @@ SMTP_HOST, SMTP_PORT = "smtp.mail.yahoo.com", 465
 SECRET_NAMES = ("YAHOO_EMAIL", "YAHOO_APP_PASSWORD")
 INBOX = "INBOX"
 DRAFTS_FALLBACK = "Draft"          # Yahoo's Drafts folder when the server does not mark it \Drafts
+SENT_FALLBACK = "Sent"             # Yahoo's Sent folder when the server does not mark it \Sent
+KNOWN_DAYS = 90                    # mail watch: people Khalid emailed from Yahoo in this many days
+KNOWN_SCAN = 500                   # newest sent emails looked at for them
+KNOWN_HOURS = 6                    # how long that list is kept before Sent is read again
 MESSAGE_ID = re.compile(r"^y(\d{1,10})_(\d{1,10})\Z")   # \Z: a trailing newline does not pass (SEC-112)
 DRAFT_ID = re.compile(r"^yd(\d{1,10})_(\d{1,10})\Z")
 MAX_MESSAGE = 2_000_000            # bytes of one email fetched
@@ -210,6 +214,7 @@ class YahooMail:
         self._imap_connect = imap_connect or _imap_connect
         self._smtp_connect = smtp_connect or _smtp_connect
         self._now = clock or (lambda: datetime.now(timezone.utc))
+        self._known = None  # (when read, addresses) for the mail watch
 
     def __repr__(self) -> str:
         return "YahooMail(login=hidden)"
@@ -356,6 +361,54 @@ class YahooMail:
                 except (ValueError, TypeError):
                     continue
             out.append(summary)
+        return out[: max(1, int(limit))]
+
+    # ---------- mail watch (step 5) ----------
+    @staticmethod
+    def _sent_folder(conn) -> str:
+        typ, data = conn.list()
+        if typ == "OK":
+            for line in data or []:
+                text = line.decode("utf-8", "replace") if isinstance(line, bytes) else str(line or "")
+                found = re.match(r'^\(([^)]*)\)\s+(?:"[^"]*"|NIL)\s+(.+)$', text)
+                if found and "\\sent" in found.group(1).lower():
+                    name = found.group(2).strip()
+                    return name[1:-1].replace('\\"', '"').replace("\\\\", "\\") if name.startswith('"') else name
+        return SENT_FALLBACK
+
+    def known_correspondents(self, days: int = KNOWN_DAYS) -> set:
+        """Every address Khalid sent to from Yahoo in the last `days` days (To, Cc and Bcc of the newest
+        KNOWN_SCAN emails in Sent), lower case. Read-only; kept for KNOWN_HOURS hours."""
+        now = self._now()
+        if self._known is not None and now - self._known[0] < timedelta(hours=KNOWN_HOURS):
+            return self._known[1]
+        query = Query("", now)
+        query.criteria = ["SINCE", _imap_date(now - timedelta(days=int(days)))]
+        found = set()
+        with self._imap() as conn:
+            self._select(conn, self._sent_folder(conn), readonly=True)
+            uids = self._search(conn, query)[:KNOWN_SCAN]
+            if uids:
+                typ, data = conn.uid("FETCH", ",".join(uids), "(UID BODY.PEEK[HEADER.FIELDS (TO CC BCC)])")
+                _ok(typ, "to read Sent")
+                for _, raw in _fetch_items(data):
+                    msg = message_from_bytes(raw, policy=default_policy)
+                    for name in ("to", "cc", "bcc"):
+                        for _, address in getaddresses([_header(msg, name)]):
+                            if "@" in address:
+                                found.add(address.strip().lower())
+        self._known = (now, found)
+        return found
+
+    def watch_unread(self, hours, limit):
+        """Mail watch: "truly important" in Yahoo is the Today rule (unread, Inbox, last `hours` hours,
+        not a newsletter, list or automatic email) and from someone Khalid emailed from Yahoo in the last
+        90 days (Khalid, Nov 14, 2026)."""
+        candidates = self.important_unread(hours, SCAN)
+        if not candidates:
+            return []
+        known = self.known_correspondents()
+        out = [s for s in candidates if parseaddr(s.sender)[1].strip().lower() in known]
         return out[: max(1, int(limit))]
 
     def _fetch_message(self, conn, uid: str):

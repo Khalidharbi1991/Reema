@@ -1,6 +1,7 @@
 """Run the Snafi worker.
 
-  python -m src.snafi_worker            run until stopped (lanes, heartbeat, daily backup, Today feed)
+  python -m src.snafi_worker            run until stopped (lanes, heartbeat, daily backup, Today feed,
+                                        and the step 5 scheduler: reminders, brief, mail watch, push)
   python -m src.snafi_worker --check    check worker.yaml and the stored secrets (names, never values)
   python -m src.snafi_worker --once     answer the jobs waiting now, then stop
   python -m src.snafi_worker --backup-now
@@ -47,6 +48,26 @@ def owner(secrets: Secrets) -> str:
     return value
 
 
+def build_scheduler(store, personal, settings, secrets, owner_id: str):
+    """Step 5: the proactive scheduler. Without the push key and contact (set-secrets), cards still appear
+    on Today, silently; the worker never stops for it."""
+    from .proactive.notify import Notifier
+    from .proactive.scheduler import Scheduler
+    from .proactive.webpush import PushError, PushSender
+    sender = None
+    if secrets.has("SNAFI_VAPID_PRIVATE_KEY") and secrets.has("SNAFI_PUSH_CONTACT"):
+        try:
+            sender = PushSender(secrets.get("SNAFI_VAPID_PRIVATE_KEY"), secrets.get("SNAFI_PUSH_CONTACT"))
+        except PushError as exc:
+            logging.getLogger("snafi_worker").warning("push not set up: %s", exc)
+    else:
+        logging.getLogger("snafi_worker").warning("push not set up: run set-secrets (cards still appear on Today)")
+    notifier = Notifier(store, owner_id, sender, settings.time_zone, settings.latitude, settings.longitude,
+                        settings.quiet_minutes)
+    return Scheduler(notifier, personal, None, settings.time_zone, settings.latitude, settings.longitude,
+                     settings.mail_watch_minutes)
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="python -m src.snafi_worker")
     parser.add_argument("--check", action="store_true")
@@ -80,6 +101,8 @@ def main(argv=None) -> int:
         return 0
     setup_logging()
     engine = Engine(store, brain, settings.time_zone, personal)
+    scheduler = build_scheduler(store, personal, settings, secrets, owner_id)
+    engine.scheduler = scheduler
     if args.backup_now:
         outcome = run_backup(store, settings.backup_folder, owner_id, settings.worker_id, settings.time_zone,
                              settings.backup_keep_days, signing_key=secrets.get("SNAFI_BACKUP_SIGNING_KEY"))
@@ -98,6 +121,8 @@ def main(argv=None) -> int:
     threads = [*lanes.values(), Heartbeat(store, owner_id, settings.worker_id, lanes, settings.heartbeat_seconds, stop),
                BackupScheduler(store, settings, owner_id, stop, secrets.get("SNAFI_BACKUP_SIGNING_KEY")),
                TodayFeed(store, personal, owner_id, settings.today_feed_minutes, stop, settings.time_zone)]
+    scheduler.stop = stop
+    threads.append(scheduler)
     for thread in threads:
         thread.start()
     logging.getLogger("snafi_worker").info("worker %s started (brain=%s)", VERSION, settings.brain_provider)

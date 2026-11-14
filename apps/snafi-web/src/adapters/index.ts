@@ -31,7 +31,7 @@ const MAILBOX: Record<string, (userId: string | null) => MailboxAdapter> = {
   memory: (userId) => new MemoryMailboxAdapter(previewStore, userId ?? PREVIEW_USER),
 };
 const TODAY: Record<string, (mailbox: MailboxAdapter) => TodaySource> = {
-  live: (mailbox) => new LiveTodaySource(() => mailbox.pendingApprovals(5), () => mailbox.todayFeed()),
+  live: (mailbox) => new LiveTodaySource(() => mailbox.pendingApprovals(5), () => mailbox.todayFeed(), () => mailbox.cards(10)),
   placeholder: () => new PlaceholderTodaySource(),
 };
 

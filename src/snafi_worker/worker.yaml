@@ -51,6 +51,18 @@ tasks:
 today_feed:
   minutes: 10                   # next event, important unread mail (Gmail and Yahoo) and today's tasks (no brain call)
 
+# Step 5: Proactive Ahmad. The scheduler runs in this worker (no Vercel cron, no brain call): reminders,
+# the morning brief (its time is Khalid's, in the app's Settings), the mail watch and Web Push. Push needs
+# SNAFI_VAPID_PRIVATE_KEY and SNAFI_PUSH_CONTACT in Credential Manager (set-secrets); without them cards
+# still appear on Today, silently.
+proactive:
+  mail_minutes: 10              # mail watch: truly important new mail only; the first run only learns
+  quiet_minutes: 20             # nothing for this long after each adhan; held, then sent
+city:                           # prayer times (Umm al-Qura), as the app computes them
+  name: Jeddah
+  latitude: 21.4858
+  longitude: 39.1925
+
 heartbeat:
   seconds: 15                   # the app shows "PC offline" after 45 seconds
 

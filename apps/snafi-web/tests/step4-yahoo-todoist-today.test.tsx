@@ -89,9 +89,9 @@ describe("the step 4 feed on the screen", () => {
   it("shows both inboxes newest first, each with its account, and real tasks", async () => {
     const today = await new LiveTodaySource(async () => [], async () => FEED).getToday("en", NOW);
     expect(today.emails.map((m) => [m.account, m.subject, m.time])).toEqual([
-      ["yahoo", "Statement ready", "10:40"], ["gmail", "Drawings for review", "09:05"]]);
+      ["yahoo", "Statement ready", "10:40 AM"], ["gmail", "Drawings for review", "9:05 AM"]]);
     expect(today.tasks.map((t) => [t.title, t.due])).toEqual([
-      ["Renew car registration", "Overdue · Thu"], ["Call the contractor", "18:30"], ["Water the plants", "Today"]]);
+      ["Renew car registration", "Overdue · Thu"], ["Call the contractor", "6:30 PM"], ["Water the plants", "Today"]]);
     expect(today.samples).toMatchObject({ emails: false, tasks: false });
     expect([today.yahoo, today.todoist]).toEqual(["ok", "ok"]);
   });

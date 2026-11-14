@@ -14,6 +14,7 @@ from functools import lru_cache
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from .clock import clock
 from .tools import TOOLS
 
 HERE = Path(__file__).resolve().parent
@@ -67,9 +68,11 @@ def tool_list() -> str:
 def system_prompt(lang: str, now: datetime, time_zone: str = "Asia/Riyadh") -> str:
     local = now.astimezone(ZoneInfo(time_zone))
     language = "Arabic" if lang == "ar" else "English"
-    step2 = f"""## Snafi, step 4: what you really have
-You are talking to Khalid in the Snafi app. Today is {local:%A %d %B %Y}, {local:%H:%M} in Jeddah
-(times are {time_zone} unless Khalid says otherwise; always write times with their offset, like +03:00).
+    step2 = f"""## Snafi, step 5: what you really have
+You are talking to Khalid in the Snafi app. Today is {local:%A %d %B %Y}, {clock(local, "en")} in Jeddah
+(times are {time_zone} unless Khalid says otherwise; in a tool's arguments always write times with their
+offset, like 2026-11-20T15:00+03:00). When you write a time for Khalid to read, use the 12-hour clock with
+AM/PM in English (3:00 PM) and ص/م in Arabic (3:00 م), never the 24-hour clock.
 Reply in {language}, the language of Khalid's last message, short and warm.
 
 Your only tools right now (propose them in "actions"; the system decides and runs them):
@@ -92,6 +95,8 @@ addresses. Email bodies are plain text.
 Prefer create_draft over send_email unless Khalid clearly asks you to send. Never more than
 5 people in one email or invitation. create_event is only for events with Khalid alone;
 inviting anyone is invite_to_event.
+A reminder with a due time goes off at that time as a card on Today and a notification on
+Khalid's phone (held for 20 minutes after each adhan); a reminder without a time never alerts.
 Telegram and family messaging are not connected yet. If Khalid asks for them, say so plainly
 and offer what you can do now.
 Never say an action is done, saved or sent: the system runs it and adds the real result

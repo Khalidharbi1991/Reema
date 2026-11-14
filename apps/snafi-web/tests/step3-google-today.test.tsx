@@ -69,8 +69,8 @@ describe("the feed on the screen", () => {
 
   it("shows the real next event and important emails in Jeddah time", async () => {
     const today = await new LiveTodaySource(async () => [], async () => FEED).getToday("en", NOW);
-    expect(today.nextEvent).toEqual({ title: "Site visit with the architect", time: "16:30", place: "New Home" });
-    expect(today.emails).toEqual([{ id: "m0", from: "Ahmed Ali", subject: "Drawings for review", time: "09:05", account: "gmail" }]);
+    expect(today.nextEvent).toEqual({ title: "Site visit with the architect", time: "4:30 PM", place: "New Home" });
+    expect(today.emails).toEqual([{ id: "m0", from: "Ahmed Ali", subject: "Drawings for review", time: "9:05 AM", account: "gmail" }]);
     expect(today.google).toBe("ok");
     expect(today.samples).toMatchObject({ nextEvent: false, emails: false });
   });
@@ -86,7 +86,7 @@ describe("the feed on the screen", () => {
   });
 
   it("formats other days and all-day events", () => {
-    expect(when("2026-11-17T15:00:00Z", "en", NOW, "Asia/Riyadh")).toBe("Tue 18:00");
+    expect(when("2026-11-17T15:00:00Z", "en", NOW, "Asia/Riyadh")).toBe("Tue 6:00 PM");
     expect(when("2026-11-14", "en", NOW, "Asia/Riyadh", true, "All day")).toBe("All day");
   });
 

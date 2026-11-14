@@ -19,8 +19,8 @@ const times = (y: number, m: number, d: number) =>
 
 describe("prayer times for Jeddah (Umm al-Qura)", () => {
   it("matches the computed table for known days", () => {
-    expect(times(2026, 11, 9)).toEqual({ fajr: "05:12", dhuhr: "12:07", asr: "15:19", maghrib: "17:43", isha: "19:13" });
-    expect(times(2026, 6, 21)).toEqual({ fajr: "04:14", dhuhr: "12:25", asr: "15:45", maghrib: "19:08", isha: "20:38" });
+    expect(times(2026, 11, 9)).toEqual({ fajr: "5:12 AM", dhuhr: "12:07 PM", asr: "3:19 PM", maghrib: "5:43 PM", isha: "7:13 PM" });
+    expect(times(2026, 6, 21)).toEqual({ fajr: "4:14 AM", dhuhr: "12:25 PM", asr: "3:45 PM", maghrib: "7:08 PM", isha: "8:38 PM" });
   });
 
   it("puts Isha 90 minutes after Maghrib, and 120 in Ramadan", () => {
@@ -37,15 +37,15 @@ describe("prayer times for Jeddah (Umm al-Qura)", () => {
   it("finds the next prayer and how far the wait has gone", () => {
     const afterDhuhr = nextPrayer(JEDDAH, new Date("2026-11-09T11:00:00Z")); // 14:00 in Jeddah
     expect(afterDhuhr.key).toBe("asr");
-    expect(afterDhuhr.time).toBe("15:19");
+    expect(afterDhuhr.time).toBe("3:19 PM");
     expect(afterDhuhr.progress).toBeGreaterThan(0.5);
     expect(afterDhuhr.progress).toBeLessThan(0.7);
     const lateNight = nextPrayer(JEDDAH, new Date("2026-11-09T19:00:00Z")); // 22:00
     expect(lateNight.key).toBe("fajr");
-    expect(lateNight.time).toBe("05:13"); // tomorrow's Fajr
+    expect(lateNight.time).toBe("5:13 AM"); // tomorrow's Fajr
     const beforeFajr = nextPrayer(JEDDAH, new Date("2026-11-09T01:00:00Z")); // 04:00
     expect(beforeFajr.key).toBe("fajr");
-    expect(beforeFajr.time).toBe("05:12");
+    expect(beforeFajr.time).toBe("5:12 AM");
   });
 
   it("gives the Umm al-Qura Hijri date in both languages", () => {
@@ -60,13 +60,13 @@ describe("live Today", () => {
     const card = { id: "a", conversationId: "c", tool: "send_test_message", args: {}, argsHash: "", summary: "Test send",
       status: "pending" as const, createdAt: "", expiresAt: "2999-01-01T00:00:00Z" };
     const today = await new LiveTodaySource(async () => [card]).getToday("en", new Date("2026-11-09T11:00:00Z"));
-    // Step 4: tasks are real Todoist tasks now (empty until the PC's first update); only cards are samples.
-    expect(today.samples).toEqual({ prayer: false, nextEvent: false, emails: false, tasks: false, cards: true });
+    // Step 5: Ahmad's cards are real too now; nothing on the live Today is a sample.
+    expect(today.samples).toEqual({ prayer: false, nextEvent: false, emails: false, tasks: false, cards: false });
     expect(today.google).toBe("waiting"); // no Google snapshot from the PC yet
     expect([today.yahoo, today.todoist]).toEqual(["waiting", "waiting"]);
     expect(today.tasks).toEqual([]);
     expect(today.nextEvent).toBeNull();
-    expect(today.nextPrayer).toMatchObject({ key: "asr", time: "15:19" });
+    expect(today.nextPrayer).toMatchObject({ key: "asr", time: "3:19 PM" });
     expect(today.hijriDate).toBe("29 Jumada I 1448 AH");
     expect(today.approvals).toEqual([card]);
   });
@@ -92,7 +92,7 @@ describe("PC online / offline", () => {
   });
 
   it("shows the last backup's time and result in the menu", () => {
-    expect(statusLines(status(1_000), now, messages("en"), "en")).toEqual(["PC online", "Last backup 9 Nov, 03:30 ✓"]);
+    expect(statusLines(status(1_000), now, messages("en"), "en")).toEqual(["PC online", "Last backup 9 Nov, 3:30 AM ✓"]);
     expect(statusLines(status(99_000, false), now, messages("en"), "en")[1]).toMatch(/^Last backup failed/);
     expect(statusLines(null, now, messages("ar"), "ar")).toEqual([messages("ar").pcOffline, messages("ar").noBackup]);
   });

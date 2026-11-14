@@ -106,6 +106,28 @@ export function siteUrl(): string | null {
 }
 
 /**
+ * Step 5: the Web Push (VAPID) PUBLIC key, NEXT_PUBLIC_SNAFI_VAPID_PUBLIC_KEY. Not a secret: the
+ * private half stays on the PC in Credential Manager. It is 65 bytes (an uncompressed P-256 point,
+ * starting with 0x04), base64url: 87 characters starting with "B". null when not set yet.
+ */
+export function readVapidPublicKey(env: EnvSource): string | null {
+  const key = env.NEXT_PUBLIC_SNAFI_VAPID_PUBLIC_KEY?.trim();
+  if (!key) return null;
+  if (!/^B[A-Za-z0-9_-]{86}$/.test(key)) {
+    throw new ConfigError("NEXT_PUBLIC_SNAFI_VAPID_PUBLIC_KEY must be the push PUBLIC key printed by snafi.cmd set-secrets.");
+  }
+  return key;
+}
+
+export function vapidPublicKey(): string | null {
+  try {
+    return readVapidPublicKey({ NEXT_PUBLIC_SNAFI_VAPID_PUBLIC_KEY: process.env.NEXT_PUBLIC_SNAFI_VAPID_PUBLIC_KEY });
+  } catch {
+    return null; // a wrong value only switches push off; Settings says push is not set up
+  }
+}
+
+/**
  * Preview mode: only on a development server with no Supabase keys, so the
  * screens can be looked at before Supabase exists. Never in a production build.
  */
