@@ -18,6 +18,7 @@ import argparse
 import base64
 import hashlib
 import hmac
+import html
 import secrets as random
 import sys
 import threading
@@ -31,7 +32,7 @@ from .http import REVOKE_URL, SCOPES, TOKEN_URL, GoogleAuth, GoogleAuthError, Go
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 WAIT_SECONDS = 300
 PAGE = ("<!doctype html><meta charset=utf-8><title>Snafi</title>"
-        "<p style='font-family:sans-serif'>{text}</p>").encode
+        "<p style='font-family:sans-serif'>{text}</p>")
 DONE_PAGE = "Snafi received Google's answer. You can close this window and go back to the PowerShell window."
 FAIL_PAGE = "Snafi did not accept this answer. Go back to the PowerShell window."
 
@@ -89,10 +90,14 @@ def exchange(code: str, verifier: str, redirect_uri: str, client_id: str, client
     return token
 
 
-def wait_for_code(state: str, on_ready: Callable[[str], None], timeout: float = WAIT_SECONDS) -> Tuple[str, str]:
-    """Listen once on 127.0.0.1 for Google's redirect. Returns (code, redirect_uri)."""
-    result: Dict[str, object] = {}
-    done = threading.Event()
+def page(text: str) -> bytes:
+    """The small page the browser shows after Google's redirect (fixed text only, escaped anyway)."""
+    return PAGE.format(text=html.escape(text)).encode("utf-8")
+
+
+def callback_handler(state: str, result: Dict[str, object], done: threading.Event):
+    """The request handler for Google's redirect. It records the code (or why it was refused) in
+    result and always sets done, so a failure ends the wait at once instead of after five minutes."""
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):  # noqa: N802 (http.server's name)
@@ -101,23 +106,44 @@ def wait_for_code(state: str, on_ready: Callable[[str], None], timeout: float = 
                 self.end_headers()
                 return
             try:
-                result["code"] = parse_callback(self.path, state)
-                page = DONE_PAGE
-            except ConnectError as exc:
-                result["error"] = str(exc)
-                page = FAIL_PAGE
-            body = PAGE(text=page)
-            self.send_response(200)
-            self.send_header("content-type", "text/html; charset=utf-8")
-            self.send_header("content-length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-            done.set()
+                try:
+                    result["code"] = parse_callback(self.path, state)
+                    text = DONE_PAGE
+                except ConnectError as exc:
+                    result["error"] = str(exc)
+                    text = FAIL_PAGE
+                body = page(text)
+                self.send_response(200)
+                self.send_header("content-type", "text/html; charset=utf-8")
+                self.send_header("content-length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            except Exception as exc:  # never leave the wait hanging; the message never holds the code
+                result.pop("code", None)
+                result.setdefault("error", f"the answer could not be handled ({type(exc).__name__}); nothing was stored")
+            finally:
+                done.set()
 
         def log_message(self, *args):  # never print the request line: it holds the code
             pass
 
-    server = HTTPServer(("127.0.0.1", 0), Handler)
+    return Handler
+
+
+def outcome(result: Dict[str, object]) -> str:
+    """The code from a finished callback, or ConnectError with the reason."""
+    if "error" in result:
+        raise ConnectError(str(result["error"]))
+    if not result.get("code"):
+        raise ConnectError("Google sent no code; nothing was stored")
+    return str(result["code"])
+
+
+def wait_for_code(state: str, on_ready: Callable[[str], None], timeout: float = WAIT_SECONDS) -> Tuple[str, str]:
+    """Listen once on 127.0.0.1 for Google's redirect. Returns (code, redirect_uri)."""
+    result: Dict[str, object] = {}
+    done = threading.Event()
+    server = HTTPServer(("127.0.0.1", 0), callback_handler(state, result, done))
     redirect_uri = f"http://127.0.0.1:{server.server_address[1]}"
     thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.2}, daemon=True)
     thread.start()
@@ -128,9 +154,7 @@ def wait_for_code(state: str, on_ready: Callable[[str], None], timeout: float = 
     finally:
         server.shutdown()
         server.server_close()
-    if "error" in result:
-        raise ConnectError(str(result["error"]))
-    return str(result["code"]), redirect_uri
+    return outcome(result), redirect_uri
 
 
 def connect(store, out=print, open_browser: Optional[Callable[[str], bool]] = None,

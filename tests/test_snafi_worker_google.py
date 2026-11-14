@@ -418,6 +418,82 @@ def test_connect_stores_the_token_without_printing_it_and_needs_every_scope():
     assert creds2.read("GOOGLE_REFRESH_TOKEN") is None
 
 
+class FakeSocket:
+    """A browser request on a fake socket: http.server parses it for real; no network is used
+    (the suite blocks loopback too)."""
+
+    def __init__(self, raw: bytes):
+        import io
+        self.incoming, self.sent = io.BytesIO(raw), bytearray()
+
+    def makefile(self, mode, *args, **kwargs):
+        return self.incoming
+
+    def sendall(self, data):
+        self.sent += data
+
+    def settimeout(self, *_):
+        pass
+
+    def setsockopt(self, *_):
+        pass
+
+
+def browser_hits(handler, path: str) -> bytes:
+    sock = FakeSocket(f"GET {path} HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n".encode("ascii"))
+    handler(sock, ("127.0.0.1", 50000), None)  # runs the whole request: parse, do_GET, reply
+    return bytes(sock.sent)
+
+
+def test_the_browser_callback_runs_end_to_end_and_the_token_is_stored():
+    """The bug Khalid hit: the callback page crashed (TypeError), so the token was never stored."""
+    import threading
+    from src.snafi_worker.google.http import SCOPES
+    printed, replies = [], []
+    creds = Creds({k: v for k, v in GOOD.items() if k != "GOOGLE_REFRESH_TOKEN"})
+    wire = Wire((200, {"refresh_token": "1//stored-token", "scope": " ".join(SCOPES)}))
+
+    def waiter(state, ready):  # wait_for_code without the listening socket, same handler and outcome
+        result, done = {}, threading.Event()
+        ready("http://127.0.0.1:5555")
+        replies.append(browser_hits(connect.callback_handler(state, result, done), f"/?state={state}&code=4/fake-code"))
+        assert done.is_set()
+        return connect.outcome(result), "http://127.0.0.1:5555"
+
+    assert connect.connect(creds, printed.append, open_browser=lambda url: True, transport=wire, waiter=waiter) == 0
+    assert creds.read("GOOGLE_REFRESH_TOKEN") == "1//stored-token"
+    head, _, body = replies[0].partition(b"\r\n\r\n")
+    assert head.startswith(b"HTTP/1.0 200") and b"text/html; charset=utf-8" in head
+    assert body == connect.page(connect.DONE_PAGE) and b"received Google&#x27;s answer" in body
+    assert b"4/fake-code" not in replies[0]
+    assert f"content-length: {len(body)}".encode() in head.lower()
+    assert "code=4%2Ffake-code" in wire.calls[0][3].decode()
+    assert "1//stored-token" not in "\n".join(printed)
+
+
+def test_a_refused_callback_shows_the_fail_page_and_ends_the_wait():
+    import threading
+    for path in ("/?state=evil&code=4/x", "/?state=st&error=access_denied", "/?state=st"):
+        result, done = {}, threading.Event()
+        reply = browser_hits(connect.callback_handler("st", result, done), path)
+        assert done.is_set() and connect.page(connect.FAIL_PAGE) in reply and "code" not in result
+        with pytest.raises(connect.ConnectError, match="nothing was stored"):
+            connect.outcome(result)
+    result, done = {}, threading.Event()
+    assert browser_hits(connect.callback_handler("st", result, done), "/favicon.ico").startswith(b"HTTP/1.0 404")
+    assert not done.is_set()  # the browser's icon request does not end the wait
+
+
+def test_a_crash_in_the_callback_still_ends_the_wait(monkeypatch):
+    import threading
+    monkeypatch.setattr(connect, "page", lambda text: (_ for _ in ()).throw(TypeError("boom")))
+    result, done = {}, threading.Event()
+    browser_hits(connect.callback_handler("st", result, done), "/?state=st&code=4/x")
+    assert done.is_set()
+    with pytest.raises(connect.ConnectError, match="could not be handled"):
+        connect.outcome(result)
+
+
 def test_the_sign_in_url_uses_pkce_and_offline_access():
     verifier, challenge = connect.pkce_pair()
     url = connect.auth_url("id.apps.googleusercontent.com", "http://127.0.0.1:1", "st", challenge)
@@ -444,24 +520,47 @@ def test_the_live_keys_open_only_from_the_deployed_worker():
             Secrets.load()
 
 
-def test_the_full_credential_name_is_checked_not_only_the_prefix():
-    """SEC-88: splitting the live name between the prefix and the name does not reach it."""
+LOOK_ALIKES = (
+    "REEMA-Snafi:GOOGLE_REFRESH_TOKEN", "reema-snafi:X", "REEMA-SNAFI:X", "  Reema-Snafi:X", "\tREEMA-Snafi:X",
+    "REEMA-SNAFı:GOOGLE_REFRESH_TOKEN",        # dotless ı (SEC-89)
+    "REEMA-Snafi-TEST-ı:X",                     # dotless ı inside a test-looking name
+    "REEMA-Snafi​:GOOGLE_REFRESH_TOKEN",        # zero-width space
+    "​REEMA-Snafi:X", "REEMA‐Snafi:X",     # zero-width at the start; Unicode hyphen
+    "ＲEEMA-Snafi:X",                            # full-width R
+    "REEMA-Snafi-TEST-abc:X ", "REEMA-Snafi-TEST-abc:X\n", "REEMA-Snafi-TEST-abc:X\x00REEMA-Snafi:Y",
+    "REEMA-Snafi-TEST-abc:REEMA-Snafi:X",            # a second colon
+    "REEMA-Snafi-TEST-:X", "REEMA-Snafi-TEST-abc", "Other:X", "", "REEMA-", "REEMA-Snafi", None,
+)
+
+
+def test_outside_the_deployed_worker_only_plain_english_test_names_are_allowed():
+    """SEC-88 / SEC-89: the full name is checked on every call against an allow-list, so splitting the
+    live name or spelling it with look-alike letters cannot reach it."""
     from src.snafi_worker import secret_store
-    for target in ("REEMA-Snafi:GOOGLE_REFRESH_TOKEN", "reema-snafi:X", "REEMA-SNAFI:X", "  Reema-Snafi:X",
-                   "REEMA-Snafi", "\tREEMA-Snafi:X"):
-        assert secret_store.is_live_target(target), target
+    for target in LOOK_ALIKES:
+        assert not secret_store.allowed(target), repr(target)
         with pytest.raises(secret_store.SecretStoreError, match="deployed worker"):
             secret_store.check_target(target)
-    for target in ("REEMA-Snafi-TEST-abc:X", "reema-snafi-test-abc:X", "Other:X", "", "REEMA-"):
-        assert not secret_store.is_live_target(target), target
+    for target in ("REEMA-Snafi-TEST-abc:X", "reema-snafi-test-0f3a:GOOGLE_REFRESH_TOKEN",
+                   "REEMA-SNAFI-TEST-ABC:gemini_api_key"):
         assert secret_store.check_target(target) == target
     if sys.platform == "win32":
-        for prefix, name in (("", "REEMA-Snafi:GOOGLE_REFRESH_TOKEN"), ("REEMA-", "Snafi:X"),
-                             ("REEMA-Sna", "fi:X"), ("", "reema-snafi:X")):
-            store = secret_store.WindowsCredentials(prefix)  # an innocent-looking prefix is allowed ...
+        for prefix in ("", "REEMA-", "REEMA-Sna", "Other:", "REEMA-Snafi:", "REEMA-Snafi-TEST-ı:",
+                       "REEMA-Snafi-TEST-abc"):
+            with pytest.raises(secret_store.SecretStoreError, match="deployed worker"):
+                secret_store.WindowsCredentials(prefix)  # only a test prefix opens the store here
+        store = secret_store.WindowsCredentials("REEMA-Snafi-TEST-abc:")
+        for name in (":REEMA-Snafi:X", "X\x00", "X ", "ı", "GOOGLE_REFRESH_TOKEN​"):
             for call in (lambda: store.read(name), lambda: store.write(name, "v"), lambda: store.delete(name)):
                 with pytest.raises(secret_store.SecretStoreError, match="deployed worker"):
-                    call()  # ... but every read, write and delete of a live name is refused
+                    call()  # every read, write and delete is checked on the full name
+
+
+def test_the_deployed_worker_may_use_its_live_names(monkeypatch):
+    from src.snafi_worker import secret_store
+    monkeypatch.setattr(secret_store, "running_deployed", lambda here=None: True)
+    assert secret_store.check_target("REEMA-Snafi:GOOGLE_REFRESH_TOKEN") == "REEMA-Snafi:GOOGLE_REFRESH_TOKEN"
+    assert secret_store.check_target("REEMA-Snafi:", secret_store.TEST_PREFIX) == "REEMA-Snafi:"
 
 
 def test_disconnect_revokes_and_deletes():

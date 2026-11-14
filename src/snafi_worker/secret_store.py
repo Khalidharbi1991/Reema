@@ -11,6 +11,7 @@ Standard library only (ctypes); nothing is installed.
 
 import ctypes
 import ntpath
+import re
 import sys
 from pathlib import Path
 from ctypes import wintypes
@@ -70,23 +71,27 @@ def running_deployed(here: Optional[str] = None) -> bool:
     return path.startswith(ntpath.normcase(DEPLOYED_APP) + "\\")
 
 
-TEST_PREFIX = "reema-snafi-test-"
+# SEC-89: outside the deployed worker only these plain-English (ASCII) test names are allowed, and
+# everything else is refused. An allow-list does not depend on how Windows matches letters such as the
+# dotless "ı", zero-width characters or other look-alikes. re.ASCII keeps the case-insensitive part
+# ASCII-only (without it, Python would match "ı" to "i").
+TEST_PREFIX = re.compile(r"(?i:reema-snafi-test-)[0-9A-Za-z]{1,64}:", re.ASCII)
+TEST_TARGET = re.compile(r"(?i:reema-snafi-test-)[0-9A-Za-z]{1,64}:[0-9A-Za-z_]{1,64}", re.ASCII)
+REFUSED = ("the live Snafi values open only from the deployed worker; "
+           "run C:\\SnafiWorker\\snafi.cmd instead of the repository copy")
 
 
-def is_live_target(target: str) -> bool:
-    """True for any spelling of a live Snafi credential name. Windows compares target names without
-    regard to case, so they are compared case-folded (and without leading spaces) here too. Only the
-    throw-away test names ("REEMA-Snafi-TEST-<random>:...") are not live."""
-    folded = (target or "").lstrip().casefold()
-    return folded.startswith(PREFIX.casefold().rstrip(":")) and not folded.startswith(TEST_PREFIX)
+def allowed(target: str, pattern=TEST_TARGET) -> bool:
+    """True when this copy may use the credential name: any name in the deployed worker, only a
+    plain-English test name everywhere else."""
+    return running_deployed() or (isinstance(target, str) and pattern.fullmatch(target) is not None)
 
 
-def check_target(target: str) -> str:
-    """SEC-88: the full target name (prefix + name) is checked on every read, write and delete, so a
-    live value cannot be reached by splitting its name between the prefix and the name."""
-    if is_live_target(target) and not running_deployed():
-        raise SecretStoreError("the live Snafi values open only from the deployed worker; "
-                               "run C:\\SnafiWorker\\snafi.cmd instead of the repository copy")
+def check_target(target: str, pattern=TEST_TARGET) -> str:
+    """SEC-88 / SEC-89: the full target name (prefix + name) is checked on every read, write and
+    delete, so a live value cannot be reached by splitting its name or by a look-alike spelling."""
+    if not allowed(target, pattern):
+        raise SecretStoreError(REFUSED)
     return target
 
 
@@ -100,8 +105,8 @@ class WindowsCredentials:
     def __init__(self, prefix: str = PREFIX):
         if sys.platform != "win32":
             raise SecretStoreError("Windows Credential Manager is only available on Windows")
-        # SEC-88: refused early for any spelling of the live prefix; _target checks the full name too.
-        check_target(prefix)
+        # SEC-89: outside the deployed worker only a test prefix is accepted; _target checks the full name too.
+        check_target(prefix, TEST_PREFIX)
         self.prefix = prefix
         api = ctypes.WinDLL("advapi32", use_last_error=True)
         self._write = api.CredWriteW
