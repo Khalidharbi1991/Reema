@@ -93,17 +93,16 @@ def test_org_chart_members_exist():
 def test_settings_deny_approval_push_and_the_assistant_stores():
     deny = json.loads((CLAUDE / "settings.json").read_text())["permissions"]["deny"]
     assert {"Bash(reema approve:*)", "Bash(reema reject:*)", "Bash(reema publish:*)",
-            "Bash(python3 scripts/dev.py run publish:*)",
+            "Bash(python3 scripts/dev.py run publish:*)", "Bash(git push:*)", "PowerShell(git push:*)",
             "Read(./output/assistant/**)"} <= set(deny)
 
 
-def test_settings_ask_for_the_one_push_and_deny_remote_and_push_settings():
-    """Khalid, Nov 14, 2026: he approves each `git push origin main` at the permission prompt; no
-    broad push deny remains (a deny would beat the ask), and the guard blocks every other push."""
+def test_settings_have_no_push_exception_and_deny_remote_and_git_settings():
+    """Khalid, Nov 14, 2026: no ask rule or allow rule lets a session push; the broad deny stays."""
     permissions = json.loads((CLAUDE / "settings.json").read_text())["permissions"]
-    assert permissions["ask"] == ["Bash(git push origin main)"]  # the Bash tool only
+    assert "ask" not in permissions and "allow" not in permissions
     deny = set(permissions["deny"])
-    assert not any("git push" in rule for rule in deny)
+    assert {"Bash(git push:*)", "PowerShell(git push:*)"} <= deny
     for tool in ("Bash", "PowerShell"):
         assert {f"{tool}(git remote {verb}:*)" for verb in ("add", "set-url", "remove", "rm", "rename")} <= deny
         assert {f"{tool}(git config {key}.*)" for key in ("remote", "push", "branch")} <= deny
@@ -225,286 +224,10 @@ PUSHES_STILL_BLOCKED = [
 ]
 
 
-REAL_CONFIG = """[core]
-\trepositoryformatversion = 0
-\tbare = false
-[extensions]
-\tworktreeConfig = true
-[user]
-\tname = Khalid Alharbi
-[remote "origin"]
-\turl = https://github.com/Khalidharbi1991/REEMA.git
-\tfetch = +refs/heads/*:refs/remotes/origin/*
-[branch "main"]
-\tremote = origin
-\tmerge = refs/heads/main
-"""
-
-
-def _repo(tmp_path, config=REAL_CONFIG, hooks=("pre-push.sample", "pre-commit.sample")):
-    (tmp_path / ".git" / "hooks").mkdir(parents=True, exist_ok=True)
-    (tmp_path / ".git" / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
-    (tmp_path / ".git" / "config").write_text(config, encoding="utf-8")
-    for name in hooks:
-        (tmp_path / ".git" / "hooks" / name).write_text("#!/bin/sh\n", encoding="utf-8")
-    return tmp_path
-
-
-GIT = r"C:\Program Files\Git\ucrt64\bin\git.exe"
-SAFE = dict(env={}, other_files=(), profiles=(), git_path=GIT)
-
-
-def _check(guard, root, command="git push origin main", agent=None, cwd=None, tool="Bash", **machine):
-    settings = {**SAFE, **machine}
-    return guard.push_main_check(command, agent, str(root) if cwd is None else cwd, tool, root, **settings)
-
-
-def _allowed(guard, root, **kwargs):
-    return _check(guard, root, **kwargs) == ""
-
-
-@pytest.mark.parametrize("command", PUSHES_STILL_BLOCKED)
-def test_every_other_push_is_still_blocked(command, tmp_path):
-    guard = _guard()
-    root = _repo(tmp_path)
-    assert _check(guard, root, command) is None  # not the allowed push, so reason() blocks it
-    assert guard.reason(command) and guard.reason(command, powershell=True)
-
-
-def test_only_the_exact_push_of_main_from_the_main_session_at_the_root_is_allowed(tmp_path):
-    guard = _guard()
-    root = _repo(tmp_path)
-    head = root / ".git" / "HEAD"
-    assert _allowed(guard, root)
-    assert _allowed(guard, root, agent="")
-    assert _allowed(guard, root, cwd=str(root).upper() + "\\")  # Windows ignores case; a trailing slash
-    assert _check(guard, root, tool="PowerShell") is None  # the Bash tool only
-    for agent in ("reema-agent14-developer", "reema-agent16-security", "general-purpose"):
-        assert _check(guard, root, agent=agent) is None
-    for cwd in ("", str(root.parent), str(root / "apps" / "snafi-web"), str(root / "teams"),  # SEC-91: the root only
-                str(root / "teams" / "development" / "projects" / "game"), str(root) + "-other",
-                str(root / ".git"), str(root / ".git" / "..x")):
-        assert not _allowed(guard, root, cwd=cwd), cwd
-    assert guard.push_main_check("git push origin main", None, None, "Bash", root, **SAFE) is None
-    for text in ("ref: refs/heads/other\n", "ref: refs/heads/main-x\n", "8f8fa4c0000000000000000000000000000000\n"):
-        head.write_text(text, encoding="utf-8")  # another branch, or a detached HEAD
-        assert not _allowed(guard, root)
-    head.unlink()
-    assert not _allowed(guard, root)
-    assert not _allowed(guard, root, command=None)
-
-
-ORIGIN = '[remote "origin"]\n\turl = https://github.com/Khalidharbi1991/REEMA.git\n'
-
-
-@pytest.mark.parametrize("config", [
-    ORIGIN.replace("REEMA.git", "Other.git"),                                    # points elsewhere
-    ORIGIN.replace("REEMA.git", "Reema.git"),                                    # must match exactly
-    ORIGIN.replace("https://github.com", "https://evil.example"),
-    ORIGIN + "\turl = https://evil.example/x.git\n",                             # a second url
-    ORIGIN + "\tpushurl = https://evil.example/x.git\n",
-    ORIGIN + "\tmirror = true\n",
-    ORIGIN + "\tpush = refs/heads/*:refs/heads/*\n",
-    ORIGIN + "\tpush = +refs/heads/main:refs/heads/main\n",
-    ORIGIN + "\treceivepack = x\n",
-    ORIGIN + "\tmirror\n",                                                        # a bare key means true
-    ORIGIN + "\tfetch = +refs/heads/*:refs/heads/*\n",
-    ORIGIN + '[url "https://evil.example/"]\n\tpushInsteadOf = https://github.com/\n',
-    ORIGIN + '[url "https://evil.example/"]\n\tinsteadOf = https://github.com/\n',
-    ORIGIN + "[include]\n\tpath = other.cfg\n",
-    ORIGIN + '[includeIf "gitdir:D:/"]\n\tpath = other.cfg\n',
-    ORIGIN + "[push]\n\tfollowTags = true\n",
-    ORIGIN + "[remote]\n\tpushDefault = other\n",
-    ORIGIN + '[remote "other"]\n\turl = https://evil.example/x.git\n',
-    # SEC-90: programs, credentials and transport settings git would use during the push
-    ORIGIN + "[core]\n\thooksPath = D:/evil\n",
-    ORIGIN + "[core]\n\tfsmonitor = evil.exe\n",
-    ORIGIN + "[core]\n\tsshCommand = evil.exe\n",
-    ORIGIN + "[core]\n\taskPass = evil.exe\n",
-    ORIGIN + "[core]\n\tworktree = D:/elsewhere\n",
-    ORIGIN + "[core]\n\tbare = true\n",
-    ORIGIN + "[credential]\n\thelper = !evil.exe\n",
-    ORIGIN + "[credential]\n\thelper = store\n",
-    ORIGIN + '[credential "https://github.com"]\n\thelper = evil\n',
-    ORIGIN + "[credential]\n\tusername = x\n",
-    ORIGIN + "[http]\n\tproxy = http://evil.example:8080\n",
-    ORIGIN + "[http]\n\tsslVerify = false\n",
-    ORIGIN + "[http]\n\textraHeader = Authorization: x\n",
-    ORIGIN + "[http]\n\tsslBackend = openssl\n",
-    ORIGIN + '[http "https://github.com/"]\n\tproxy = http://evil.example\n',
-    ORIGIN + "[https]\n\tproxy = x\n",
-    ORIGIN + "[submodule]\n\trecurse = true\n",
-    ORIGIN + "[alias]\n\tpush = !evil.exe\n",
-    ORIGIN + "[user]\n\tname = x\x07\n",
-    ORIGIN + '[branch "main"]\n\tpushRemote = other\n',
-    ORIGIN + '[branch "main"]\n\tremote = other\n',
-    ORIGIN + "[extensions]\n\tobjectFormat = sha256\n",
-    ORIGIN + '[filter "lfs"]\n\tclean = evil.exe %f\n',
-    '[Remote "origin"]\n\tURL = https://evil.example/x.git\n',                   # section and key case
-    "[remote.origin]\n\turl = https://evil.example/x.git\n",                    # the old header form
-    '[remote "origin"]\n\turl = "https://github.com/Khalidharbi1991/REEMA.git" \n\tpushurl = x\n',
-    ORIGIN + "[core] hooksPath = x\n",                                           # a key on the header line
-    ORIGIN.replace(".git\n", ".git\\\n") + "evil\n",                             # a continued line
-    ORIGIN + '\tfetch = "unclosed\n',
-    ORIGIN + "\t=nokey\n",
-    "",                                                                          # no origin at all
-    '[core]\n\tbare = false\n',
-])
-def test_the_push_is_refused_unless_every_setting_is_on_the_allow_list(config, tmp_path):
-    guard = _guard()
-    why = _check(guard, _repo(tmp_path, config))
-    assert why, config  # a reason, not None (not this push) or "" (allowed)
-    assert why.startswith("`git push origin main` is refused")
-
-
-def test_the_real_settings_and_quoted_values_pass(tmp_path):
-    guard = _guard()
-    assert _allowed(guard, _repo(tmp_path / "a"))
-    root = _repo(tmp_path / "b", '# my repo\n[Remote "origin"] ; comment\n'
-                                 '\tURL = "https://github.com/Khalidharbi1991/REEMA.git" # GitHub\n'
-                                 '\tFetch = +refs/heads/*:refs/remotes/origin/*\n')
-    assert _allowed(guard, root)
-    system = tmp_path / "gitconfig"
-    system.write_text(SYSTEM_CONFIG, encoding="utf-8")
-    assert _allowed(guard, root, other_files=[system])
-
-
-SYSTEM_CONFIG = """[diff "astextplain"]
-\ttextconv = astextplain
-[filter "lfs"]
-\tclean = git-lfs clean -- %f
-\tsmudge = git-lfs smudge -- %f
-\tprocess = git-lfs filter-process
-\trequired = true
-[http]
-\tsslBackend = schannel
-[core]
-\tautocrlf = true
-\tfscache = true
-\tsymlinks = false
-[pull]
-\trebase = false
-[credential]
-\thelper = manager
-[credential "https://dev.azure.com"]
-\tuseHttpPath = true
-[init]
-\tdefaultBranch = master
-"""
-
-
-def test_the_push_is_refused_when_other_config_files_could_redirect_it(tmp_path):
-    guard = _guard()
-    root = _repo(tmp_path / "repo")
-    other = tmp_path / "global.gitconfig"
-    for text in ('[url "https://evil.example/"]\n\tpushInsteadOf = https://github.com/\n',
-                 "[include]\n\tpath = x\n", "[push]\n\tdefault = matching\n", "[core]\n\thooksPath = x\n",
-                 "[credential]\n\thelper = evil\n", "[http]\n\tproxy = x\n",
-                 '[remote "origin"]\n\tpushurl = https://evil.example/x.git\n',
-                 '[branch "main"]\n\tremote = origin\n', "[core\n"):  # remote and branch only in .git/config
-        other.write_text(text, encoding="utf-8")
-        assert not _allowed(guard, root, other_files=[other]), text
-    other.write_text("[user]\n\tname = Khalid\n[credential]\n\thelper = manager\n", encoding="utf-8")
-    assert _allowed(guard, root, other_files=[other])
-    assert _allowed(guard, root, other_files=[tmp_path / "missing"])  # a file that does not exist is fine
-    (root / ".git" / "config.worktree").write_text('[remote "origin"]\n\tpushurl = x\n', encoding="utf-8")
-    assert not _allowed(guard, root)  # the worktree config cannot set a remote either
-    (root / ".git" / "config.worktree").unlink()
-    (root / ".git" / "config").unlink()
-    assert not _allowed(guard, root)
-
-
-@pytest.mark.parametrize("name", ["pre-push", "pre-push.exe", "post-update", "pre-push.sample.bat", "x.SAMPLE2"])
-def test_the_push_is_refused_while_an_active_hook_exists(name, tmp_path):
-    """SEC-90: a hook would run with Khalid's GitHub sign-in at hand when he approves."""
-    guard = _guard()
-    root = _repo(tmp_path, hooks=("pre-push.sample", name))
-    why = _check(guard, root)
-    assert why and "hooks" in why
-
-
-def test_the_push_is_refused_for_a_folder_in_the_hooks_folder(tmp_path):
-    guard = _guard()
-    root = _repo(tmp_path)
-    (root / ".git" / "hooks" / "pre-push.sample.d").mkdir()
-    assert "hooks" in _check(guard, root)
-    assert _allowed(guard, _repo(tmp_path / "nohooks", hooks=()))
-
-
-def test_the_push_is_refused_when_git_would_use_another_repository(tmp_path):
-    """SEC-91: .git must be this repository's real folder, with no commondir or gitdir file."""
-    guard = _guard()
-    for name in ("commondir", "gitdir"):
-        root = _repo(tmp_path / name)
-        (root / ".git" / name).write_text("D:/elsewhere/.git\n", encoding="utf-8")
-        assert "another repository" in _check(guard, root)
-    plain = tmp_path / "file"
-    plain.mkdir()
-    (plain / ".git").write_text("gitdir: D:/elsewhere/.git\n", encoding="utf-8")
-    assert _check(guard, plain) is None or "real folder" in _check(guard, plain)  # HEAD cannot be read: not this push
-
-
-def test_the_push_is_refused_when_dot_git_is_a_link(tmp_path, monkeypatch):
-    guard = _guard()
-    root = _repo(tmp_path)
-    monkeypatch.setattr(guard, "_is_link", lambda path: Path(path).name == ".git")
-    assert "real folder" in _check(guard, root)
-
-
-@pytest.mark.parametrize("name", ["GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0",
-                                  "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_CONFIG", "GIT_DIR",
-                                  "GIT_WORK_TREE", "GIT_COMMON_DIR", "git_config_parameters", "GIT_SSL_NO_VERIFY",
-                                  "GIT_ASKPASS", "GIT_SSH_COMMAND", "GIT_TRACE", "GIT_CURL_VERBOSE",
-                                  "GIT_EXEC_PATH", "GCM_TRACE", "HTTPS_PROXY", "http_proxy", "ALL_PROXY",
-                                  "SSL_CERT_FILE", "CURL_CA_BUNDLE", "BASH_ENV", "ENV", "SSH_ASKPASS"])
-def test_the_push_is_refused_while_a_risky_variable_is_set(name, tmp_path):
-    """SEC-90 / SEC-92 (and SEC-94's missing names)."""
-    guard = _guard()
-    root = _repo(tmp_path)
-    why = _check(guard, root, env={name: "x"})
-    assert why and "environment variables" in why
-    assert _allowed(guard, root, env={"PATH": "x", "GIT_EDITOR": "true", "GIT_TERMINAL_PROMPT": "0", "NO_PROXY": "x"})
-
-
-def test_the_push_is_refused_while_a_shell_or_powershell_profile_exists(tmp_path):
-    """SEC-92: a profile could set a variable, an alias or a `git` function for the push."""
-    guard = _guard()
-    root = _repo(tmp_path / "repo")
-    profile = tmp_path / ".bashrc"
-    assert _allowed(guard, root, profiles=[profile])  # not there
-    profile.write_text("   \n", encoding="utf-8")
-    assert _allowed(guard, root, profiles=[profile])  # empty
-    profile.write_text("export GIT_CONFIG_GLOBAL=/tmp/x\n", encoding="utf-8")
-    assert "profile" in _check(guard, root, profiles=[profile])
-    files = guard.profile_files({"OneDrive": str(tmp_path / "od")}, tmp_path / "home")
-    names = {str(f.relative_to(tmp_path)) for f in files}
-    assert {r"home\.bashrc", r"home\.bash_profile", r"home\.profile",
-            r"home\Documents\PowerShell\Microsoft.PowerShell_profile.ps1",
-            r"home\OneDrive\Documents\WindowsPowerShell\profile.ps1",
-            r"od\Documents\PowerShell\Microsoft.PowerShell_profile.ps1"} <= names
-
-
-def test_the_push_is_refused_when_git_is_not_git_for_windows(tmp_path):
-    guard = _guard()
-    root = _repo(tmp_path)
-    for path in ("", r"D:\evil\git.exe", r"C:\Program Files\Git-evil\bin\git.exe", r"C:\Program Files\Gitx.exe"):
-        assert "Git for Windows" in _check(guard, root, git_path=path), path
-    assert "Git for Windows" in _check(guard, root, git_path=None, env={"PATH": str(tmp_path)})  # none on PATH
-    assert _allowed(guard, root, git_path=r"C:\Program Files\Git\cmd\git.exe")
-
-
-def test_the_check_finds_global_xdg_and_system_config_files(tmp_path):
-    files = _guard().git_config_files({"XDG_CONFIG_HOME": str(tmp_path / "xdg"), "PROGRAMDATA": str(tmp_path / "pd")},
-                                      tmp_path / "home")
-    assert {tmp_path / "home" / ".gitconfig", tmp_path / "xdg" / "git" / "config",
-            tmp_path / "pd" / "Git" / "config"} <= set(files)
-    for tail in (r"Git\etc\gitconfig", r"Git\mingw64\etc\gitconfig", r"Git\ucrt64\etc\gitconfig"):
-        assert any(str(f).endswith(tail) for f in files)
-
-
-def test_this_repository_and_pc_pass_the_push_check_as_configured():
-    env = {k: v for k, v in __import__("os").environ.items()}
-    assert _guard().push_environment_reason(ROOT, env) is None
+@pytest.mark.parametrize("command", PUSHES_STILL_BLOCKED + ["git push origin main"])
+def test_every_push_is_blocked(command):
+    """Khalid, Nov 14, 2026: the push stays manual (SEC-97/98: a session-run push was not adopted)."""
+    assert _guard().reason(command) and _guard().reason(command, powershell=True)
 
 
 @pytest.mark.parametrize("command", [
@@ -561,25 +284,6 @@ def test_settings_deny_git_folders_credentials_and_profiles():
             "Bash(git credential:*)", "PowerShell(git credential:*)", "Bash(git-credential-manager:*)",
             "Bash(setx:*)", "Edit(~/.bashrc)", "Write(~/.bashrc)", "Edit(~/.bash_profile)", "Write(~/.profile)",
             "Edit(**/*profile.ps1)", "Write(**/*profile.ps1)", "Edit(~/.config/git/**)"} <= deny
-
-
-def test_the_push_hook_lets_only_the_exact_command_through_in_this_repo():
-    script = str(CLAUDE / "hooks" / "dev_guard.py")
-    def run(event):
-        return subprocess.run([sys.executable, "-I", script], input=json.dumps(event), capture_output=True, text=True)
-    guard = _guard()
-    safe = guard._on_main() and guard.push_environment_reason() is None
-    exact = run({"tool_name": "Bash", "cwd": str(ROOT), "tool_input": {"command": "git push origin main"}})
-    assert exact.returncode == (0 if safe else 2)
-    assert exact.stdout == ""  # SEC-96: nothing printed when it is allowed
-    for event in ({"tool_name": "Bash", "cwd": str(ROOT), "tool_input": {"command": "git push --force origin main"}},
-                  {"tool_name": "Bash", "tool_input": {"command": "git push origin main"}},  # no cwd
-                  {"tool_name": "Bash", "cwd": str(ROOT / "apps" / "snafi-web"),
-                   "tool_input": {"command": "git push origin main"}},
-                  {"tool_name": "PowerShell", "cwd": str(ROOT), "tool_input": {"command": "git push origin main"}},
-                  {"tool_name": "Bash", "cwd": str(ROOT), "agent_type": "reema-agent14-developer",
-                   "tool_input": {"command": "git push origin main"}}):
-        assert run(event).returncode == 2
 
 
 def test_guard_finds_new_home_in_the_home_design_team_folder():

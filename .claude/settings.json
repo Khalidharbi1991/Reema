@@ -17,6 +17,7 @@
       "Bash(python -m src.main publish:*)",
       "Bash(python3 scripts/dev.py run publish:*)",
       "Bash(python scripts/dev.py run publish:*)",
+      "Bash(git push:*)",
       "Bash(git remote add:*)",
       "Bash(git remote set-url:*)",
       "Bash(git remote remove:*)",
@@ -69,6 +70,7 @@
       "PowerShell(python -m src.main publish:*)",
       "PowerShell(python3 scripts/dev.py run publish:*)",
       "PowerShell(python scripts/dev.py run publish:*)",
+      "PowerShell(git push:*)",
       "PowerShell(git remote add:*)",
       "PowerShell(git remote set-url:*)",
       "PowerShell(git remote remove:*)",
@@ -173,9 +175,6 @@
       "Write(~/.zprofile)",
       "Edit(**/*profile.ps1)",
       "Write(**/*profile.ps1)"
-    ],
-    "ask": [
-      "Bash(git push origin main)"
     ]
   },
   "hooks": {

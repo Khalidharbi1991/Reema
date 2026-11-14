@@ -5,6 +5,15 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md). The [finite ledger](PENDING_LEDGER.md) records external
 requirements as they stood before the no-API migration below.
 
+## 2026-11-14 — Session guard: push stays manual, git and profile blocks added (not pushed)
+
+Khalid asked whether a session could push main after his click. Two rounds of Agent 16 review found
+High issues each time (SEC-90 to SEC-92, then SEC-97/98): a session running as Khalid can still reach
+his stored GitHub sign-in or change the shell a push runs in. Decision (Khalid): not adopted, the push
+stays manual. Kept as a backstop: `git credential` and credential helpers, `git config` changes, any
+path through a `.git` folder, shell and PowerShell profiles and `setx` are blocked, and the file
+tools refuse `.git` folders and profiles. Agent 16's Snafi review scope now includes the guard files.
+
 ## 2026-11-14 — Snafi: connect-google callback fix, SEC-89 closed (not pushed)
 
 connect-google crashed in the browser callback (the page template was a bound `str.encode`, so
