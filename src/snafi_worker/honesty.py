@@ -35,9 +35,14 @@ SENTENCE = re.compile(r"[^.!?؟\n]+[.!?؟]?\s*")
 NEUTRAL = {"en": "Here is where things stand:", "ar": "هذا وضع طلبك:"}
 
 
+def _arabic_name(*words: str) -> str:
+    # SEC-109: an account name may follow و / ف and then ب / ل / ال / بال / لل (بياهو، لياهو، الياهو، بالجيميل).
+    return rf"(?<![{AR_LETTER}])[وف]?(?:بال|لل|ال|ب|ل)?(?:{'|'.join(words)})(?![{AR_LETTER}])"
+
+
 ACCOUNT_NAMES = {
-    "gmail": re.compile(r"\bg-?mail\b|" + _arabic_words("جيميل", "جي ميل"), re.I),
-    "yahoo": re.compile(r"\byahoo\b|" + _arabic_words("ياهو"), re.I),
+    "gmail": re.compile(r"\bg-?mail\b|\bgoogle\b|" + _arabic_name("جيميل", "جي ميل", "جوجل", "قوقل", "غوغل"), re.I),
+    "yahoo": re.compile(r"\byahoo\b|" + _arabic_name("ياهو"), re.I),
 }
 MAIL_WORDS = re.compile(r"\b(drafts?|drafted|send|sending|sent|repl(y|ies|ied)|e-?mails?|mail|from)\b|"
                         r"مسود|إرسال|ارسال|يرسل|سأرسل|الرد|ردّ|بريد|رسالة", re.I)

@@ -1,8 +1,9 @@
 """A stored login (an app password or an API token) read from the worker's secrets.
 
 Values come from Windows Credential Manager through the Secrets object and stay in memory only:
-never in a URL, a log line, repr or an error. After Khalid stores a new value with set-secrets the
-worker picks it up within minutes, without a restart (reload re-reads Credential Manager).
+never in a URL, a log line, repr or an error. After Khalid stores a new value with set-secrets, or
+removes it with set-secrets --remove, the worker follows within five minutes without a restart
+(reload re-reads Credential Manager), and at once after the service refuses a value.
 """
 
 import threading
@@ -62,9 +63,10 @@ class StoredLogin:
         return before != after
 
     def values(self) -> Tuple[str, ...]:
+        """Re-reads Credential Manager every few minutes even while connected (SEC-108), so a login
+        removed with set-secrets --remove, or replaced, stops being used within RELOAD_SECONDS."""
         with self._lock:
-            if not self.connected:
-                self._maybe_reload(RELOAD_SECONDS)
+            self._maybe_reload(RELOAD_SECONDS)
             if not self.connected:
                 raise NotConnected(f"{self.service} is not connected yet; on the PC run: snafi.cmd set-secrets")
             return tuple(self._secrets.get(name) for name in self.names)

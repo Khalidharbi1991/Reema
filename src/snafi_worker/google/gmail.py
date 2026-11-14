@@ -13,11 +13,12 @@ from email.utils import parsedate_to_datetime
 from typing import Dict, List, Optional
 
 from ..personal.base import MAX_BODY, Draft, MailMessage, MailSummary, ServiceError
+from ..personal.text import html_to_text
 from ..registry import register
 from .http import GoogleApi
 
 BASE = "https://gmail.googleapis.com/gmail/v1/users/me"
-ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+ID = re.compile(r"^[A-Za-z0-9_-]{1,128}\Z")  # \Z: no trailing newline (SEC-112)
 
 
 def _id(value: str) -> str:
@@ -51,10 +52,7 @@ def _decode(data: str) -> str:
 
 
 def _strip_html(text: str) -> str:
-    text = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", text)
-    text = re.sub(r"(?i)<br\s*/?>|</p>|</div>|</li>", "\n", text)
-    text = re.sub(r"<[^>]+>", " ", text)
-    return re.sub(r"[ \t]+", " ", html.unescape(text))
+    return html_to_text(text)  # linear time (SEC-106: the regex version was quadratic on crafted HTML)
 
 
 def body_text(payload: Dict) -> str:

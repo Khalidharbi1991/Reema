@@ -105,38 +105,30 @@ def build_row(personal, owner_id: str, now: Optional[datetime] = None, time_zone
     row = {"user_id": owner_id, "next_event": None, "emails": [], "tasks": [], "google_status": "ok",
            "yahoo_status": "ok", "todoist_status": "ok", "updated_at": now.isoformat()}
     mail, calendar = getattr(personal, "mail", None), getattr(personal, "calendar", None)
-    if mail is None and calendar is None:
-        row["google_status"] = "off"
-    else:
+
+    def google():
+        next_event = _next_event(calendar, now) if calendar is not None else None
+        gmail = _emails(mail, "gmail") if mail is not None else []
+        row.update(next_event=next_event, emails=gmail)
+
+    yahoo, tasks = getattr(personal, "yahoo", None), getattr(personal, "tasks", None)
+    # Each source fails on its own, whatever the error (SEC-107): one bad email or task never stops
+    # the others, and the row is still written.
+    sources = (("google", "Google", None if mail is None and calendar is None else google),
+               ("yahoo", "Yahoo", None if yahoo is None else (lambda: row.update(emails=row["emails"] + _emails(yahoo, "yahoo")))),
+               ("todoist", "Todoist", None if tasks is None else (lambda: row.update(tasks=_tasks(tasks, now, tz)))))
+    for key, name, refresh in sources:
+        if refresh is None:
+            row[f"{key}_status"] = "off"
+            continue
         try:
-            next_event = _next_event(calendar, now) if calendar is not None else None
-            gmail = _emails(mail, "gmail") if mail is not None else []
-            row.update(next_event=next_event, emails=gmail)
-        except GoogleError as exc:  # ServiceError, NotConnected and AuthRefused are GoogleErrors too
-            if _status(exc) == "error":
-                log.warning("today feed: Google error (%s)", "retryable" if exc.retryable else "refused")
-            row["google_status"] = _status(exc)
-    # Step 4: Yahoo's important mail sits next to Gmail's; each source fails on its own.
-    yahoo = getattr(personal, "yahoo", None)
-    if yahoo is None:
-        row["yahoo_status"] = "off"
-    else:
-        try:
-            row["emails"] = row["emails"] + _emails(yahoo, "yahoo")
-        except GoogleError as exc:
-            if _status(exc) == "error":
-                log.warning("today feed: Yahoo error (%s)", "retryable" if exc.retryable else "refused")
-            row["yahoo_status"] = _status(exc)
-    tasks = getattr(personal, "tasks", None)
-    if tasks is None:
-        row["todoist_status"] = "off"
-    else:
-        try:
-            row["tasks"] = _tasks(tasks, now, tz)
-        except GoogleError as exc:
-            if _status(exc) == "error":
-                log.warning("today feed: Todoist error (%s)", "retryable" if exc.retryable else "refused")
-            row["todoist_status"] = _status(exc)
+            refresh()
+        except Exception as exc:  # noqa: BLE001 (only the error's type is logged, never its text)
+            status = _status(exc)
+            if status == "error":
+                kind = ("retryable" if exc.retryable else "refused") if isinstance(exc, GoogleError) else type(exc).__name__
+                log.warning("today feed: %s error (%s)", name, kind)
+            row[f"{key}_status"] = status
     return row
 
 

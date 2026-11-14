@@ -27,7 +27,7 @@ from ..registry import register
 HOST = "api.todoist.com"
 BASE = f"https://{HOST}/api/v1"
 SECRET_NAMES = ("TODOIST_API_TOKEN",)
-ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+ID = re.compile(r"^[A-Za-z0-9_-]{1,64}\Z")  # \Z: no trailing newline (SEC-112)
 MAX_RESPONSE = 5_000_000
 FILTER_CHARS = re.compile(r"[&|!(),\\:#@*]")
 

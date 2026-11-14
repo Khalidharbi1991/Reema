@@ -14,7 +14,6 @@ says which account it belongs to (Gmail ids never start with "y") and goes out o
 renumbers the folder.
 """
 
-import html
 import imaplib
 import re
 import smtplib
@@ -31,6 +30,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 from ..personal.base import (MAX_BODY, AuthRefused, Draft, MailMessage, MailSummary, PartlySent,
                              ServiceError)
 from ..personal.credentials import usable
+from ..personal.text import html_to_text
 from ..registry import register
 
 IMAP_HOST, IMAP_PORT = "imap.mail.yahoo.com", 993
@@ -38,8 +38,8 @@ SMTP_HOST, SMTP_PORT = "smtp.mail.yahoo.com", 465
 SECRET_NAMES = ("YAHOO_EMAIL", "YAHOO_APP_PASSWORD")
 INBOX = "INBOX"
 DRAFTS_FALLBACK = "Draft"          # Yahoo's Drafts folder when the server does not mark it \Drafts
-MESSAGE_ID = re.compile(r"^y(\d{1,10})_(\d{1,10})$")
-DRAFT_ID = re.compile(r"^yd(\d{1,10})_(\d{1,10})$")
+MESSAGE_ID = re.compile(r"^y(\d{1,10})_(\d{1,10})\Z")   # \Z: a trailing newline does not pass (SEC-112)
+DRAFT_ID = re.compile(r"^yd(\d{1,10})_(\d{1,10})\Z")
 MAX_MESSAGE = 2_000_000            # bytes of one email fetched
 SCAN = 50                          # newest emails looked at for the Today screen
 HEADERS = "FROM TO CC SUBJECT DATE MESSAGE-ID LIST-UNSUBSCRIBE LIST-ID PRECEDENCE AUTO-SUBMITTED"
@@ -70,10 +70,7 @@ def _imap_date(when: datetime) -> str:
 
 
 def _strip_html(text: str) -> str:
-    text = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", text)
-    text = re.sub(r"(?i)<br\s*/?>|</p>|</div>|</li>", "\n", text)
-    text = re.sub(r"<[^>]+>", " ", text)
-    return re.sub(r"[ \t]+", " ", html.unescape(text))
+    return html_to_text(text)  # linear time (SEC-106)
 
 
 def _header(msg, name: str) -> str:
@@ -85,8 +82,10 @@ def _header(msg, name: str) -> str:
 
 
 def _date(msg, internal: str = "") -> str:
+    """Always with an offset: a "-0000" Date gives a naive time, read as UTC (SEC-107)."""
     try:
-        return parsedate_to_datetime(_header(msg, "date")).isoformat()
+        when = parsedate_to_datetime(_header(msg, "date"))
+        return (when.replace(tzinfo=timezone.utc) if when.tzinfo is None else when).isoformat()
     except (TypeError, ValueError, IndexError):
         pass
     try:
@@ -239,10 +238,10 @@ class YahooMail:
             try:
                 conn.login(address, password)
                 break
-            except imaplib.IMAP4.abort:
+            except (imaplib.IMAP4.abort, OSError, EOFError):  # a network or TLS drop is not a refusal (SEC-111)
                 self._close(conn)
                 raise YahooError("Yahoo dropped the connection", retryable=True) from None
-            except (imaplib.IMAP4.error, OSError):
+            except imaplib.IMAP4.error:
                 self._close(conn)
                 if attempt == 1 and self.login.refused():
                     continue  # Khalid stored a new app password: try it once
@@ -351,9 +350,10 @@ class YahooMail:
                 continue
             if summary.date:
                 try:
-                    if datetime.fromisoformat(summary.date) < since:
+                    when = datetime.fromisoformat(summary.date)
+                    if (when.replace(tzinfo=timezone.utc) if when.tzinfo is None else when) < since:
                         continue
-                except ValueError:
+                except (ValueError, TypeError):
                     continue
             out.append(summary)
         return out[: max(1, int(limit))]
@@ -480,6 +480,8 @@ class YahooMail:
             except smtplib.SMTPAuthenticationError:
                 raise AuthRefused("Yahoo refused the app password; nothing was sent. Make a new one and store "
                                   "it with snafi.cmd set-secrets") from None
+            except (smtplib.SMTPException, OSError):  # before any message data: nothing went out (SEC-111)
+                raise YahooError("Yahoo could not sign in for sending; nothing was sent", retryable=True) from None
             refused = conn.send_message(msg, from_addr=address, to_addrs=list(to) + list(cc) + list(bcc))
         except smtplib.SMTPRecipientsRefused:
             raise YahooError("Yahoo refused every recipient; nothing was sent") from None

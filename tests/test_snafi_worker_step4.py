@@ -654,9 +654,87 @@ def test_yahoo_refused_password_asks_for_a_new_one_and_picks_up_a_stored_one():
     with pytest.raises(AuthRefused):
         adapter(smtp=FakeSmtp(fail_login=True))[0].send(["a@example.com"], [], [], "x", "y")
     fresh = Secrets({"YAHOO_EMAIL": YAHOO_ADDRESS, "YAHOO_APP_PASSWORD": "newnewnewnewnewn"})
-    mail, imap = adapter(FakeImap(password="newnewnewnewnewn"), creds=login(reload=lambda: fresh))
-    assert mail.search("", 5) == []
+    creds = login()
+    mail, imap = adapter(FakeImap(password="newnewnewnewnewn"), creds=creds)
+    creds._reload, creds._reloaded_at = (lambda: fresh), creds._clock() - 60   # re-read a minute ago: not due yet
+    assert mail.search("", 5) == []                      # refused, re-read at once, then signed in
     assert imap.logins == [YAHOO_ADDRESS, YAHOO_ADDRESS]
+
+
+# ---------- fixes from Agent 16's step 4 review ----------
+def test_sec106_crafted_html_is_made_plain_in_linear_time():
+    import time
+    from src.snafi_worker.google import gmail
+    from src.snafi_worker.personal.text import html_to_text
+    assert html_to_text("<p>Hi&amp;bye</p><script>steal()</script><br>next") == "Hi&bye\n\nnext"
+    assert html_to_text("<style>x</style>a<!-- c -->b<script>never closed") == "ab"
+    for crafted in ("<script>" * 200_000, "<" * 1_000_000, "<a " * 300_000, "<p><" * 250_000, "\n " * 500_000):
+        start = time.perf_counter()
+        yahoo._strip_html(crafted)
+        gmail._strip_html(crafted)
+        assert time.perf_counter() - start < 5
+
+
+def test_sec107_a_minus_zero_date_and_any_error_do_not_stop_the_today_row():
+    mail, imap = adapter()
+    imap.add("INBOX", raw_email("Sara <sara@example.com>", "Plan", "x", date="Sat, 14 Nov 2026 07:00:00 -0000"))
+    found = mail.important_unread(24, 5)
+    assert [m.subject for m in found] == ["Plan"] and found[0].date.endswith("+00:00")
+    personal = Personal(FakeMail(), None, None, None, Broken(TypeError("odd")), Broken(KeyError("odd")))
+    personal.mail.add("a@example.com", "Hi", "x", important=True)
+    row = build_row(personal, OWNER)
+    assert len(row["emails"]) == 1 and (row["yahoo_status"], row["todoist_status"]) == ("error", "error")
+
+
+def test_sec108_a_removed_login_stops_being_used_within_minutes():
+    clock = [1000.0]
+    creds = StoredLogin(Secrets({"TODOIST_API_TOKEN": FAKE_TOKEN}), todoist.SECRET_NAMES, "Todoist",
+                        reload=lambda: Secrets({}), clock=lambda: clock[0])
+    with pytest.raises(NotConnected):
+        creds.values()                       # the first read already sees the removal
+    kept = StoredLogin(Secrets({"TODOIST_API_TOKEN": FAKE_TOKEN}), todoist.SECRET_NAMES, "Todoist",
+                       reload=lambda: Secrets({"TODOIST_API_TOKEN": FAKE_TOKEN}), clock=lambda: clock[0])
+    assert kept.values() == (FAKE_TOKEN,)
+    kept._reload = lambda: Secrets({})
+    clock[0] += 60
+    assert kept.values() == (FAKE_TOKEN,)    # not re-read yet
+    clock[0] += 300
+    with pytest.raises(NotConnected):
+        kept.values()
+
+
+@pytest.mark.parametrize("sentence", ["حفظت المسودة بياهو.", "سأرسل الرد بالجيميل.", "أرسلت الرد عبر الجيميل.",
+                                      "I saved the draft in your Google account."])
+def test_sec109_arabic_forms_and_google_name_the_account(sentence):
+    used = ["gmail"] if "ياهو" in sentence else ["yahoo"]
+    assert check(sentence + " تفضل.", "ar", ["create_draft"], sends_ran=True, accounts=used).strip() == "تفضل."
+
+
+def test_sec111_a_network_drop_at_login_is_not_a_refused_password():
+    class DropImap(FakeImap):
+        def login(self, user, password):
+            raise ConnectionResetError()
+    with pytest.raises(ServiceError) as exc:
+        adapter(DropImap())[0].search("", 5)
+    assert not isinstance(exc.value, AuthRefused) and exc.value.retryable
+
+    class NoAuth(FakeSmtp):
+        def login(self, user, password):
+            import smtplib
+            raise smtplib.SMTPNotSupportedError("no AUTH")
+    with pytest.raises(ServiceError, match="nothing was sent"):
+        adapter(smtp=NoAuth())[0].send(["a@example.com"], [], [], "x", "y")
+
+
+@pytest.mark.parametrize("tool,args", [("send_email", {"to": ["sara@example.com\n"], "subject": "x", "body": "y"}),
+                                       ("read_mail", {"id": "y7_42\n"}), ("complete_task", {"id": "k1\n"}),
+                                       ("reschedule_task", {"id": "k1", "due": "2026-11-20\n"})])
+def test_sec112_a_trailing_newline_does_not_pass_the_checks(tool, args):
+    decision = decide(ProposedAction(tool, args))
+    # clean_args trims the outer text, so either it is refused or the newline is gone
+    assert decision.verdict == REFUSE or "\n" not in json.dumps(decision.args).replace("\\n", "\n")
+    for pattern, value in ((yahoo.MESSAGE_ID, "y7_42\n"), (yahoo.DRAFT_ID, "yd9_1\n"), (todoist.ID, "k1\n")):
+        assert pattern.match(value) is None
 
 
 def test_yahoo_not_connected_until_stored_and_the_password_never_shows():

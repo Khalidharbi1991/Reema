@@ -76,6 +76,16 @@ newsletter, mailing list or automatic email (Yahoo has no Important mark like Gm
 - **Snafi only:** set `yahoo: provider: none` or `tasks: provider: none` in `worker.yaml` and
   redeploy, or remove all stored values with `snafi.cmd set-secrets --remove`.
 
+## What Snafi keeps in Supabase (and so in the daily backup)
+
+As with Gmail (SEC-83, which you accepted), and now for Yahoo and Todoist too (SEC-110):
+- every Yahoo draft and send Ahmad writes, whole (to, cc, bcc, subject, body), in the action log
+  and on its approval card, and your Yahoo address on each send card;
+- up to ten task titles with their due dates in the Today row, task titles in the action log and
+  on delete cards, and the full title and description of every task Ahmad adds.
+
+The text Ahmad only reads (Yahoo email bodies, task descriptions) is not stored there.
+
 ## Notes
 
 - Built and tested offline only (fake IMAP, SMTP and Todoist servers). The first live use is
