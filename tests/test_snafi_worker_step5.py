@@ -418,8 +418,12 @@ def test_card_and_log_texts_show_12_hour_times():
                      "ar": "موعد في التقويم (أنت فقط): Dentist، الجمعة 20 نوفمبر 3:00 م"}
     move = TOOLS["reschedule_task"].describe({"id": "1", "due": "2026-11-21T00:30:00+03:00"})
     assert "Sat 21 Nov 12:30 AM" in move["en"] and "12:30 ص" in move["ar"]
-    delete = TOOLS["delete_task"].describe({"id": "1", "task_content": "Pay", "task_due": "2026-11-21T09:00 (repeats: every day)"})
+    # SEC-131: the full due value (here UTC) is shown in Jeddah time, not the cut text read as Jeddah time
+    delete = TOOLS["delete_task"].describe({"id": "1", "task_content": "Pay", "task_due": "2026-11-21T06:00 (repeats: every day)",
+                                            "task_due_at": "2026-11-21T06:00:00Z"})
     assert delete["en"] == "Delete from Todoist: Pay (due Sat 21 Nov 9:00 AM (repeats: every day))"
+    from src.snafi_worker.personal_tools import shown_time
+    assert shown_time("9999-12-31T23:30:00-05:00", "en") == "9999-12-31T23:30"     # SEC-133: no crash
 
 
 def test_one_failing_job_never_stops_the_others():

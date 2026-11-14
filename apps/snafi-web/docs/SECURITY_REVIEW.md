@@ -1,4 +1,9 @@
-> **Newest round: Snafi step 5 (Proactive Ahmad), Nov 14, 2026.** Its findings are in
+> **Newest: Snafi step 5 re-check, Nov 15, 2026.** In
+> [SECURITY_REVIEW_step5_recheck.md](SECURITY_REVIEW_step5_recheck.md), the current status for SEC-119 to SEC-133:
+> SEC-119, 123, 125, 126, 127 and 128 closed, SEC-120 accepted by Khalid, SEC-131 and 133 fixed after it (awaiting
+> re-check). Open Critical 0, **open High 0**; Low SEC-121, 122 and 130 wait for Khalid.
+>
+> **Snafi step 5 (Proactive Ahmad), Nov 14, 2026.** Its findings are in
 > [SECURITY_REVIEW_step5.md](SECURITY_REVIEW_step5.md), the current status for the rows it lists (SEC-119 to
 > SEC-129 and its notes on earlier rows). Open Critical 0, **open High 0**; SEC-119, 121, 122, 123, 126 and 128
 > fixed by Ahmad, awaiting Agent 16's re-check; SEC-120, 125 and 127 wait for Khalid.

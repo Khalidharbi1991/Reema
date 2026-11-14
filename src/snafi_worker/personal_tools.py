@@ -446,9 +446,9 @@ def shown_time(value: str, lang: str = "en", tz: ZoneInfo = None) -> str:
         if len(value) == 10:
             return day_only(datetime.fromisoformat(value), lang)
         when = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
+        return day_clock(when.replace(tzinfo=tz) if when.tzinfo is None else when.astimezone(tz), lang)
+    except (ValueError, OverflowError):  # SEC-133: a date at the calendar's edge is shown as it came
         return value[:16]
-    return day_clock(when.replace(tzinfo=tz) if when.tzinfo is None else when.astimezone(tz), lang)
 
 
 def _due_shown(task, lang: str) -> str:
@@ -649,7 +649,10 @@ def _undo_task(undo: Dict, ctx: Dict) -> None:
 
 def _prepare_delete_task(args: Dict, ctx: Dict) -> Dict:
     task = _service(ctx, "tasks").get(args["id"])
-    return {**args, "task_content": _short(task.content, 200), "task_due": _due_text(task)}
+    # task_due is compared exactly before the delete; task_due_at (the full due value, with its offset) is
+    # only for showing it 12-hour on the card (SEC-131).
+    return {**args, "task_content": _short(task.content, 200), "task_due": _due_text(task),
+            "task_due_at": str(task.due or "")[:40]}
 
 
 def _delete_task(store, user_id, args, ctx):
@@ -689,7 +692,9 @@ def _due_display(a: Dict, lang: str) -> str:
     if not task_due or task_due == "no date":
         return "no date" if lang == "en" else "بلا موعد"
     head, sep, rest = task_due.partition(" (repeats")
-    return shown_time(head.replace(" ", "T"), lang) + (sep + rest if sep else "")
+    # SEC-131: show the task's full due value (with its offset), never the cut text read as Jeddah time.
+    shown = shown_time(a["task_due_at"], lang) if a.get("task_due_at") else head
+    return shown + (sep + rest if sep else "")
 
 
 EMAILS = (list, MAX_RECIPIENTS, False)
