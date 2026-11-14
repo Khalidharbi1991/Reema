@@ -14,8 +14,11 @@ const NOW = new Date("2026-11-14T09:00:00Z"); // 12:00 in Jeddah
 const FEED: TodayFeed = {
   nextEvent: { title: "Site visit with the architect", start: "2026-11-14T13:30:00Z", end: "2026-11-14T14:30:00Z",
     location: "New Home", allDay: false },
-  emails: [{ from: "Ahmed Ali", subject: "Drawings for review", receivedAt: "2026-11-14T06:05:00Z" }],
+  emails: [{ from: "Ahmed Ali", subject: "Drawings for review", receivedAt: "2026-11-14T06:05:00Z", account: "gmail" }],
+  tasks: [],
   googleStatus: "ok",
+  yahooStatus: "off",
+  todoistStatus: "off",
   updatedAt: "2026-11-14T08:55:00Z",
 };
 const decide = vi.fn(async () => ({ ok: true }));
@@ -41,8 +44,8 @@ describe("today_feed in the database", () => {
     await expect(as(db, "authenticated", ALICE, `insert into public.today_feed (user_id) values ('${ALICE}')`)).rejects.toThrow(/permission denied/);
   });
 
-  it("holds at most five emails and a known status", async () => {
-    const six = JSON.stringify(Array.from({ length: 6 }, (_, i) => ({ from: "x", subject: `s${i}` })));
+  it("holds at most ten emails (five per account since step 4) and a known status", async () => {
+    const six = JSON.stringify(Array.from({ length: 11 }, (_, i) => ({ from: "x", subject: `s${i}` })));
     await expect(as(db, "service_role", null, "update public.today_feed set emails = $1 where user_id = $2", [six, ALICE]))
       .rejects.toThrow(/check constraint/);
     await expect(as(db, "service_role", null, "update public.today_feed set google_status = 'hacked' where user_id = $1", [ALICE]))
@@ -67,7 +70,7 @@ describe("the feed on the screen", () => {
   it("shows the real next event and important emails in Jeddah time", async () => {
     const today = await new LiveTodaySource(async () => [], async () => FEED).getToday("en", NOW);
     expect(today.nextEvent).toEqual({ title: "Site visit with the architect", time: "16:30", place: "New Home" });
-    expect(today.emails).toEqual([{ id: "m0", from: "Ahmed Ali", subject: "Drawings for review", time: "09:05" }]);
+    expect(today.emails).toEqual([{ id: "m0", from: "Ahmed Ali", subject: "Drawings for review", time: "09:05", account: "gmail" }]);
     expect(today.google).toBe("ok");
     expect(today.samples).toMatchObject({ nextEvent: false, emails: false });
   });

@@ -15,15 +15,16 @@ coordination run inside Claude Code; REEMA's own commands make no model call.
 Snafi, Khalid's personal assistant web app, is part of REEMA: a Next.js app in
 `apps/snafi-web/` that talks to a Supabase mailbox, and a worker on the PC
 (`src/snafi_worker/`) that picks up its jobs. Its plan is `docs/snafi/PRD.md` (source
-of truth). Steps 1 to 3 are built: sign-in, Today (real Umm al-Qura prayer times and
-Hijri date for Jeddah, and the next Google Calendar event and important unread Gmail),
-Chat with Ahmad's brain, approval cards, the action log with Undo, the PC online/offline
-banner, a daily backup with a tested restore, and Khalid's personal Gmail, Google
-Calendar and Google Drive behind the permission gate (step 3; see
-`docs/snafi/GOOGLE_SETUP.md`).
+of truth). Steps 1 to 4 are built: sign-in, Today (real Umm al-Qura prayer times and
+Hijri date for Jeddah, the next Google Calendar event, important unread Gmail and Yahoo
+mail, and today's Todoist tasks), Chat with Ahmad's brain, approval cards, the action log
+with Undo, the PC online/offline banner, a daily backup with a tested restore, Khalid's
+personal Gmail, Google Calendar and Google Drive behind the permission gate (step 3; see
+`docs/snafi/GOOGLE_SETUP.md`), and his Yahoo Mail (IMAP and SMTP) and Todoist, each
+behind its own adapter (step 4; see `docs/snafi/YAHOO_TODOIST_SETUP.md`).
 
 Not yet built: patch report PowerPoint (PPTX export), SCCM/Intune export intake, and
-Snafi steps 4–8.
+Snafi steps 5–8.
 
 It is a Python CLI that makes no model call: Claude Code writes the text, and REEMA
 plans, checks, exports and records it. It has no model settings and has not moved
@@ -61,7 +62,8 @@ commands. Change history is in `docs/reports/CHANGELOG.md`.
   adapter's own file, nothing else.
 - The worker's secrets (`SNAFI_SUPABASE_URL`, `SNAFI_SUPABASE_SECRET_KEY`,
   `SNAFI_OWNER_USER_ID`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `SNAFI_BACKUP_SIGNING_KEY`,
-  `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`)
+  `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, and since step 4
+  `YAHOO_EMAIL`, `YAHOO_APP_PASSWORD`, `TODOIST_API_TOKEN`)
   live only in Windows Credential Manager for Khalid's own Windows user
   ("REEMA-Snafi:<NAME>", encrypted by Windows), stored by Khalid with
   `C:\SnafiWorker\snafi.cmd set-secrets`; a brain's key is asked for only while that
@@ -300,8 +302,10 @@ the rules above; otherwise act as Ahmad.
 - **Executive assistant.** Ahmad chats in Arabic and English and handles email
   (Gmail, Yahoo), calendar, tasks (Todoist), files (Drive), reminders, memory of
   Khalid, proactive briefs and family messaging over Telegram. These run through
-  Snafi's adapters as each PRD step lands; today only the local `task` and `memory`
-  commands and the Snafi skeleton exist, and none of those services is connected.
+  Snafi's adapters as each PRD step lands: Gmail, Calendar and Drive (step 3) and
+  Yahoo and Todoist (step 4) are built in the Snafi worker and work once Khalid stores
+  their logins; a Claude Code session has only the local `task` and `memory` commands
+  and never uses those services.
 - **Coordinator.** He routes mail, planner and memory work to the Personal team
   (Mail, Planner and Memory agents, PRD "Ahmad and his team"), SOPs to Documentation,
   home work to Home Design and software to Development, and reports back.
@@ -435,8 +439,9 @@ The old Agent 9 subagent's rules are kept word for word in that skill.
 The CLI has local tasks and memory; conversation happens in Claude Code. It has no
 connected mailbox, calendar, task cloud, background notification process, or
 deployed chat UI, and it cannot send communications or alter external accounts.
-Ahmad's assistant work on mail, calendar, Todoist, Drive and Telegram is planned
-for Snafi steps 2–8 and is not connected yet.
+Ahmad's assistant work on Gmail, Yahoo, Calendar, Todoist and Drive runs only in the
+Snafi worker (steps 3 and 4), never from the CLI or a Claude Code session; Telegram is
+planned for Snafi step 7 and is not connected yet.
 Ahmad's legacy communication helper records locally and
 reports `not_dispatched`. Actual account integration requires the user's chosen
 provider and authorization. REEMA's `drawing concept` makes a limited, editable OBJ

@@ -28,9 +28,11 @@ Outside content only ever reaches the brain inside `<data>` blocks, as informati
 | --- | --- | --- |
 | Brain | `brain.provider` | `claude_api` (Claude API, `claude-haiku-5-5`, text only, key in Credential Manager; the configured brain), `gemini_api` (Gemini API; switched off), `agy` (Antigravity CLI; switched off, see below), `fake` (offline) |
 | Database | `store.provider` | `supabase_rest`, `memory` (offline) |
-| Mail | `mail.provider` | `gmail` (step 3), `fake` (offline), `none` |
+| Mail (Gmail account) | `mail.provider` | `gmail` (step 3), `fake` (offline), `none` |
+| Mail (Yahoo account) | `yahoo.provider` | `yahoo_imap` (step 4), `fake` (offline), `none` |
 | Calendar | `calendar.provider` | `google_calendar` (step 3), `fake` (offline), `none` |
 | Files | `files.provider` | `google_drive` (step 3), `fake` (offline), `none` |
+| Tasks | `tasks.provider` | `todoist` (step 4), `fake` (offline), `none` |
 
 Switching is one line in `worker.yaml`; tests prove that only `brain/` knows the brain and
 only `store/` knows the database.
@@ -74,6 +76,37 @@ levels are in `personal_tools.py`:
   subject only) go to the `today_feed` table. It is a cache, so it is not in the backup.
 - **Not connected yet** does not stop the worker: the tools say so, Today shows how to
   connect, and a new connection is picked up within five minutes without a restart.
+
+## Yahoo Mail and Todoist (step 4)
+
+Setup for Khalid: `docs/snafi/YAHOO_TODOIST_SETUP.md`. The adapters are `yahoo/mail.py` and
+`todoist/tasks.py`, standard library only; the tools and levels stay in `personal_tools.py`.
+
+- **Yahoo:** IMAP over TLS to `imap.mail.yahoo.com:993` (Inbox opened read-only, messages
+  fetched with `BODY.PEEK`, so reading never marks anything read; drafts saved with APPEND to
+  Drafts) and SMTP over TLS to `smtp.mail.yahoo.com:465` (send, only after Approve; Bcc only on
+  the envelope). The hosts are fixed in code and the certificate is always checked. Undo of a
+  draft deletes only that draft (`UID EXPUNGE`; refused if the server has no UIDPLUS).
+  Yahoo ids are `y<UIDVALIDITY>_<UID>` (drafts `yd...`), so an id says its account.
+- **Both inboxes:** every mail tool takes `account` (`gmail` or `yahoo`); `search_mail` without
+  one reads both, marking each line `[Gmail]` or `[Yahoo]`. A reply goes from the account the
+  email came from. Every outcome, log entry and card names the account (a send card: "Send
+  from Yahoo (address) to ..."), and the honesty check removes a sentence about mail that names
+  only the other account.
+- **Todoist:** the Todoist API v1 over HTTPS (`api.todoist.com` only, redirects refused, the
+  token only in the Authorization header).
+
+| Level | Tools |
+| --- | --- |
+| 1 | `list_tasks` (today and overdue), `search_tasks` |
+| 2 (Undo) | `add_task` (Undo deletes it, only if unchanged), `complete_task` (Undo reopens it; a repeating task gets its date back), `reschedule_task` (Undo puts the old date back) |
+| 3 (card) | `delete_task` (refused if the task changed after Approve) |
+
+- **Today feed:** also up to five important Yahoo emails (unread, Inbox, last 24 hours, not a
+  newsletter, list or automatic email) and up to ten Todoist tasks due today or overdue
+  (title, due, priority, overdue). `yahoo_status` and `todoist_status` say what Today shows.
+- **Not connected yet** does not stop the worker, and a login stored later with set-secrets is
+  picked up within five minutes (`personal/credentials.py`), or at once after a refusal.
 
 ## The Claude API brain (configured)
 
@@ -140,6 +173,8 @@ value and never shows the key (`--status` lists which are stored, `--remove` del
 | `GEMINI_API_KEY` | the Gemini API key; asked for only while `brain.provider` is `gemini_api` |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | the Desktop app OAuth client from Google Cloud; asked for only while a Google service is chosen |
 | `GOOGLE_REFRESH_TOKEN` | never typed: written by `snafi.cmd connect-google` after Khalid signs in |
+| `YAHOO_EMAIL`, `YAHOO_APP_PASSWORD` | Khalid's Yahoo address and a Yahoo app password (16 letters, typed hidden); asked for only while `yahoo.provider` is `yahoo_imap` |
+| `TODOIST_API_TOKEN` | the Todoist API token (40 characters, typed hidden); asked for only while `tasks.provider` is `todoist` |
 
 Each is a generic credential "REEMA-Snafi:<NAME>" for Khalid's user, encrypted by Windows
 (DPAPI). There is no plain-text secrets file. Claude Code also runs as Khalid, so Windows itself

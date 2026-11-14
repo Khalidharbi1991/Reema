@@ -74,7 +74,8 @@ def main(argv=None) -> int:
         return 2
     if args.check:
         print(f"Snafi worker {VERSION}: brain={settings.brain_provider} store={settings.store_provider} "
-              f"mail={settings.mail_provider} calendar={settings.calendar_provider} files={settings.files_provider} "
+              f"mail={settings.mail_provider} yahoo={settings.yahoo_provider} calendar={settings.calendar_provider} "
+              f"files={settings.files_provider} tasks={settings.tasks_provider} "
               f"secrets present={secrets.names()} backups={settings.backup_folder}")
         return 0
     setup_logging()
@@ -96,7 +97,7 @@ def main(argv=None) -> int:
     lanes = {name: Lane(name, s, store, engine, settings.worker_id, stop) for name, s in settings.lanes.items()}
     threads = [*lanes.values(), Heartbeat(store, owner_id, settings.worker_id, lanes, settings.heartbeat_seconds, stop),
                BackupScheduler(store, settings, owner_id, stop, secrets.get("SNAFI_BACKUP_SIGNING_KEY")),
-               TodayFeed(store, personal, owner_id, settings.today_feed_minutes, stop)]
+               TodayFeed(store, personal, owner_id, settings.today_feed_minutes, stop, settings.time_zone)]
     for thread in threads:
         thread.start()
     logging.getLogger("snafi_worker").info("worker %s started (brain=%s)", VERSION, settings.brain_provider)

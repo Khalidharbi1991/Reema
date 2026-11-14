@@ -21,18 +21,26 @@ def build(kind: str, settings: Settings, secrets: Secrets, **extra):
 
 @dataclass
 class Personal:
-    """Ahmad's personal services for step 3. A service is None when switched off (provider none)."""
+    """Ahmad's personal services. A service is None when switched off (provider none).
+    mail is the Gmail account and yahoo the Yahoo account (step 4); both are Mail adapters."""
     mail: Optional[object] = None
     calendar: Optional[object] = None
     files: Optional[object] = None
     auth: Optional[object] = None
+    yahoo: Optional[object] = None
+    tasks: Optional[object] = None
 
     @property
     def any(self) -> bool:
-        return any((self.mail, self.calendar, self.files))
+        return any((self.mail, self.calendar, self.files, self.yahoo, self.tasks))
 
 
 GOOGLE_PROVIDERS = {"gmail", "google_calendar", "google_drive"}
+# Step 4: each one's login, from Credential Manager. A provider not listed here needs no login (fake).
+LOGINS = {
+    "yahoo_imap": (("YAHOO_EMAIL", "YAHOO_APP_PASSWORD"), "Yahoo"),
+    "todoist": (("TODOIST_API_TOKEN",), "Todoist"),
+}
 
 
 def build_personal(settings: Settings, secrets: Secrets, reload: Optional[Callable[[], Secrets]] = None,
@@ -49,7 +57,18 @@ def build_personal(settings: Settings, secrets: Secrets, reload: Optional[Callab
     built = {}
     for kind, name in chosen.items():
         built[kind] = None if name == "none" else provider_class(kind, name)({}, auth)
-    return Personal(built["mail"], built["calendar"], built["files"], auth)
+    # Step 4: Yahoo and Todoist. A missing login does not stop the worker either: their tools say
+    # "not connected" until Khalid stores it with set-secrets, which the worker then picks up.
+    from .personal.credentials import StoredLogin
+    for kind, adapter_kind in (("yahoo", "mail"), ("tasks", "tasks")):
+        name = getattr(settings, f"{kind}_provider")
+        if name == "none":
+            built[kind] = None
+            continue
+        names, service = LOGINS.get(name, ((), name))
+        login = StoredLogin(secrets, names, service, reload=reload)
+        built[kind] = provider_class(adapter_kind, name)(dict(getattr(settings, f"{kind}_options")), login)
+    return Personal(built["mail"], built["calendar"], built["files"], auth, built["yahoo"], built["tasks"])
 
 
 def guarded_brain(settings: Settings, secrets: Secrets, pause_dir=None):

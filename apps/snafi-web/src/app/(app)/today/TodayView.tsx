@@ -41,12 +41,12 @@ export function TodayView({ lang, hour, today, decide }: Props) {
 
       {anySample && <p className="rise-in mt-3 text-xs text-muted" style={{ ["--i" as string]: 1 }}>{t.placeholderNote}</p>}
 
-      {today.google !== "ok" && (
-        <p role="status" data-testid="google-status" data-state={today.google}
+      {(["google", "yahoo", "todoist"] as const).filter((source) => today[source] !== "ok").map((source) => (
+        <p key={source} role="status" data-testid={`${source}-status`} data-state={today[source]}
           className="rise-in mt-3 rounded-xl border border-gold/40 px-3 py-2 text-xs text-gold-ink" style={{ ["--i" as string]: 1 }}>
-          {t.google[today.google]}
+          {t[source][today[source]]}
         </p>
-      )}
+      ))}
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         <Card title={t.nextEvent} index={1} badge={today.samples.nextEvent ? sample : null}>
@@ -65,14 +65,22 @@ export function TodayView({ lang, hour, today, decide }: Props) {
 
         <Card title={t.importantEmail} index={2} badge={today.samples.emails ? sample : null}>
           {today.emails.length === 0 ? (
-            <p className="text-sm text-muted">{today.google === "ok" ? t.noImportantEmail : "—"}</p>
+            <p className="text-sm text-muted">{today.google === "ok" || today.yahoo === "ok" ? t.noImportantEmail : "—"}</p>
           ) : (
             <ul className="space-y-3" data-testid="important-emails">
               {today.emails.map((m) => (
-                <li key={m.id} className="flex items-start gap-3">
+                <li key={m.id} className="flex items-start gap-3" data-account={m.account ?? "gmail"}>
                   <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-gold" aria-hidden="true" />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium" dir="auto">{m.from}</span>
+                    <span className="flex items-center gap-2">
+                      <span className="truncate text-sm font-medium" dir="auto">{m.from}</span>
+                      {!today.samples.emails && (
+                        <span data-testid="email-account" dir="ltr"
+                          className="shrink-0 rounded-full border border-gold/40 px-1.5 text-[10px] leading-4 text-gold-ink">
+                          {t.accountLabel[m.account ?? "gmail"]}
+                        </span>
+                      )}
+                    </span>
                     <span className="block truncate text-sm text-muted" dir="auto">{m.subject}</span>
                   </span>
                   <span dir="ltr" className="shrink-0 text-xs tabular-nums text-muted">{m.time}</span>
@@ -83,15 +91,19 @@ export function TodayView({ lang, hour, today, decide }: Props) {
         </Card>
 
         <Card title={t.topTasks} index={3} badge={today.samples.tasks ? sample : null}>
-          <ul className="space-y-3">
-            {today.tasks.map((task) => (
-              <li key={task.id} className="flex items-start gap-3">
-                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-gold" aria-hidden="true" />
-                <span className="flex-1 text-sm">{task.title}</span>
-                <span className="text-xs text-muted">{task.due}</span>
-              </li>
-            ))}
-          </ul>
+          {today.tasks.length === 0 ? (
+            <p className="text-sm text-muted">{today.todoist === "ok" ? t.noTasks : "—"}</p>
+          ) : (
+            <ul className="space-y-3" data-testid="top-tasks">
+              {today.tasks.map((task) => (
+                <li key={task.id} className="flex items-start gap-3" data-overdue={task.overdue ? "true" : undefined}>
+                  <span className={`mt-2 h-1.5 w-1.5 shrink-0 rounded-full ${task.priority === 1 ? "bg-gold-ink" : "bg-gold"}`} aria-hidden="true" />
+                  <span className="min-w-0 flex-1 text-sm" dir="auto">{task.title}</span>
+                  <span className={`shrink-0 text-xs ${task.overdue ? "text-gold-ink" : "text-muted"}`}>{task.due}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
 
         {today.cards.map((card, i) => (

@@ -18,8 +18,10 @@ RUN, APPROVE, REFUSE = "run", "approve", "refuse"
 REASONS = {
     "never": {"en": "I never do this (payments, passwords, security settings or mass messages).",
               "ar": "لا أقوم بهذا أبداً (المدفوعات أو كلمات المرور أو إعدادات الأمان أو الرسائل الجماعية)."},
-    "unknown": {"en": "I can't do that yet: I have notes, facts, reminders, Gmail, Google Calendar and Google Drive.",
-                "ar": "لا أستطيع ذلك بعد: لديّ الملاحظات والمعلومات والتذكيرات وGmail وتقويم Google وGoogle Drive."},
+    "unknown": {"en": "I can't do that yet: I have notes, facts, reminders, Gmail, Yahoo Mail, Google Calendar, "
+                      "Google Drive and Todoist.",
+                "ar": "لا أستطيع ذلك بعد: لديّ الملاحظات والمعلومات والتذكيرات وGmail وYahoo Mail وتقويم Google "
+                      "وGoogle Drive وTodoist."},
 }
 
 
