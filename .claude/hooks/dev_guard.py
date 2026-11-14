@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """PreToolUse guard for Bash and PowerShell in REEMA's Claude Code sessions (Development section, decision D3).
 
-Blocks pushing, adding or changing remotes, publishing, deploying, sudo and network tools, also
+Blocks pushing (Khalid pushes main himself; a session-run push was not adopted, SEC-97/98), adding or
+changing remotes, changing git config, `git credential` and credential helpers, any path through a
+.git folder, shell and PowerShell profiles, persistent environment variables (setx), publishing,
+deploying, sudo and network tools, also
 when wrapped (sh -c, bash -c, eval, env, xargs, command substitution, powershell -Command, pwsh -c,
 cmd /c, Invoke-Expression), and commands that name REEMA's task store (teams/coordination/data/,
 formerly output/assistant/) or REEMA's references (teams/documentation/input/references/, formerly
@@ -36,6 +39,39 @@ PS_SHELLS = {"powershell", "pwsh", "cmd", "iex", "invoke-expression"}
 OPERATORS = {";", "&&", "||", "|", "&", "|&", ";;", "(", ")", "{", "}", "$"}
 REDIRECTS = {">", ">>", "<", "<<", "<<<", ">&", "&>", "2>", "2>>"}
 GIT_VALUE_OPTIONS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
+# Settings that could redirect or widen a push: where it goes (remote.*, url.*.pushInsteadOf), what
+# it sends (push.*, remote.*.mirror, branch.*) or config pulled in from elsewhere (include*).
+GIT_CONFIG_KEYS = re.compile(r"(remote|push|branch|url|include|includeif)\.", re.I)
+GIT_CONFIG_FILES = re.compile(r"(^|[\s'\"/])\.git/config\b|\.gitconfig\b|/etc/gitconfig\b")
+# SEC-90 / SEC-91: any path through a .git folder (written with either slash, or `cd .git`), so its
+# config, hooks and commondir are changed only by git itself. ".gitignore" and ".github" are not ".git".
+# These blocks stay as a backstop although the push stays manual (Khalid, Nov 14, 2026).
+GIT_FOLDER = re.compile(r"(^|[\s'\"=/:;&|(<>,])\.git([/\s'\";&|)<>,]|$)", re.I)
+# SEC-92: start-up files that could set environment variables, aliases or a `git` function.
+PROFILE_NAME = r"\.(bashrc|bash_profile|bash_login|profile|zshrc|zshenv|zprofile)\b|profile\.ps1\b"
+PROFILES = re.compile(PROFILE_NAME + r"|\$profile\b", re.I)
+# SEC-102: git's lower-level commands that push without the word "push".
+GIT_PUSH_PLUMBING = {"send-pack", "http-push", "remote-http", "remote-https", "remote-ext", "remote-fd",
+                     "receive-pack"}
+# SEC-102: variables git, Git Credential Manager, curl or the shell read to change where git connects,
+# which credential it uses, or to print secrets (GIT_TRACE*, GCM_TRACE*). Setting one is blocked in
+# every form: in front of a command, through env, export, declare/typeset -x, cmd's set, or
+# PowerShell's $env:NAME / env:NAME. A few that only change the editor, pager or prompts may be set.
+RISKY_NAME = (r"GIT_\w+|GCM_\w+|\w*_PROXY|SSL_CERT_(?:FILE|DIR)|CURL_CA_BUNDLE|REQUESTS_CA_BUNDLE|BASH_ENV|ENV"
+              r"|SSH_ASKPASS|LD_PRELOAD")
+RISKY_SETTERS = (
+    # NAME=value or NAME+=value anywhere (in front of a command, after env/export/declare -x/set)
+    re.compile(r"(?<![\w$.:])(?P<name>" + RISKY_NAME + r")\s*\+?=", re.I),
+    # PowerShell's environment drive in any form ($env:NAME = ..., Set-Item env:NAME, New-Item env:\NAME)
+    re.compile(r"\benv:[\\/]?(?P<name>" + RISKY_NAME + r")\b", re.I),
+    # bash builtins that assign without "=": printf -v NAME, read NAME, export NAME (after unset tricks)
+    re.compile(r"\bprintf\s+-v\s+['\"]?(?P<name>" + RISKY_NAME + r")\b", re.I),
+    re.compile(r"\b(?:read|export|declare|typeset|local|readonly)\b[^;&|\n]*?(?<![\w$.])(?P<name>" + RISKY_NAME
+               + r")\b", re.I),
+)
+HARMLESS_ENV = {"GIT_EDITOR", "GIT_PAGER", "GIT_TERMINAL_PROMPT", "NO_PROXY"}
+PERSISTENT_ENV = re.compile(r"\bsetx\b|setenvironmentvariable|hkcu:?/+environment|hkey_current_user/+environment"
+                            r"|currentversion/+policies/+system|session manager/+environment", re.I)
 # Home Design section: only reema-agent22-3d-modeler runs these, by these installed paths (checked
 # 2026-11-03), with every path inside the New Home project; they are blocked for everyone else.
 AGENT22 = "reema-agent22-3d-modeler"
@@ -215,6 +251,20 @@ def _after_options(words, depth):
     return None
 
 
+GIT_CONFIG_READS = {"--get", "--get-all", "--get-regexp", "--list", "-l", "get", "list"}
+GIT_CONFIG_WRITES = {"--add", "--unset", "--unset-all", "--replace-all", "--rename-section", "--remove-section",
+                     "--edit", "-e", "set", "unset", "rename-section", "remove-section", "edit"}
+
+
+def _git_config_read(args):
+    """True only for a read of git config (--get, --list, ...), never a change."""
+    lowered = {a.lower().split("=", 1)[0] for a in args}
+    if lowered & GIT_CONFIG_WRITES:
+        return False
+    positional = [a for a in args if not a.startswith("-")]
+    return bool(lowered & GIT_CONFIG_READS) or len(positional) == 1  # `git config user.name` reads
+
+
 def _check(words, depth, powershell=False):
     words = [w for i, w in enumerate(words) if w not in REDIRECTS and (i == 0 or words[i - 1] not in REDIRECTS)]
     for word in words:
@@ -259,11 +309,26 @@ def _check(words, depth, powershell=False):
         while j < len(rest) and rest[j].startswith("-"):
             j += 2 if rest[j] in GIT_VALUE_OPTIONS else 1
         sub = rest[j:]
+        if any(re.match(r"-c|--config-env|--config\b", word) for word in rest[:j]):
+            return ("one-off git settings (`git -c`, `--config-env`) are blocked on every git command: they "
+                    "could hand out Khalid's GitHub sign-in or push without saying push (SEC-102)")
         if sub[:1] == ["push"]:
-            return "`git push` is blocked: REEMA and its projects are local only"
-        if sub[:1] == ["remote"] and _first_operand(sub[1:]) in {"add", "set-url"}:
+            return "`git push` is blocked: Khalid pushes main himself, from his own terminal"
+        if sub[:1] and sub[0].lower() in GIT_PUSH_PLUMBING:
+            return f"`git {sub[0]}` is blocked: it pushes to a remote (SEC-102)"
+        if sub[:1] == ["remote"] and _first_operand(sub[1:]) in {"add", "set-url", "rename", "remove", "rm"}:
             return "adding or changing a git remote is blocked"
+        if sub[:1] == ["config"] and any(GIT_CONFIG_KEYS.match(word) for word in sub[1:]):
+            return "git config of remote, push, branch, url or include settings is blocked"
+        if sub[:1] == ["config"] and not _git_config_read(sub[1:]):
+            return "changing git config is blocked (only --get and --list reads may run)"
+        if sub[:1] and sub[0].lower().startswith("credential"):
+            return "`git credential` is blocked: it would hand out Khalid's stored GitHub sign-in (SEC-93)"
         return None
+    if name in {f"git-{sub}" for sub in GIT_PUSH_PLUMBING}:
+        return f"`{name}` is blocked: it pushes to a remote (SEC-102)"
+    if name.startswith("git-credential"):
+        return "git's credential helpers are blocked: they would hand out Khalid's stored GitHub sign-in (SEC-93)"
     if name.startswith("python") and rest[:2] == ["-m", "twine"]:
         return "publishing packages is blocked"
     if (name, _first_operand(rest)) in PAIRS:
@@ -277,6 +342,20 @@ def reason(command, depth=0, powershell=False):
         return "command is nested too deeply to check"
     if why := _snafi_reason(command):
         return why
+    slashed = command.replace("\\", "/")
+    if GIT_CONFIG_FILES.search(slashed.lower()):
+        return "git's config files (.git/config, .gitconfig) are not touched from a session"
+    if GIT_FOLDER.search(slashed):
+        return "the .git folder (config, hooks, commondir) is not touched from a session (SEC-90, SEC-91)"
+    if PROFILES.search(slashed):
+        return "shell and PowerShell profiles are not touched from a session (SEC-92)"
+    if PERSISTENT_ENV.search(slashed):
+        return "setting persistent environment variables is blocked (SEC-92)"
+    for pattern in RISKY_SETTERS:
+        for match in pattern.finditer(command):
+            if match.group("name").upper() not in HARMLESS_ENV:
+                return (f"setting {match.group('name')} is blocked: git, Git Credential Manager or the shell would "
+                        "use it to change where git connects or to reveal Khalid's GitHub sign-in (SEC-102)")
     if not powershell:
         command, shell_bodies = _split_heredocs(command)
         for body in shell_bodies:
@@ -426,6 +505,12 @@ def agent22_reason(command, tool):
 def write_reason(tool_input, agent):
     """Why this write may not happen, or None. In New Home every result is a named file in output\\."""
     path = str(tool_input.get("file_path") or tool_input.get("notebook_path") or "")
+    if re.search(r"(^|\\)(\.git\\config|\.gitconfig)$", _win(path)):
+        return "git's config files (.git/config, .gitconfig) are not written from a session"
+    if ".git" in _win(path).split("\\"):
+        return "the .git folder is not written from a session (SEC-90, SEC-91)"
+    if re.search(PROFILE_NAME + r"$", _win(path), re.I):
+        return "shell and PowerShell profiles are not written from a session (SEC-92)"
     if agent and _win(path) == _win(SCRIPT_LEDGER):
         return "only Ahmad records script approvals in reviews\\script_reviews.json"
     if agent in HOME_AGENT_WRITES:

