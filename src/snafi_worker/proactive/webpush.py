@@ -78,10 +78,14 @@ def new_private_key() -> str:
 
 
 def load_private_key(text: str) -> ec.EllipticCurvePrivateKey:
-    raw = unb64u((text or "").strip())
-    if len(raw) != 32:
-        raise PushError("SNAFI_VAPID_PRIVATE_KEY is not a VAPID private key")
-    return ec.derive_private_key(int.from_bytes(raw, "big"), ec.SECP256R1())
+    """SEC-123: any damaged value is a PushError (never the key in the message)."""
+    try:
+        raw = unb64u((text or "").strip())
+        if len(raw) != 32:
+            raise ValueError
+        return ec.derive_private_key(int.from_bytes(raw, "big"), ec.SECP256R1())
+    except Exception:  # noqa: BLE001 (bad base64, wrong length, a scalar out of range, …)
+        raise PushError("SNAFI_VAPID_PRIVATE_KEY is not a VAPID private key; remove it and run set-secrets") from None
 
 
 def public_key_b64(private: ec.EllipticCurvePrivateKey) -> str:

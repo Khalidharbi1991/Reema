@@ -114,14 +114,16 @@ class Scheduler(threading.Thread):
             due = _parse(row.get("due_at"))
             if due is None or due > now:
                 continue
-            # fired_at first, in one conditional update: a reminder goes off once even if this pass dies.
-            if self.store.update_if("reminders", row["id"], {"fired_at": None}, {"fired_at": now.isoformat()}) is None:
-                continue
             local = due.astimezone(self.tz)
             same_day = local.date() == now.astimezone(self.tz).date()
             when = t["set_for"].format(t=clock(local, lang)) if same_day else t["was_due"].format(t=day_clock(local, lang))
-            out.append(self.notifier.deliver("reminder", f"reminder:{row['id']}", t["reminder"],
-                                             f"{_cut(row.get('body') or '', 900)}\n{when}", counts_to_cap=False, now=now))
+            # SEC-121: the ledger row (UNIQUE reminder:<id>) comes first, so it goes off once; fired_at is
+            # set only after it exists, so an error in between means it is tried again, never lost.
+            outcome = self.notifier.deliver("reminder", f"reminder:{row['id']}", t["reminder"],
+                                            f"{_cut(row.get('body') or '', 900)}\n{when}", counts_to_cap=False, now=now)
+            self.store.update_if("reminders", row["id"], {"fired_at": None}, {"fired_at": now.isoformat()})
+            if outcome != "duplicate":
+                out.append(outcome)
         return out
 
     # ---------- morning brief ----------

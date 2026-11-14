@@ -33,6 +33,7 @@ TITLE_MAX, BODY_MAX = 200, 3000
 REPEAT_HOURS = 24
 LEDGER_SCAN = 500
 MAX_FAILURES = 5
+STUCK_AFTER = timedelta(minutes=2)
 
 
 def content_hash(title: str, body: str) -> str:
@@ -99,13 +100,18 @@ class Notifier:
         return self._release(saved, now)
 
     def release_held(self, now: Optional[datetime] = None) -> List[str]:
-        """Held messages whose quiet time is over go out now (oldest first)."""
+        """Held messages whose quiet time is over go out now (oldest first). SEC-121: a row left in
+        "new" (saved, then an error before it was shown) is tried again after STUCK_AFTER; the claim
+        new -> delivering still lets only one pass show it."""
         now = now or datetime.now(timezone.utc)
-        held = self.store.select("notifications", {"user_id": self.owner_id, "status": "held"}, limit=50)
         out = []
-        for row in held:
+        for row in self.store.select("notifications", {"user_id": self.owner_id, "status": "held"}, limit=50):
             until = _parse(row.get("hold_until"))
             if until is None or until <= now:
+                out.append(self._release(row, now))
+        for row in self.store.select("notifications", {"user_id": self.owner_id, "status": "new"}, limit=50):
+            created = _parse(row.get("created_at"))
+            if row.get("kind") != "learned" and created is not None and now - created >= STUCK_AFTER:
                 out.append(self._release(row, now))
         return out
 
@@ -122,7 +128,9 @@ class Notifier:
             return "duplicate"  # another pass took it
         card = row.get("card") or {}
         title, body = str(card.get("title") or "Ahmad"), str(card.get("body") or "—")
-        if self._repeat(row, now):
+        # SEC-119: a reminder is never skipped as a repeat (the same words at the same time on two days
+        # are two real reminders); its own id already stops it from going twice.
+        if row.get("kind") != "reminder" and self._repeat(row, now):
             self._finish(row, "skipped", now, reason="same as one shown in the last 24 hours")
             return "skipped"
         self.store.insert("cards", {"user_id": self.owner_id, "notification_id": row["id"], "kind": row["kind"],

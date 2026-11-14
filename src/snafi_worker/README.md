@@ -1,4 +1,4 @@
-# Snafi worker (steps 2 and 3)
+# Snafi worker (steps 2 to 5)
 
 The worker runs on Khalid's PC. It picks up jobs from the Snafi database mailbox, asks
 Ahmad's brain for a reply, decides every proposed action in code, and writes the results
@@ -109,6 +109,35 @@ Setup for Khalid: `docs/snafi/YAHOO_TODOIST_SETUP.md`. The adapters are `yahoo/m
   (title, due, priority, overdue). `yahoo_status` and `todoist_status` say what Today shows.
 - **Not connected yet** does not stop the worker, and a login stored later with set-secrets is
   picked up within five minutes (`personal/credentials.py`), or at once after a refusal.
+
+## Proactive Ahmad (step 5)
+
+Setup for Khalid: `docs/snafi/PUSH_SETUP.md`. No brain call anywhere in it.
+
+- **Scheduler** (`proactive/scheduler.py`): a thread, every 30 seconds, each job short and on its
+  own: release what was held for prayer time, fire due reminders (`reminders.fired_at` is set in one
+  conditional update first, so a reminder goes off once), the morning brief once a day from
+  `user_settings.brief_time` (default 07:00, until 5 hours after), and the mail watch every
+  `proactive.mail_minutes` (10). Gmail's "truly important" is `watch_unread` in `google/gmail.py`
+  (unread, Inbox, Important, Primary); Yahoo's is in `yahoo/mail.py` (the Today rule plus a sender
+  Khalid emailed from Yahoo in 90 days, from Sent's To/Cc/Bcc, read-only, kept 6 hours in memory).
+  The first run for each account only learns (`mail-learned:<account>` in the ledger).
+- **The one door** (`proactive/notify.py`): every message goes through `Notifier.deliver`, which
+  enforces never twice (`notifications` UNIQUE `(user_id, dedupe_key)`, inserted with
+  `insert_once`, then claimed `new/held -> delivering` before its card and push), no repeat of the
+  same text in 24 hours, 20 minutes of quiet after each adhan (`proactive/prayer.py`, a port of the
+  app's adhan, checked by both suites against `tests/fixtures/snafi_prayer_times.json`), and the
+  daily cap (`user_settings.daily_cap`, default 10, reminders not counted).
+- **Web Push** (`proactive/webpush.py`): RFC 8291 encryption and VAPID with `cryptography`. Posts
+  only to Apple, Google (FCM), Mozilla and Microsoft push hosts, never follows a redirect, and
+  pushes only `{kind, language, id}`; the service worker shows fixed text. 404/410 removes the
+  phone; five failures in a row too. Without `SNAFI_VAPID_PRIVATE_KEY` and `SNAFI_PUSH_CONTACT`
+  (set-secrets makes the key; `set-secrets --push-key` prints the public half) cards still appear,
+  silently. The push key is read when the worker starts: restart it after set-secrets.
+- **Times** Khalid reads (cards, the brief, chat tool results, the brain's instructions) are
+  12-hour with AM/PM or ص/م (`clock.py`).
+- **Backup:** `notifications`, `cards` and `user_settings` are backed up; `push_subscriptions` are
+  not (the phone subscribes again). A restore cancels anything still waiting to be sent.
 
 ## The Claude API brain (configured)
 

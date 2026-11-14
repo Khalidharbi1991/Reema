@@ -60,6 +60,8 @@ def build_scheduler(store, personal, settings, secrets, owner_id: str):
             sender = PushSender(secrets.get("SNAFI_VAPID_PRIVATE_KEY"), secrets.get("SNAFI_PUSH_CONTACT"))
         except PushError as exc:
             logging.getLogger("snafi_worker").warning("push not set up: %s", exc)
+        except Exception as exc:  # noqa: BLE001 (SEC-123: never stop the worker for push; type only)
+            logging.getLogger("snafi_worker").warning("push not set up: %s", type(exc).__name__)
     else:
         logging.getLogger("snafi_worker").warning("push not set up: run set-secrets (cards still appear on Today)")
     notifier = Notifier(store, owner_id, sender, settings.time_zone, settings.latitude, settings.longitude,

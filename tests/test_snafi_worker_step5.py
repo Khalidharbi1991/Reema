@@ -408,3 +408,67 @@ def test_set_secrets_makes_the_push_key_and_prints_only_the_public_half():
     for bad in ("http://snafi.vercel.app", "https://snafi.vercel.app/x", "https://localhost", "https://a.supabase.co"):
         with pytest.raises(ValueError):
             set_secrets.check_push_contact(bad)
+
+
+# ---------- Agent 16's step 5 round: SEC-119, SEC-121, SEC-122, SEC-123 ----------
+def test_sec119_the_same_reminder_text_on_two_days_both_go_off():
+    store, notifier, sender = setup()
+    sched = Scheduler(notifier, personal())
+    day1 = quiet_free(date(2026, 11, 15))
+    day2 = quiet_free(date(2026, 11, 16))
+    for due in (day1, day2):
+        store.insert("reminders", {"user_id": OWNER, "body": "Take the pill", "due_at": due.isoformat()})
+    assert sched.reminders(day1) == ["sent"]
+    assert sched.reminders(day2) == ["sent"]
+    assert len(store.tables["cards"]) == 2
+
+
+def test_sec121_a_failed_pass_never_loses_a_reminder_and_never_sends_it_twice():
+    store, notifier, sender = setup()
+    sched = Scheduler(notifier, personal())
+    due = quiet_free()
+    store.insert("reminders", {"user_id": OWNER, "body": "Call the bank", "due_at": due.isoformat()})
+    real_insert = store.insert
+
+    def broken(table, row):
+        if table == "cards":
+            raise RuntimeError("database blip")
+        return real_insert(table, row)
+    store.insert = broken
+    with pytest.raises(RuntimeError):
+        sched.reminders(due)
+    store.insert = real_insert
+    assert not store.tables["reminders"][0]["fired_at"]            # not marked fired: it is tried again
+    assert sched.reminders(due + timedelta(seconds=30)) == []       # its ledger row exists: no second copy now
+    # a row left "delivering" is never shown twice; a row left "new" is retried after 2 minutes, once
+    row = store.tables["notifications"][0]
+    store.update("notifications", row["id"], {"status": "new", "created_at": due.isoformat()})
+    assert notifier.release_held(due + timedelta(minutes=1)) == []
+    assert notifier.release_held(due + timedelta(minutes=3)) == ["sent"]
+    assert notifier.release_held(due + timedelta(minutes=4)) == []
+    assert len(store.tables["cards"]) == 1 and len(sender.sent) == 1
+
+
+def test_sec122_restore_does_not_refire_past_reminders_and_relearns_mail():
+    now = datetime(2026, 11, 15, 12, tzinfo=timezone.utc)
+    tables = {
+        "reminders": [{"id": "past", "due_at": "2026-11-15T09:00:00+00:00", "fired_at": None},
+                      {"id": "future", "due_at": "2026-11-16T09:00:00+00:00", "fired_at": None}],
+        "notifications": [{"id": "m", "dedupe_key": "mail-learned:gmail", "status": "skipped"},
+                          {"id": "r", "dedupe_key": "reminder:x", "status": "sent"}],
+    }
+    out = restore.neutralise(tables, now)
+    assert {r["id"]: bool(r["fired_at"]) for r in out["reminders"]} == {"past": True, "future": False}
+    assert [n["id"] for n in out["notifications"]] == ["r"]
+
+
+def test_sec123_a_damaged_push_key_never_stops_the_worker():
+    for bad in ("", "not base64!", "AAAA", webpush.b64u(b"\xff" * 32), webpush.b64u(b"\x00" * 32)):
+        with pytest.raises(webpush.PushError) as caught:
+            webpush.load_private_key(bad)
+        assert not bad or bad not in str(caught.value)
+    from src.snafi_worker.__main__ import build_scheduler
+    secrets = Secrets({"SNAFI_" + "VAPID_PRIVATE_KEY": webpush.b64u(b"\xff" * 32),
+                       "SNAFI_PUSH_CONTACT": "https://snafi.example.com"})
+    scheduler = build_scheduler(MemoryStore(), Personal(), Settings.load(), secrets, OWNER)
+    assert scheduler.notifier.sender is None

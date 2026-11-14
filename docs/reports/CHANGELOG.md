@@ -5,6 +5,25 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md). The [finite ledger](PENDING_LEDGER.md) records external
 requirements as they stood before the no-API migration below.
 
+## 2026-11-14 — Snafi step 5: Proactive Ahmad (not pushed)
+
+A scheduler thread in the PC worker (`proactive/`, no Vercel cron, no brain call) fires saved
+reminders on time, sends the morning brief at Khalid's time (default 7:00 AM: events, top tasks,
+important Gmail and Yahoo email, prayer times) and watches mail every 10 minutes (Gmail: unread,
+Inbox, Important, Primary; Yahoo: unread, Inbox, not bulk, from someone Khalid emailed from Yahoo in
+90 days; the first run only learns). Each message becomes a card on Today and a Web Push to the
+installed app. Manners in code (`proactive/notify.py`): never twice (a UNIQUE dedupe key), no repeat
+of the same text in 24 hours, 20 minutes of quiet after each adhan (held, then sent), a daily push cap
+(default 10; reminders don't count), and pushes carry only kind, language and id, so the lock screen
+shows fixed words. Web Push (RFC 8291 + VAPID) is hand-written with `cryptography` (already locked;
+no new package), posts only to the four browser push services and follows no redirect. Worker prayer
+times are a port of adhan, checked against a shared fixture by both suites. New secrets
+`SNAFI_VAPID_PRIVATE_KEY` (made by set-secrets, never shown) and `SNAFI_PUSH_CONTACT`; Vercel gets
+`NEXT_PUBLIC_SNAFI_VAPID_PUBLIC_KEY`. App: migration 0008, a Settings screen (push on/off, brief time
+with AM/PM, daily cap, test), real cards with Dismiss, push in the service worker, and every time
+12-hour with AM/PM or ص/م (Khalid, Nov 14). Setup: `docs/snafi/PUSH_SETUP.md`. Security review:
+`apps/snafi-web/docs/SECURITY_REVIEW_step5.md`. Tag `before-snafi-step5` marks main before this step.
+
 ## 2026-11-14 — Snafi: task limits fix from the first live test (not pushed)
 
 "All my tasks" failed with "limit must be a number from 1 to 30": the brain asked for more and the

@@ -15,16 +15,20 @@ coordination run inside Claude Code; REEMA's own commands make no model call.
 Snafi, Khalid's personal assistant web app, is part of REEMA: a Next.js app in
 `apps/snafi-web/` that talks to a Supabase mailbox, and a worker on the PC
 (`src/snafi_worker/`) that picks up its jobs. Its plan is `docs/snafi/PRD.md` (source
-of truth). Steps 1 to 4 are built: sign-in, Today (real Umm al-Qura prayer times and
+of truth). Steps 1 to 5 are built: sign-in, Today (real Umm al-Qura prayer times and
 Hijri date for Jeddah, the next Google Calendar event, important unread Gmail and Yahoo
 mail, and today's Todoist tasks), Chat with Ahmad's brain, approval cards, the action log
 with Undo, the PC online/offline banner, a daily backup with a tested restore, Khalid's
 personal Gmail, Google Calendar and Google Drive behind the permission gate (step 3; see
 `docs/snafi/GOOGLE_SETUP.md`), and his Yahoo Mail (IMAP and SMTP) and Todoist, each
-behind its own adapter (step 4; see `docs/snafi/YAHOO_TODOIST_SETUP.md`).
+behind its own adapter (step 4; see `docs/snafi/YAHOO_TODOIST_SETUP.md`), and Proactive
+Ahmad (step 5; see `docs/snafi/PUSH_SETUP.md`): the worker's scheduler fires reminders, sends
+the morning brief and watches mail, each as a card on Today and a Web Push to the installed app,
+with the manners (never twice, no repeats, 20 minutes of quiet after each adhan, a daily cap, no
+private text on the lock screen) enforced in code, and every time shown 12-hour with AM/PM or ص/م.
 
 Not yet built: patch report PowerPoint (PPTX export), SCCM/Intune export intake, and
-Snafi steps 5–8.
+Snafi steps 6–8.
 
 It is a Python CLI that makes no model call: Claude Code writes the text, and REEMA
 plans, checks, exports and records it. It has no model settings and has not moved
@@ -62,8 +66,10 @@ commands. Change history is in `docs/reports/CHANGELOG.md`.
   adapter's own file, nothing else.
 - The worker's secrets (`SNAFI_SUPABASE_URL`, `SNAFI_SUPABASE_SECRET_KEY`,
   `SNAFI_OWNER_USER_ID`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `SNAFI_BACKUP_SIGNING_KEY`,
-  `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, and since step 4
-  `YAHOO_EMAIL`, `YAHOO_APP_PASSWORD`, `TODOIST_API_TOKEN`)
+  `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, since step 4
+  `YAHOO_EMAIL`, `YAHOO_APP_PASSWORD`, `TODOIST_API_TOKEN`, and since step 5 the Web Push key
+  `SNAFI_VAPID_PRIVATE_KEY`, made at random by `set-secrets` and never shown (only its public half
+  is printed, for Vercel's `NEXT_PUBLIC_SNAFI_VAPID_PUBLIC_KEY`), and `SNAFI_PUSH_CONTACT`)
   live only in Windows Credential Manager for Khalid's own Windows user
   ("REEMA-Snafi:<NAME>", encrypted by Windows), stored by Khalid with
   `C:\SnafiWorker\snafi.cmd set-secrets`; a brain's key is asked for only while that

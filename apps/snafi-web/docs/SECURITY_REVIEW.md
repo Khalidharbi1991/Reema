@@ -1,3 +1,8 @@
+> **Newest round: Snafi step 5 (Proactive Ahmad), Nov 14, 2026.** Its findings are in
+> [SECURITY_REVIEW_step5.md](SECURITY_REVIEW_step5.md), the current status for the rows it lists (SEC-119 to
+> SEC-129 and its notes on earlier rows). Open Critical 0, **open High 0**; SEC-119, 121, 122, 123, 126 and 128
+> fixed by Ahmad, awaiting Agent 16's re-check; SEC-120, 125 and 127 wait for Khalid.
+>
 > **Newer round: Snafi step 4 (Yahoo Mail and Todoist), Nov 14, 2026.** Its findings and re-check are in
 > [SECURITY_REVIEW_step4_round.md](SECURITY_REVIEW_step4_round.md), which is the current status for every row
 > it lists (SEC-16 to SEC-115). After its re-check and Khalid's decisions (Nov 14: SEC-51 re-accepted for

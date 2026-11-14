@@ -163,7 +163,11 @@ begin
   end if;
   insert into public.push_subscriptions (user_id, endpoint, p256dh, auth)
   values (uid, p_endpoint, p_p256dh, p_auth)
-  on conflict (endpoint) do update set p256dh = excluded.p256dh, auth = excluded.auth, failures = 0;
+  on conflict (endpoint) do update set p256dh = excluded.p256dh, auth = excluded.auth, failures = 0
+    where public.push_subscriptions.user_id = uid;  -- SEC-126: never another user's row, even in a race
+  if not found then
+    raise exception 'that push address is already in use' using errcode = '42501';
+  end if;
   -- At most five phones or browsers per user: the oldest go first.
   delete from public.push_subscriptions
    where user_id = uid and id not in (
