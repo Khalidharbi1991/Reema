@@ -46,7 +46,8 @@ MESSAGE_ID = re.compile(r"^y(\d{1,10})_(\d{1,10})\Z")   # \Z: a trailing newline
 DRAFT_ID = re.compile(r"^yd(\d{1,10})_(\d{1,10})\Z")
 MAX_MESSAGE = 2_000_000            # bytes of one email fetched
 SCAN = 50                          # newest emails looked at for the Today screen
-HEADERS = "FROM TO CC SUBJECT DATE MESSAGE-ID LIST-UNSUBSCRIBE LIST-ID PRECEDENCE AUTO-SUBMITTED"
+HEADERS = ("FROM TO CC SUBJECT DATE MESSAGE-ID LIST-UNSUBSCRIBE LIST-ID PRECEDENCE AUTO-SUBMITTED"
+           " AUTHENTICATION-RESULTS")  # SEC-125: Yahoo's own DMARC result, for the mail watch
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 
@@ -106,6 +107,35 @@ def _bulk(msg) -> bool:
         return True
     auto = _header(msg, "auto-submitted").lower()
     return bool(auto) and auto != "no"
+
+
+YAHOO_AUTHSERV = re.compile(r"[a-z0-9.-]{1,200}\.yahoo\.com", re.ASCII)
+
+
+def sender_verified(msg, sender: str) -> bool:
+    """SEC-125 (Khalid, Nov 14, 2026): the mail watch trusts a Yahoo email's sender only when Yahoo itself
+    says it passed DMARC for that sender's own domain. Only the TOPMOST Authentication-Results header
+    counts: Yahoo adds its own above everything the sender wrote, so a forged one further down is never
+    read. It must be Yahoo's (its server name ends in .yahoo.com), say dmarc=pass, and name the same
+    domain as the From address. Anything else, or anything unreadable, is "not verified": the email
+    still shows on Today and in the brief, but the mail watch does not push it."""
+    try:
+        results = msg.get_all("authentication-results") or []
+    except Exception:  # a malformed header from the sender
+        return False
+    if not results:
+        return False
+    top = " ".join(str(results[0]).split()).lower()
+    authserv, _, rest = top.partition(";")
+    if not YAHOO_AUTHSERV.fullmatch(authserv.strip()):
+        return False
+    dmarc = re.search(r"(?:^|[;\s])dmarc=([a-z]+)", rest)
+    if not dmarc or dmarc.group(1) != "pass":
+        return False
+    header_from = re.search(r"header\.from=([a-z0-9.-]{1,253})", rest[dmarc.end():])
+    address = parseaddr(sender or "")[1].strip().lower()
+    domain = address.rpartition("@")[2]
+    return bool(header_from and "@" in address and header_from.group(1).rstrip(".") == domain)
 
 
 def _fetch_items(data) -> List[Tuple[str, bytes]]:
@@ -343,6 +373,9 @@ class YahooMail:
     def important_unread(self, hours, limit):
         """Unread, in the Inbox, from the last `hours` hours, and not a newsletter, list or automatic email
         (Khalid, Nov 14, 2026). Yahoo has no Important flag like Gmail's."""
+        return [s for s, _ in self._important_pairs(hours)][: max(1, int(limit))]
+
+    def _important_pairs(self, hours):
         since = self._now() - timedelta(hours=int(hours))
         query = Query("is:unread", since)
         query.criteria += ["SINCE", _imap_date(since - timedelta(days=1))]  # IMAP SINCE is a whole day
@@ -360,8 +393,8 @@ class YahooMail:
                         continue
                 except (ValueError, TypeError):
                     continue
-            out.append(summary)
-        return out[: max(1, int(limit))]
+            out.append((summary, msg))
+        return out
 
     # ---------- mail watch (step 5) ----------
     @staticmethod
@@ -404,11 +437,12 @@ class YahooMail:
         """Mail watch: "truly important" in Yahoo is the Today rule (unread, Inbox, last `hours` hours,
         not a newsletter, list or automatic email) and from someone Khalid emailed from Yahoo in the last
         90 days (Khalid, Nov 14, 2026)."""
-        candidates = self.important_unread(hours, SCAN)
+        candidates = self._important_pairs(hours)
         if not candidates:
             return []
         known = self.known_correspondents()
-        out = [s for s in candidates if parseaddr(s.sender)[1].strip().lower() in known]
+        out = [s for s, msg in candidates
+               if parseaddr(s.sender)[1].strip().lower() in known and sender_verified(msg, s.sender)]
         return out[: max(1, int(limit))]
 
     def _fetch_message(self, conn, uid: str):

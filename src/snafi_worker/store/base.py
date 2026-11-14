@@ -5,12 +5,14 @@ import re
 from typing import Dict, List, Optional, Protocol
 
 TABLES = ("messages", "jobs", "approvals", "action_log", "notes", "reminders", "facts", "worker_status",
-          # Step 5: the never-twice ledger, Ahmad's cards and Khalid's settings.
-          "notifications", "cards", "user_settings")
+          # Step 5: Khalid's settings.
+          "user_settings")
 # Rebuilt by the worker every few minutes, so never backed up or restored: today_feed (step 3) holds
 # only the next event and the senders and subjects of important unread mail. push_subscriptions
 # (step 5) are not backed up either: the phone simply subscribes again (Settings, Push on).
-CACHE_TABLES = ("today_feed", "push_subscriptions")
+# SEC-127 (Khalid, Nov 14, 2026): Ahmad's cards and the sent record (notifications) are cleared after
+# 30 days and are never in a backup, so no copy of them is older than 30 days anywhere.
+CACHE_TABLES = ("today_feed", "push_subscriptions", "notifications", "cards")
 KEYED_BY_USER = ("worker_status", "today_feed", "user_settings")
 NAME = re.compile(r"^[a-z_][a-z0-9_]{0,62}$")
 # Stable order for paging and backups.

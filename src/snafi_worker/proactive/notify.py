@@ -34,6 +34,9 @@ REPEAT_HOURS = 24
 LEDGER_SCAN = 500
 MAX_FAILURES = 5
 STUCK_AFTER = timedelta(minutes=2)
+KEEP_DAYS = 30          # SEC-127: cards and the sent record are cleared after this many days
+PRUNE_BATCH = 500
+PRUNE_ROUNDS = 20
 
 
 def content_hash(title: str, body: str) -> str:
@@ -141,8 +144,32 @@ class Notifier:
         return "sent" if pushed else "silent"
 
     def _finish(self, row: Dict, status: str, now: datetime, pushed: bool = False, reason: Optional[str] = None):
+        # SEC-127: once shown (or skipped), the ledger keeps no copy of the text; the card holds it.
         self.store.update("notifications", row["id"], {"status": status, "pushed": pushed, "reason": reason,
-                                                       "delivered_at": _iso(now), "card": None if status == "skipped" else row.get("card")})
+                                                       "delivered_at": _iso(now), "card": None})
+
+    def prune(self, now: Optional[datetime] = None, keep_days: int = KEEP_DAYS) -> Dict[str, int]:
+        """SEC-127: cards and the sent record are deleted 30 days after they were made, whether dismissed or
+        not. Only the mail watch's "already learned" markers (no content) stay, so it does not learn again.
+        Never-twice still holds: nothing older than 30 days can come back (the mail watch looks 24 hours
+        back, a fired reminder has fired_at, and a brief's key is its date)."""
+        now = now or datetime.now(timezone.utc)
+        cutoff = now - timedelta(days=keep_days)
+        removed = {"cards": 0, "notifications": 0}
+        for table in removed:
+            for _ in range(PRUNE_ROUNDS):
+                rows = self.store.select(table, {"user_id": self.owner_id}, limit=PRUNE_BATCH)
+                old = [r for r in rows if (_parse(r.get("created_at")) or now) < cutoff
+                       and not str(r.get("dedupe_key") or "").startswith("mail-learned:")]
+                for r in old:
+                    self.store.delete(table, r["id"])
+                removed[table] += len(old)
+                if len(rows) < PRUNE_BATCH or not old:
+                    break
+        if any(removed.values()):
+            log.info("cleared after %d days: cards=%d notifications=%d", keep_days, removed["cards"],
+                     removed["notifications"])
+        return removed
 
     def _recent(self) -> List[Dict]:
         return self.store.select("notifications", {"user_id": self.owner_id}, descending=True, limit=LEDGER_SCAN)

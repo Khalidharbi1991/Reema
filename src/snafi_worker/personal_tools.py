@@ -26,7 +26,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List
 from zoneinfo import ZoneInfo
 
-from .clock import clock, day_clock
+from .clock import clock, day_clock, day_only
 from .google.http import GoogleError
 from .personal.base import NotConnected, PartlySent, ServiceError
 from .tool_types import NeverError, Tool, ToolArgError, ToolResult
@@ -331,8 +331,8 @@ def _create_event(store, user_id, args, ctx):
     event = _service(ctx, "calendar").create_event(args["title"], args["start"], args["end"],
                                                    args.get("location", ""), args.get("description", ""), None)
     title = _short(args["title"], 70)
-    return ToolResult(True, {"en": f"Added to your calendar (only you): {title}, {args['start'][:16]}",
-                             "ar": f"أُضيف إلى تقويمك (أنت فقط): {title}، {args['start'][:16]}"},
+    return ToolResult(True, {"en": f"Added to your calendar (only you): {title}, {shown_time(args['start'], 'en')}",
+                             "ar": f"أُضيف إلى تقويمك (أنت فقط): {title}، {shown_time(args['start'], 'ar')}"},
                       {"event_id": event.id}, {"kind": "event", "id": event.id})
 
 
@@ -435,6 +435,29 @@ def _delete_draft(store, user_id, args, ctx):
 
 
 # ---------- Todoist (step 4) ----------
+def shown_time(value: str, lang: str = "en", tz: ZoneInfo = None) -> str:
+    """A date or time as Khalid reads it: "Fri 20 Nov" or "Fri 20 Nov 3:00 PM" (ص/م in Arabic). A time with
+    no offset (Todoist's local times) is Jeddah time. Anything unreadable is shown as it came."""
+    tz = tz or ZoneInfo("Asia/Riyadh")
+    value = str(value or "")
+    if not value:
+        return ""
+    try:
+        if len(value) == 10:
+            return day_only(datetime.fromisoformat(value), lang)
+        when = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return day_clock(when.replace(tzinfo=tz) if when.tzinfo is None else when.astimezone(tz), lang)
+    except (ValueError, OverflowError):  # SEC-133: a date at the calendar's edge is shown as it came
+        return value[:16]
+
+
+def _due_shown(task, lang: str) -> str:
+    if not task.due:
+        return "no date" if lang == "en" else "بلا موعد"
+    repeat = (f" (repeats: {_short(task.due_string, 40)})" if lang == "en" else f" (متكررة: {_short(task.due_string, 40)})")
+    return shown_time(task.due, lang) + (repeat if task.recurring else "")
+
+
 def _due_text(task) -> str:
     if not task.due:
         return "no date"
@@ -563,8 +586,11 @@ def _content_hash(text: str) -> str:
 def _add_task(store, user_id, args, ctx):
     task = _service(ctx, "tasks").add(args["content"], args.get("description", ""), args.get("due", ""),
                                       args.get("priority", 4))
-    text, when = _short(args["content"], 80), (f", {args['due'][:16]}" if args.get("due") else "")
-    return ToolResult(True, {"en": f"Added to Todoist: {text}{when}", "ar": f"أُضيفت إلى Todoist: {text}{when}"},
+    text = _short(args["content"], 80)
+
+    def when(lang):
+        return f", {shown_time(args['due'], lang)}" if args.get("due") else ""
+    return ToolResult(True, {"en": f"Added to Todoist: {text}{when('en')}", "ar": f"أُضيفت إلى Todoist: {text}{when('ar')}"},
                       {"task_id": task.id},
                       {"kind": "task_add", "id": task.id, "content_sha256": _content_hash(task.content)})
 
@@ -593,8 +619,8 @@ def _reschedule_task(store, user_id, args, ctx):
         raise ServiceError("that task is completed; nothing was changed")
     tasks.set_due(task.id, args["due"], task.due_string, task.recurring)
     text = _short(task.content, 80)
-    return ToolResult(True, {"en": f"Moved in Todoist: {text}, now {args['due'][:16]} (was {_due_text(task)})",
-                             "ar": f"نُقلت في Todoist: {text}، الآن {args['due'][:16]} (كانت {_due_text(task)})"},
+    return ToolResult(True, {"en": f"Moved in Todoist: {text}, now {shown_time(args['due'], 'en')} (was {_due_shown(task, 'en')})",
+                             "ar": f"نُقلت في Todoist: {text}، الآن {shown_time(args['due'], 'ar')} (كانت {_due_shown(task, 'ar')})"},
                       {"task_id": task.id},
                       {"kind": "task_due", "id": task.id, "due": task.due, "due_string": task.due_string,
                        "recurring": task.recurring})
@@ -623,7 +649,10 @@ def _undo_task(undo: Dict, ctx: Dict) -> None:
 
 def _prepare_delete_task(args: Dict, ctx: Dict) -> Dict:
     task = _service(ctx, "tasks").get(args["id"])
-    return {**args, "task_content": _short(task.content, 200), "task_due": _due_text(task)}
+    # task_due is compared exactly before the delete; task_due_at (the full due value, with its offset) is
+    # only for showing it 12-hour on the card (SEC-131).
+    return {**args, "task_content": _short(task.content, 200), "task_due": _due_text(task),
+            "task_due_at": str(task.due or "")[:40]}
 
 
 def _delete_task(store, user_id, args, ctx):
@@ -638,19 +667,34 @@ def _delete_task(store, user_id, args, ctx):
 
 # ---------- descriptions (what the log and the approval card say) ----------
 def _d(en: str, ar: str):
-    return lambda a: {"en": en.format(**_fmt(a)), "ar": ar.format(**_fmt(a))}
+    return lambda a: {"en": en.format(**_fmt(a, "en")), "ar": ar.format(**_fmt(a, "ar"))}
 
 
-def _fmt(a: Dict) -> Dict:
+def _fmt(a: Dict, lang: str = "en") -> Dict:
     people = a.get("to", []) + a.get("cc", []) + a.get("bcc", [])
     return {"subject": _short(a.get("subject", ""), 80), "to": ", ".join(people or a.get("attendees", [])),
-            "title": _short(a.get("title", "") or a.get("event_title", ""), 80), "start": str(a.get("start", ""))[:16],
+            "title": _short(a.get("title", "") or a.get("event_title", ""), 80), "start": shown_time(a.get("start", ""), lang),
             "query": _short(a.get("query", ""), 60), "id": a.get("id", ""),
             "draft": _short(a.get("draft_subject", "") or a.get("id", ""), 80),
             "account": label(a["account"]) if a.get("account") else "Gmail and Yahoo",
             "from": _from_line(a.get("account") or "gmail", a.get("from_address", "")),
             "task": _short(a.get("task_content", "") or a.get("content", "") or a.get("id", ""), 80),
-            "due": str(a.get("due", "") or a.get("task_due", ""))[:16] or "no date"}
+            "due": _due_display(a, lang)}
+
+
+def _due_display(a: Dict, lang: str) -> str:
+    """A due date on a card or in the log, 12-hour. task_due (a stored task's due text, compared exactly
+    before a delete) is shown as it is apart from its date and time."""
+    due = str(a.get("due", "") or "")
+    if due:
+        return shown_time(due, lang)
+    task_due = str(a.get("task_due", "") or "")
+    if not task_due or task_due == "no date":
+        return "no date" if lang == "en" else "بلا موعد"
+    head, sep, rest = task_due.partition(" (repeats")
+    # SEC-131: show the task's full due value (with its offset), never the cut text read as Jeddah time.
+    shown = shown_time(a["task_due_at"], lang) if a.get("task_due_at") else head
+    return shown + (sep + rest if sep else "")
 
 
 EMAILS = (list, MAX_RECIPIENTS, False)

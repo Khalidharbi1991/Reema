@@ -9,7 +9,7 @@ shown; you only copy its **public** half, which is not secret.
 | --- | --- |
 | Reminders | A reminder with a time goes off at that time: a card on Today and a phone notification. A reminder without a time never alerts. |
 | Morning brief | Once a day at your time (default 7:00 AM): today's events, top tasks, important Gmail and Yahoo email (sender and subject only), and the five prayer times. If the PC was off then, it comes when the PC is back, until five hours after your time. |
-| Mail watch | Every 10 minutes, a card and a push only for truly important new mail. Gmail: unread, Inbox, marked Important, Primary tab. Yahoo: unread, Inbox, not a newsletter or automatic email, and from someone you emailed from Yahoo in the last 90 days. The first run only learns what is already there and sends nothing. |
+| Mail watch | Every 10 minutes, a card and a push only for truly important new mail. Gmail: unread, Inbox, marked Important, Primary tab. Yahoo: unread, Inbox, not a newsletter or automatic email, from someone you emailed from Yahoo in the last 90 days, and Yahoo's own check says the sender is genuine (DMARC passed for the sender's domain), so a stranger cannot fake a friend's address to get a push. A Yahoo email that fails that check, or whose sender's domain has no DMARC, still shows on Today and in the brief; it just isn't pushed. The first run only learns what is already there and sends nothing. |
 | Test | Settings → Send a test. |
 
 The manners, enforced in the worker's code:
@@ -102,8 +102,12 @@ If you change Snafi's language, tap **Save** in Settings once so the lock-screen
 - **Vercel:** only the public key.
 - **Supabase:** your settings, each phone's push address (only Apple, Google, Mozilla or Microsoft
   push services are accepted; at most five), Ahmad's cards (the reminder text, the brief, the
-  sender and subject of important mail), and a ledger of what was sent, so nothing goes twice.
-  Push addresses are not in the daily backup: after a restore, turn push on again.
+  sender and subject of important mail), and a record of what was sent, so nothing goes twice.
+  The record keeps no text once a card is shown. **Cards and the sent record are deleted after
+  30 days** (dismissed or not), checked every hour (your decision, Nov 14, 2026).
+- **Daily backups:** your settings only. Cards, the sent record and push addresses are never in a
+  backup, so no copy older than 30 days exists anywhere. After a restore, turn push on again; past
+  reminders don't go off again, the mail watch learns again, and that day's brief may come twice.
 - **Apple's or Google's push servers:** only an encrypted message holding the kind ("reminder",
   "brief", "mail" or "test"), the language and an id. Never any text of yours.
 - **Yahoo:** to decide who you correspond with, the worker reads only the To, Cc and Bcc lines of
