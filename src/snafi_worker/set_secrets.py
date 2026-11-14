@@ -104,6 +104,42 @@ def check_google_client_secret(value: str) -> str:
     return value
 
 
+YAHOO_ADDRESS = re.compile(r"^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$")
+
+
+def check_yahoo_email(value: str) -> str:
+    """Khalid's Yahoo address, the login for IMAP and SMTP (it is not secret, but stays here too)."""
+    value = value.strip()
+    if not YAHOO_ADDRESS.match(value) or len(value) > 254:
+        raise ValueError("does not look like an email address, like name@yahoo.com")
+    return value
+
+
+def check_yahoo_app_password(value: str) -> str:
+    """A Yahoo app password: 16 letters (Yahoo may show it in groups of four; the spaces are removed).
+    Never your normal Yahoo password, which IMAP refuses anyway. The message never shows it."""
+    value = "".join(value.split())
+    if any(ord(c) < 32 or ord(c) == 127 for c in value):
+        raise ValueError("it contains a control character, so the paste did not work; "
+                         "paste with a right-click (or Ctrl+Shift+V) instead of Ctrl+V")
+    if not re.fullmatch(r"[A-Za-z]{16}", value):
+        raise ValueError(f"a Yahoo app password is 16 letters; this is {len(value)} characters. "
+                         "Make one in Yahoo: Account security, Generate app password")
+    return value.lower()
+
+
+def check_todoist_token(value: str) -> str:
+    """The Todoist API token (Settings, Integrations, Developer): 40 hex characters. Never shown."""
+    value = value.strip()
+    if any(ord(c) < 32 or ord(c) == 127 for c in value):
+        raise ValueError("it contains a control character, so the paste did not work; "
+                         "paste with a right-click (or Ctrl+Shift+V) instead of Ctrl+V")
+    if not re.fullmatch(r"[0-9a-fA-F]{40}", value):
+        raise ValueError(f"a Todoist API token is 40 letters and digits (0-9, a-f); this is {len(value)} characters. "
+                         "Copy it again from Todoist: Settings, Integrations, Developer")
+    return value.lower()
+
+
 QUESTIONS = (
     ("SNAFI_SUPABASE_URL", "Supabase project URL", check_url, False),
     ("SNAFI_SUPABASE_SECRET_KEY", "Supabase secret key (hidden while you type or paste)", check_secret_key, True),
@@ -112,11 +148,17 @@ QUESTIONS = (
     ("ANTHROPIC_API_KEY", "Claude API key (hidden while you type or paste)", check_anthropic, True),
     ("GOOGLE_CLIENT_ID", "Google OAuth client ID (Desktop app)", check_google_client_id, False),
     ("GOOGLE_CLIENT_SECRET", "Google OAuth client secret (hidden while you type or paste)", check_google_client_secret, True),
+    ("YAHOO_EMAIL", "Your Yahoo email address", check_yahoo_email, False),
+    ("YAHOO_APP_PASSWORD", "Yahoo app password, 16 letters (hidden while you type or paste)", check_yahoo_app_password, True),
+    ("TODOIST_API_TOKEN", "Todoist API token (hidden while you type or paste)", check_todoist_token, True),
 )
 # Each brain key is asked for only while that brain is chosen in worker.yaml.
 BRAIN_KEYS = {"GEMINI_API_KEY": "gemini_api", "ANTHROPIC_API_KEY": "claude_api"}
 # The Google client is asked for only while a Google service is chosen (mail, calendar or files).
 GOOGLE_KEYS = ("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET")
+# Step 4: Yahoo's login only while yahoo is yahoo_imap, Todoist's token only while tasks is todoist.
+YAHOO_KEYS = ("YAHOO_EMAIL", "YAHOO_APP_PASSWORD")
+TODOIST_KEYS = ("TODOIST_API_TOKEN",)
 
 
 def ask(store, name, label, check, hidden, prompt=getpass.getpass, plain=input, out=print) -> bool:
@@ -136,15 +178,16 @@ def ask(store, name, label, check, hidden, prompt=getpass.getpass, plain=input, 
     return False
 
 
-def questions(brain_provider: str, google: bool = False):
-    """Only what the configured services need: a brain's key only while that brain is chosen, and the
-    Google client only while a Google service is."""
+def questions(brain_provider: str, google: bool = False, yahoo: bool = False, todoist: bool = False):
+    """Only what the configured services need: a brain's key only while that brain is chosen, the
+    Google client only while a Google service is, and Yahoo's or Todoist's login only while chosen."""
     return [q for q in QUESTIONS if BRAIN_KEYS.get(q[0], brain_provider) == brain_provider
-            and (google or q[0] not in GOOGLE_KEYS)]
+            and (google or q[0] not in GOOGLE_KEYS) and (yahoo or q[0] not in YAHOO_KEYS)
+            and (todoist or q[0] not in TODOIST_KEYS)]
 
 
 def run(store, prompt=getpass.getpass, plain=input, out=print, brain_provider: str = "",
-        google: Optional[bool] = None) -> int:
+        google: Optional[bool] = None, yahoo: Optional[bool] = None, todoist: Optional[bool] = None) -> int:
     if not brain_provider:  # from worker.yaml, as the worker will run
         from .config import Settings
         from .services import GOOGLE_PROVIDERS
@@ -153,9 +196,13 @@ def run(store, prompt=getpass.getpass, plain=input, out=print, brain_provider: s
         if google is None:
             google = bool(GOOGLE_PROVIDERS & {settings.mail_provider, settings.calendar_provider,
                                               settings.files_provider})
-    google = bool(google)
+        if yahoo is None:
+            yahoo = settings.yahoo_provider == "yahoo_imap"
+        if todoist is None:
+            todoist = settings.tasks_provider == "todoist"
+    google, yahoo, todoist = bool(google), bool(yahoo), bool(todoist)
     ok = all([ask(store, n, label, check, hidden, prompt, plain, out)
-              for n, label, check, hidden in questions(brain_provider, google)])
+              for n, label, check, hidden in questions(brain_provider, google, yahoo, todoist)])
     if google and ok:
         out("Next, connect your Google account once: C:\\SnafiWorker\\snafi.cmd connect-google")
     if store.read("SNAFI_BACKUP_SIGNING_KEY") is None:

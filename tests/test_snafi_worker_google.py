@@ -193,7 +193,9 @@ def test_sending_and_inviting_are_level_three_and_run_once_after_approve():
     work(store, engine)
     assert personal.mail.sent == []
     card = store.tables["approvals"][0]
-    assert card["args"] == {**args} and card["level"] == 3
+    # Step 4: the card also names the account it goes from (Gmail knows no address of its own here).
+    assert card["args"] == {**args, "account": "gmail", "from_address": ""} and card["level"] == 3
+    assert card["summary"].startswith("Send from Gmail to ")
     decide_card(store, card, "approved")
     work(store, engine)
     assert len(personal.mail.sent) == 1 and personal.mail.sent[0]["to"] == ["sara@example.com"]
@@ -274,7 +276,8 @@ def test_today_feed_holds_only_the_next_event_and_senders_and_subjects():
     personal.mail.add("news@example.com", "Weekly news", "news body", important=False)
     row = build_row(personal, OWNER)
     assert row["google_status"] == "ok" and row["next_event"]["title"] == "Meeting with the architect"
-    assert row["emails"] == [{"from": "Ahmed Ali", "subject": "Site visit", "received_at": "2026-11-14T08:00:00+03:00"}]
+    assert row["emails"] == [{"from": "Ahmed Ali", "subject": "Site visit", "received_at": "2026-11-14T08:00:00+03:00",
+                              "account": "gmail"}]
     assert "Secret body" not in json.dumps(row)
 
 

@@ -44,6 +44,8 @@ export class PlaceholderTodaySource implements TodaySource {
       nextEvent: { ...s.event },
       emails: s.emails.map((m) => ({ ...m })),
       google: "ok",
+      yahoo: "ok",
+      todoist: "ok",
       tasks: s.tasks.map((t) => ({ ...t })),
       cards: s.cards.map((c) => ({ ...c })),
       approvals: [],

@@ -55,12 +55,21 @@ export type WorkerStatus = {
   lastBackupError: string | null;
 };
 
-/** The worker's Google snapshot for Today (step 3). Written by the PC only; senders and subjects, never bodies. */
+/**
+ * The worker's snapshot for Today (steps 3 and 4). Written by the PC only: senders and subjects (never
+ * bodies), each email's account, and today's Todoist tasks (never descriptions).
+ */
 export type GoogleStatus = "ok" | "off" | "not_connected" | "reconnect" | "error";
+/** Yahoo and Todoist report the same states as Google. */
+export type SourceStatus = GoogleStatus;
+export type MailAccount = "gmail" | "yahoo";
 export type TodayFeed = {
   nextEvent: { title: string; start: string; end: string; location: string; allDay: boolean } | null;
-  emails: { from: string; subject: string; receivedAt: string }[];
+  emails: { from: string; subject: string; receivedAt: string; account: MailAccount }[];
+  tasks: { content: string; due: string; priority: 1 | 2 | 3 | 4; overdue: boolean; recurring: boolean }[];
   googleStatus: GoogleStatus;
+  yahooStatus: SourceStatus;
+  todoistStatus: SourceStatus;
   updatedAt: string;
 };
 
@@ -88,19 +97,38 @@ export interface MailboxAdapter {
 const STATUSES: readonly GoogleStatus[] = ["ok", "off", "not_connected", "reconnect", "error"];
 const text = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
 
-/** A today_feed row made safe for the screen: known fields only, text cut to size, at most five emails. */
-export function toTodayFeed(row: { next_event?: unknown; emails?: unknown; google_status?: unknown; updated_at?: unknown }): TodayFeed {
+const status = (v: unknown, missing: GoogleStatus): GoogleStatus =>
+  v === undefined || v === null ? missing : STATUSES.includes(v as GoogleStatus) ? (v as GoogleStatus) : "error";
+
+/**
+ * A today_feed row made safe for the screen: known fields only, text cut to size, at most five emails
+ * from each account (ten in all) and ten tasks. An email without a known account is Gmail (step 3 rows).
+ */
+export function toTodayFeed(row: {
+  next_event?: unknown; emails?: unknown; tasks?: unknown; google_status?: unknown; yahoo_status?: unknown;
+  todoist_status?: unknown; updated_at?: unknown;
+}): TodayFeed {
   const e = row.next_event && typeof row.next_event === "object" ? (row.next_event as Record<string, unknown>) : null;
-  const emails = Array.isArray(row.emails) ? row.emails : [];
+  const emails = (Array.isArray(row.emails) ? row.emails : []).filter((m) => m && typeof m === "object") as Record<string, unknown>[];
+  const tasks = (Array.isArray(row.tasks) ? row.tasks : []).filter((t) => t && typeof t === "object") as Record<string, unknown>[];
+  const counts: Record<MailAccount, number> = { gmail: 0, yahoo: 0 };
   return {
     nextEvent: e && text(e.start, 40)
       ? { title: text(e.title, 200), start: text(e.start, 40), end: text(e.end, 40), location: text(e.location, 200), allDay: e.all_day === true }
       : null,
-    emails: emails.slice(0, 5).filter((m) => m && typeof m === "object").map((m) => {
-      const r = m as Record<string, unknown>;
-      return { from: text(r.from, 120), subject: text(r.subject, 200), receivedAt: text(r.received_at, 40) };
+    emails: emails
+      .map((r) => ({ from: text(r.from, 120), subject: text(r.subject, 200), receivedAt: text(r.received_at, 40),
+        account: (r.account === "yahoo" ? "yahoo" : "gmail") as MailAccount }))
+      .filter((m) => ++counts[m.account] <= 5)
+      .slice(0, 10),
+    tasks: tasks.slice(0, 10).map((r) => {
+      const p = typeof r.priority === "number" && [1, 2, 3, 4].includes(r.priority) ? (r.priority as 1 | 2 | 3 | 4) : 4;
+      return { content: text(r.content, 200), due: text(r.due, 40), priority: p, overdue: r.overdue === true, recurring: r.recurring === true };
     }),
-    googleStatus: STATUSES.includes(row.google_status as GoogleStatus) ? (row.google_status as GoogleStatus) : "error",
+    googleStatus: status(row.google_status, "error"),
+    // Rows written before step 4 have no Yahoo or Todoist column: those sources are off.
+    yahooStatus: status(row.yahoo_status, "off"),
+    todoistStatus: status(row.todoist_status, "off"),
     updatedAt: text(row.updated_at, 40),
   };
 }

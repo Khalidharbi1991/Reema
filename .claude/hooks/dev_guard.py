@@ -182,7 +182,7 @@ def _first_operand(words):
 SNAFI_PRIVATE = (
     (r"appdata.*reema|reema.*appdata|appdata[^\s'\"]*[*?\[]", "the worker's folder under %APPDATA%\\REEMA\\"),
     (r"reema-snafi|snafi_worker[./]secret_store|snafi_worker[./]set_secrets|secret_store|set_secrets"
-     r"|google_refresh_token|google_client_secret",
+     r"|google_refresh_token|google_client_secret|yahoo_app_password|todoist_api_token",
      "the worker's secrets in Credential Manager"),
     # Step 3: connecting, checking or cancelling Khalid's Google connection is his alone (it signs in
     # as him and stores or reads his refresh token).
@@ -190,9 +190,12 @@ SNAFI_PRIVATE = (
      "Khalid's Google connection (connect-google)"),
     # SEC-79: importing the worker's secret loading or Google code from a one-liner or script would
     # hand a session Khalid's live Gmail, Calendar and Drive token outside the gate.
-    (r"snafi_worker[./](config|services|google|secret_store|set_secrets)\b|secrets\.load|googleauth"
-     r"|build_personal|windowscredentials|oauth2\.googleapis\.com/token",
-     "the worker's secrets and Google connection (loading them outside the worker)"),
+    # Step 4: the same for Yahoo (IMAP and SMTP with the app password) and Todoist (the API token).
+    (r"snafi_worker[./](config|services|google|secret_store|set_secrets|yahoo|todoist|personal[./]credentials)\b"
+     r"|secrets\.load|googleauth|storedlogin"
+     r"|build_personal|windowscredentials|oauth2\.googleapis\.com/token"
+     r"|imap\.mail\.yahoo\.com|smtp\.mail\.yahoo\.com|api\.todoist\.com",
+     "the worker's secrets, Google, Yahoo and Todoist connections (loading them outside the worker)"),
     (r"\bcmdkey\b|credread|credwrite|credenumerate|creddelete|vaultcmd|passwordvault|storedcredential"
      r"|credentialmanager|security\.credentials|win32cred|\bkeyring\b",
      "Windows Credential Manager"),

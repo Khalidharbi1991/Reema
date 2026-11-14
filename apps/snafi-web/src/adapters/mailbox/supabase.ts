@@ -119,7 +119,7 @@ export class SupabaseMailboxAdapter implements MailboxAdapter {
 
   async todayFeed() {
     const { data, error } = await (await this.client()).from("today_feed")
-      .select("next_event, emails, google_status, updated_at").maybeSingle();
+      .select("next_event, emails, tasks, google_status, yahoo_status, todoist_status, updated_at").maybeSingle();
     if (error) throw new MailboxError(error.message);
     return data ? toTodayFeed(data) : null;
   }

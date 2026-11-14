@@ -8,7 +8,7 @@ import itertools
 from typing import Dict, List, Optional
 
 from ..registry import register
-from .base import Draft, Event, FileInfo, MailMessage, MailSummary, ServiceError
+from .base import Draft, Event, FileInfo, MailMessage, MailSummary, PartlySent, ServiceError, TaskItem
 
 _ids = itertools.count(1)
 
@@ -19,15 +19,20 @@ def _next(prefix: str) -> str:
 
 @register("mail", "fake")
 class FakeMail:
-    def __init__(self, options: Optional[dict] = None, auth=None):
+    """prefix "y" makes it act as the Yahoo account (its ids start with "y", like the real one's)."""
+
+    def __init__(self, options: Optional[dict] = None, auth=None, prefix: str = "", address: Optional[str] = None):
         self.messages: Dict[str, MailMessage] = {}
         self.flags: Dict[str, Dict[str, bool]] = {}
         self.drafts: Dict[str, Dict] = {}
         self.sent: List[Dict] = []
+        self.prefix = prefix
+        self.address = address
+        self.refuse: List[str] = []   # recipients the fake server refuses (a partly sent email)
 
     def add(self, sender: str, subject: str, body: str, date: str = "2026-11-14T08:00:00+03:00",
             unread: bool = True, important: bool = False, to: str = "khalid@example.com") -> str:
-        mid = _next("m")
+        mid = _next(self.prefix + "m")
         self.messages[mid] = MailMessage(mid, "t" + mid, sender, to, "", subject, date, body, f"<{mid}@example.com>")
         self.flags[mid] = {"unread": unread, "important": important}
         return mid
@@ -52,7 +57,7 @@ class FakeMail:
         return [self._summary(m) for m in sorted(found, key=lambda m: m.date, reverse=True)[:limit]]
 
     def create_draft(self, to, cc, subject, body, in_reply_to=None):
-        did = _next("d")
+        did = _next(self.prefix + "d")
         self.drafts[did] = {"to": list(to), "cc": list(cc), "subject": subject, "body": body,
                             "in_reply_to": in_reply_to}
         return Draft(did, ", ".join(to), subject)
@@ -69,7 +74,10 @@ class FakeMail:
 
     def send(self, to, cc, bcc, subject, body, in_reply_to=None):
         self.sent.append({"to": list(to), "cc": list(cc), "bcc": list(bcc), "subject": subject, "body": body,
-                          "in_reply_to": in_reply_to})
+                          "in_reply_to": in_reply_to, "from": self.address})
+        refused = [a for a in list(to) + list(cc) + list(bcc) if a in self.refuse]
+        if refused:
+            raise PartlySent(f"the server refused {len(refused)} of the recipients", refused)
         return _next("s")
 
 
@@ -124,3 +132,66 @@ class FakeFiles:
         if file_id not in self.files:
             raise ServiceError("not found in your Google account")
         return self.files[file_id]["text"]
+
+
+@register("tasks", "fake")
+class FakeTasks:
+    """Tasks in memory. A repeating task, when completed, moves to its next date and stays open."""
+
+    def __init__(self, options: Optional[dict] = None, auth=None):
+        self.tasks: Dict[str, TaskItem] = {}
+        self.deleted: List[str] = []
+        self.today_ids: List[str] = []
+        self.next_dates: Dict[str, str] = {}
+
+    def put(self, content, due="", priority=4, recurring=False, due_string="", today=True, next_date="") -> str:
+        tid = _next("k")
+        self.tasks[tid] = TaskItem(tid, content, "", due, due_string, recurring, priority)
+        if today:
+            self.today_ids.append(tid)
+        if next_date:
+            self.next_dates[tid] = next_date
+        return tid
+
+    def _get(self, task_id) -> TaskItem:
+        if task_id not in self.tasks:
+            raise ServiceError("not found in your Todoist")
+        return self.tasks[task_id]
+
+    def today(self, limit):
+        return [self.tasks[t] for t in self.today_ids if t in self.tasks and not self.tasks[t].done][:limit]
+
+    def search(self, query, limit):
+        q = (query or "").lower()
+        return [t for t in self.tasks.values() if not t.done and q in t.content.lower()][:limit]
+
+    def get(self, task_id):
+        return self._get(task_id)
+
+    def add(self, content, description="", due="", priority=4):
+        tid = _next("k")
+        self.tasks[tid] = TaskItem(tid, content, description, due, "", False, priority)
+        return self.tasks[tid]
+
+    def _replace(self, task_id, **changes):
+        from dataclasses import replace
+        self.tasks[task_id] = replace(self._get(task_id), **changes)
+
+    def complete(self, task_id):
+        task = self._get(task_id)
+        if task.recurring:
+            self._replace(task_id, due=self.next_dates.get(task_id, task.due))
+        else:
+            self._replace(task_id, done=True)
+
+    def reopen(self, task_id):
+        self._replace(task_id, done=False)
+
+    def set_due(self, task_id, due, due_string="", recurring=False):
+        task = self._get(task_id)
+        self._replace(task_id, due=due, due_string=due_string if recurring else task.due_string)
+
+    def delete(self, task_id):
+        self._get(task_id)
+        del self.tasks[task_id]
+        self.deleted.append(task_id)

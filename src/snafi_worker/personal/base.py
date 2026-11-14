@@ -1,11 +1,13 @@
-"""The personal services behind Ahmad's step 3 tools: mail, calendar and files.
+"""The personal services behind Ahmad's tools: mail, calendar, files (step 3) and tasks (step 4).
 
 Each kind has one interface here and its providers in their own files, chosen in worker.yaml:
-  mail:     gmail (google/gmail.py)            | fake (tests) | none
+  mail:     gmail (google/gmail.py)            | fake (tests) | none    (the Gmail account)
+  yahoo:    yahoo_imap (yahoo/mail.py)         | fake (tests) | none    (the Yahoo account, a Mail too)
   calendar: google_calendar (google/gcal.py)   | fake (tests) | none
   files:    google_drive (google/drive.py)     | fake (tests) | none
-Everything these return from outside (mail, event descriptions, file text) is untrusted data:
-the engine gives it to the brain only inside marked data blocks.
+  tasks:    todoist (todoist/tasks.py)         | fake (tests) | none
+Everything these return from outside (mail, event descriptions, file text, task text) is untrusted
+data: the engine gives it to the brain only inside marked data blocks.
 """
 
 from dataclasses import dataclass, field
@@ -23,6 +25,18 @@ class ServiceError(GoogleError):
 
 class NotConnected(ServiceError):
     """This service is switched off (provider none) or not connected."""
+
+
+class AuthRefused(ServiceError):
+    """The service refused the stored credential (a revoked app password or token): store a new one."""
+
+
+class PartlySent(ServiceError):
+    """The email went out, but the mail server refused some of the recipients."""
+
+    def __init__(self, message: str, refused=()):
+        super().__init__(message)
+        self.refused = list(refused)
 
 
 @dataclass(frozen=True)
@@ -79,8 +93,21 @@ class FileInfo:
     link: str = ""
 
 
+@dataclass(frozen=True)
+class TaskItem:
+    id: str
+    content: str           # untrusted (Khalid's own text, but it can be shared or imported)
+    description: str = ""  # untrusted
+    due: str = ""          # "2026-11-20", or a date and time "2026-11-20T09:00:00" (local) / with offset
+    due_string: str = ""   # Todoist's wording, e.g. "every monday": untrusted
+    recurring: bool = False
+    priority: int = 4      # 1 = most urgent (Todoist p1) ... 4 = normal (p4)
+    done: bool = False
+
+
 class Mail(Protocol):
     PROVIDER: str
+    address: Optional[str]  # the account's own address when known (Yahoo); None for Gmail
 
     def search(self, query: str, limit: int) -> List[MailSummary]: ...
     def read(self, message_id: str) -> MailMessage: ...
@@ -108,3 +135,16 @@ class Files(Protocol):
 
     def search(self, query: str, limit: int) -> List[FileInfo]: ...
     def read(self, file_id: str) -> str: ...
+
+
+class Tasks(Protocol):
+    PROVIDER: str
+
+    def today(self, limit: int) -> List[TaskItem]: ...          # due today or overdue, open only
+    def search(self, query: str, limit: int) -> List[TaskItem]: ...
+    def get(self, task_id: str) -> TaskItem: ...
+    def add(self, content: str, description: str = "", due: str = "", priority: int = 4) -> TaskItem: ...
+    def complete(self, task_id: str) -> None: ...
+    def reopen(self, task_id: str) -> None: ...
+    def set_due(self, task_id: str, due: str, due_string: str = "", recurring: bool = False) -> None: ...
+    def delete(self, task_id: str) -> None: ...

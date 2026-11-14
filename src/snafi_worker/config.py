@@ -62,6 +62,13 @@ class Secrets:
             raise ConfigError(str(exc)) from None
 
 
+def _service(data: dict, kind: str) -> Dict[str, object]:
+    """{kind}_provider and {kind}_options from a section like `yahoo: {provider: yahoo_imap, timeout_seconds: 30}`."""
+    section = dict(data.get(kind) or {})
+    provider = str(section.pop("provider", None) or "none")
+    return {f"{kind}_provider": provider, f"{kind}_options": section}
+
+
 @dataclass(frozen=True)
 class LaneSettings:
     poll_seconds: float
@@ -88,6 +95,11 @@ class Settings:
     files_provider: str = "none"
     google_options: Dict[str, object] = field(default_factory=dict)
     today_feed_minutes: float = 10.0
+    # Step 4: the Yahoo account (a second mail account) and tasks. Options: timeout_seconds.
+    yahoo_provider: str = "none"
+    yahoo_options: Dict[str, object] = field(default_factory=dict)
+    tasks_provider: str = "none"
+    tasks_options: Dict[str, object] = field(default_factory=dict)
 
     @classmethod
     def load(cls, path: Optional[Path] = None, overrides: Optional[dict] = None) -> "Settings":
@@ -119,6 +131,8 @@ class Settings:
                 files_provider=str((data.get("files") or {}).get("provider") or "none"),
                 google_options=dict(data.get("google") or {}),
                 today_feed_minutes=float((data.get("today_feed") or {}).get("minutes", 10)),
+                **_service(data, "yahoo"),
+                **_service(data, "tasks"),
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise ConfigError(f"worker.yaml is incomplete or invalid: {exc}") from None

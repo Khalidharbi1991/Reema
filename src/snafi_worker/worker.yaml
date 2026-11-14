@@ -38,8 +38,18 @@ files:
 google:
   timeout_seconds: 20
 
+# Step 4: Khalid's Yahoo Mail and Todoist, each its own adapter ("none" switches one off, "fake" is
+# for tests). Their logins live only in Credential Manager (set-secrets); until stored, the tools
+# say "not connected" and the worker keeps running.
+yahoo:
+  provider: yahoo_imap          # IMAP (imap.mail.yahoo.com) to read and save drafts; SMTP to send after Approve
+  timeout_seconds: 30
+tasks:
+  provider: todoist             # Todoist API v1 (api.todoist.com) with Khalid's API token
+  timeout_seconds: 20
+
 today_feed:
-  minutes: 10                   # next event and important unread mail for the Today screen (no brain call)
+  minutes: 10                   # next event, important unread mail (Gmail and Yahoo) and today's tasks (no brain call)
 
 heartbeat:
   seconds: 15                   # the app shows "PC offline" after 45 seconds

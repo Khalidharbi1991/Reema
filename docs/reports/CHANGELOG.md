@@ -5,6 +5,27 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md). The [finite ledger](PENDING_LEDGER.md) records external
 requirements as they stood before the no-API migration below.
 
+## 2026-11-14 — Snafi step 4: Yahoo Mail and Todoist (not pushed)
+
+Yahoo Mail (`yahoo/mail.py`, provider `yahoo_imap`: IMAP to read and save drafts, SMTP to send, fixed
+hosts over TLS, standard library only) and Todoist (`todoist/tasks.py`, provider `todoist`: the Todoist
+API v1 over HTTPS), each its own adapter chosen in `worker.yaml`. Same levels as Gmail for Yahoo (read
+1, draft 2 with Undo, send a Level 3 card naming the account and its address, at most 5 people);
+Todoist read 1, add/complete/reschedule 2 with Undo, delete 3. Ahmad reads both inboxes together;
+every outcome, log entry and card names the account, a reply goes from the account the email came
+from, and the honesty check removes a sentence that names the wrong account. Mail and task text reach
+the brain only as untrusted data; the "an email can't trigger a send" proof is repeated for Yahoo, and
+a task that says "delete everything" can at most raise cards. New secrets `YAHOO_EMAIL`,
+`YAHOO_APP_PASSWORD`, `TODOIST_API_TOKEN` (Credential Manager only, asked for only while chosen; the
+guard blocks them and the new hosts). Today: important Yahoo mail next to Gmail's and up to ten Todoist
+tasks (migration 0007). Setup: `docs/snafi/YAHOO_TODOIST_SETUP.md`. Tag `before-snafi-step4` marks main
+before this work.
+Agent 16 (`SECURITY_REVIEW_step4_round.md`): SEC-106 (a crafted HTML email could stall the worker; Gmail
+too), SEC-107, SEC-108 and SEC-112 fixed and closed; SEC-109 and SEC-111 lowered to Info. SEC-51 reopened at
+High (two unscoped credentials); Khalid re-accepted it in his own words for Yahoo and Todoist, and extended
+his SEC-80 acceptance to SEC-105. Open Critical 0, High 0. SEC-110 (SEC-83's scope) is still for Khalid.
+Python 1262 passed, web 149 passed, lint and type check clean.
+
 ## 2026-11-14 — Session guard: push stays manual, git and profile blocks added (not pushed)
 
 Khalid asked whether a session could push main after his click. Two rounds of Agent 16 review found

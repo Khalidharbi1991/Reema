@@ -60,8 +60,11 @@ describe("live Today", () => {
     const card = { id: "a", conversationId: "c", tool: "send_test_message", args: {}, argsHash: "", summary: "Test send",
       status: "pending" as const, createdAt: "", expiresAt: "2999-01-01T00:00:00Z" };
     const today = await new LiveTodaySource(async () => [card]).getToday("en", new Date("2026-11-09T11:00:00Z"));
-    expect(today.samples).toEqual({ prayer: false, nextEvent: false, emails: false, tasks: true, cards: true });
+    // Step 4: tasks are real Todoist tasks now (empty until the PC's first update); only cards are samples.
+    expect(today.samples).toEqual({ prayer: false, nextEvent: false, emails: false, tasks: false, cards: true });
     expect(today.google).toBe("waiting"); // no Google snapshot from the PC yet
+    expect([today.yahoo, today.todoist]).toEqual(["waiting", "waiting"]);
+    expect(today.tasks).toEqual([]);
     expect(today.nextEvent).toBeNull();
     expect(today.nextPrayer).toMatchObject({ key: "asr", time: "15:19" });
     expect(today.hijriDate).toBe("29 Jumada I 1448 AH");

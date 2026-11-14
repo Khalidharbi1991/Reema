@@ -1,4 +1,4 @@
-# Snafi web (steps 1 to 3)
+# Snafi web (steps 1 to 4)
 
 Snafi is Khalid's personal assistant app and part of REEMA. The plan is
 `docs/snafi/PRD.md`.
@@ -12,7 +12,11 @@ Snafi is Khalid's personal assistant app and part of REEMA. The plan is
   emails (sender and subject only) from the PC worker's snapshot (`today_feed`, migration
   0006), with a note when Google needs connecting or reconnecting. Gmail, Calendar and
   Drive actions run on the PC; sends, invites and deletes arrive as approval cards showing
-  the exact content. Tasks and Ahmad's cards stay marked samples until steps 4-5.
+  the exact content.
+- **Step 4:** Today shows important unread Yahoo emails next to Gmail's (at most five from
+  each, newest first, each labelled Gmail or Yahoo) and up to ten Todoist tasks due today
+  or overdue (migration 0007), with a note for each source that needs connecting. Yahoo
+  and Todoist actions run on the PC. Ahmad's cards stay marked samples until step 5.
 
 The web app never calls a model; the worker on the PC does. No deploy.
 
