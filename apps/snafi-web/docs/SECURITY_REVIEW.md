@@ -1,7 +1,7 @@
 > **Newer round: Snafi step 4 (Yahoo Mail and Todoist), Nov 14, 2026.** Its findings and re-check are in
 > [SECURITY_REVIEW_step4_round.md](SECURITY_REVIEW_step4_round.md), which is the current status for every row
-> it lists (SEC-16 to SEC-115). After its re-check: open Critical 0, **High 1 (SEC-51, reopened by step 4:
-> waiting for Khalid's decision)**.
+> it lists (SEC-16 to SEC-115). After its re-check and Khalid's decisions (Nov 14: SEC-51 re-accepted for
+> Yahoo and Todoist, SEC-105 accepted with SEC-80): open Critical 0, **open High 0**.
 
 # Snafi: security review of the session guard — SEC-102 fix re-check (push stays manual), on top of step 3 (Agent 16)
 
