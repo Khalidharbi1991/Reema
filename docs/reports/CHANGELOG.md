@@ -5,6 +5,16 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md). The [finite ledger](PENDING_LEDGER.md) records external
 requirements as they stood before the no-API migration below.
 
+## 2026-11-14 — Snafi step 5: Khalid's decisions and 12-hour times on cards (not pushed)
+
+Khalid accepted SEC-120 (reminders added after reading outside content, like SEC-80 and SEC-105).
+SEC-125: the mail watch pushes a Yahoo email only when Yahoo's own topmost Authentication-Results
+header says DMARC passed for the sender's domain. SEC-127: cards and the sent record are deleted after
+30 days (hourly), the ledger drops a card's text once it is shown, and neither table is in a backup.
+Approval cards, the action log and chat results now show dates and times 12-hour too (they showed
+`2026-11-20T15:00`). Agent 16 re-checked the six earlier fixes and this round. Tag
+`before-snafi-step5-decisions` marks main before it.
+
 ## 2026-11-14 — Snafi step 5: Proactive Ahmad (not pushed)
 
 A scheduler thread in the PC worker (`proactive/`, no Vercel cron, no brain call) fires saved

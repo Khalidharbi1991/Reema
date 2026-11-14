@@ -297,7 +297,7 @@ def test_add_task_is_level_two_and_undo_deletes_it_only_while_unchanged():
     entry = run_tool(store, engine, "add_task", {"content": "Call the contractor", "due": "2026-11-20", "priority": 1})
     tid = entry["result"]["task_id"]
     assert entry["level"] == 2 and personal.tasks.tasks[tid].priority == 1
-    assert "Added to Todoist: Call the contractor, 2026-11-20" in assistant(store)[-1]["body"]
+    assert "Added to Todoist: Call the contractor, Fri 20 Nov" in assistant(store)[-1]["body"]
     undo(store, entry)
     work(store, engine)
     assert tid not in personal.tasks.tasks
@@ -333,7 +333,7 @@ def test_reschedule_is_level_two_and_undo_puts_the_old_date_back():
     tid = personal.tasks.put("Call the bank", due="2026-11-14")
     entry = run_tool(store, engine, "reschedule_task", {"id": tid, "due": "2026-11-18T10:00+03:00"})
     assert personal.tasks.tasks[tid].due == "2026-11-18T10:00:00+03:00"
-    assert "Moved in Todoist: Call the bank, now 2026-11-18T10:00 (was 2026-11-14)" in assistant(store)[-1]["body"]
+    assert "Moved in Todoist: Call the bank, now Wed 18 Nov 10:00 AM (was Sat 14 Nov)" in assistant(store)[-1]["body"]
     undo(store, entry)
     work(store, engine)
     assert personal.tasks.tasks[tid].due == "2026-11-14"
@@ -350,7 +350,7 @@ def test_delete_task_is_level_three_and_refuses_a_changed_task():
     tid = personal.tasks.put("Old idea", due="2026-11-14")
     run_tool(store, engine, "delete_task", {"id": tid})
     card = store.tables["approvals"][-1]
-    assert card["level"] == 3 and card["summary"] == "Delete from Todoist: Old idea (due 2026-11-14)"
+    assert card["level"] == 3 and card["summary"] == "Delete from Todoist: Old idea (due Sat 14 Nov)"
     assert tid in personal.tasks.tasks
     personal.tasks._replace(tid, content="Old idea, but now important")
     decide_card(store, card, "approved")

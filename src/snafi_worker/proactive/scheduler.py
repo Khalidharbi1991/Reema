@@ -9,6 +9,7 @@ Every TICK seconds, each job runs once, short, and on its own (one failing never
   mail       every MAIL_MINUTES: a card and a push only for truly important new mail (Gmail: unread,
              Inbox, Important, Primary; Yahoo: the Today rule and from someone Khalid emailed from Yahoo
              in the last 90 days). The first run for each account only learns what is already there.
+  clear      once an hour, cards and the sent record older than 30 days are deleted (SEC-127)
 Everything goes through Notifier.deliver, which enforces the manners (see notify.py). Texts are
 built here from fixed templates in English or Arabic (user_settings.lang), times 12-hour with
 AM/PM or ص/م. Only sender names and subjects of mail are used, never a body.
@@ -30,6 +31,7 @@ log = logging.getLogger("snafi_worker")
 TICK = 30
 MAIL_MINUTES = 10
 BRIEF_WINDOW = timedelta(hours=5)
+CLEAR_EVERY = timedelta(hours=1)
 WATCH_HOURS = 24
 WATCH_LIMIT = 10
 BRIEF_ITEMS = 5
@@ -77,13 +79,14 @@ class Scheduler(threading.Thread):
         self.latitude, self.longitude = latitude, longitude
         self.mail_every = timedelta(minutes=max(2.0, float(mail_minutes)))
         self.last_mail: Optional[datetime] = None
+        self.last_clear: Optional[datetime] = None
 
     # ---------- one pass ----------
     def tick(self, now: Optional[datetime] = None) -> Dict[str, object]:
         now = now or datetime.now(timezone.utc)
         out: Dict[str, object] = {}
         for name, job in (("held", self.release_held), ("reminders", self.reminders), ("brief", self.brief),
-                          ("mail", self.mail_watch)):
+                          ("mail", self.mail_watch), ("clear", self.clear_old)):
             try:
                 out[name] = job(now)
             except Exception as exc:  # noqa: BLE001 (only the type is logged, never any text)
@@ -98,6 +101,13 @@ class Scheduler(threading.Thread):
 
     def _lang(self) -> str:
         return self.notifier.settings()["lang"]
+
+    # ---------- SEC-127: clear cards and the sent record after 30 days (once an hour) ----------
+    def clear_old(self, now: datetime):
+        if self.last_clear is not None and now - self.last_clear < CLEAR_EVERY:
+            return None
+        self.last_clear = now
+        return self.notifier.prune(now)
 
     # ---------- held ----------
     def release_held(self, now: datetime):

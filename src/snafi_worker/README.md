@@ -136,8 +136,13 @@ Setup for Khalid: `docs/snafi/PUSH_SETUP.md`. No brain call anywhere in it.
   silently. The push key is read when the worker starts: restart it after set-secrets.
 - **Times** Khalid reads (cards, the brief, chat tool results, the brain's instructions) are
   12-hour with AM/PM or ص/م (`clock.py`).
-- **Backup:** `notifications`, `cards` and `user_settings` are backed up; `push_subscriptions` are
-  not (the phone subscribes again). A restore cancels anything still waiting to be sent.
+- **Backup and clearing (SEC-127):** only `user_settings` is backed up. `cards`, `notifications` and
+  `push_subscriptions` never are (the phone subscribes again). Once an hour `Notifier.prune` deletes
+  cards and ledger rows older than 30 days (the `mail-learned:*` markers stay); the ledger keeps no
+  card text once a card is shown. A restore marks past reminders fired, so they don't go off again.
+- **Yahoo sender check (SEC-125):** the mail watch pushes a Yahoo email only when the topmost
+  Authentication-Results header is Yahoo's own (`*.yahoo.com`) and says `dmarc=pass` for the From
+  address's domain (`yahoo/mail.py` `sender_verified`).
 
 ## The Claude API brain (configured)
 

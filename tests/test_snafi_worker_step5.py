@@ -327,15 +327,99 @@ def test_gmail_watch_asks_for_important_primary_unread_inbox_mail():
     assert calls[0]["q"] == "is:unread in:inbox is:important category:primary newer_than:1d"
 
 
-def test_yahoo_watch_only_from_people_khalid_emailed():
+YAHOO_AR = "atlas-production.v2.mail.ne1.yahoo.com"
+
+
+def headers(*auth_results, sender="Sara <sara@example.com>"):
+    from email import message_from_bytes
+    from email.policy import default as default_policy
+    lines = [f"Authentication-Results: {a}" for a in auth_results] + [f"From: {sender}", "Subject: Hi", ""]
+    return message_from_bytes("\r\n".join(lines).encode(), policy=default_policy)
+
+
+def yahoo_with(pairs, known):
     from src.snafi_worker.personal.base import MailSummary
     from src.snafi_worker.yahoo.mail import YahooMail
     y = YahooMail.__new__(YahooMail)
-    y.important_unread = lambda hours, limit: [
-        MailSummary("y1_1", "y1_1", "Sara <SARA@example.com>", "Hi", "", "", True, False),
-        MailSummary("y1_2", "y1_2", "Stranger <s@example.com>", "Hi", "", "", True, False)]
-    y.known_correspondents = lambda: {"sara@example.com"}
+    y._important_pairs = lambda hours: [(MailSummary(i, i, s, "Hi", "", "", True, False), m) for i, s, m in pairs]
+    y.known_correspondents = lambda: known
+    return y
+
+
+PASS = f"{YAHOO_AR}; dkim=pass header.i=@example.com; spf=pass smtp.mailfrom=example.com; dmarc=pass(p=REJECT) header.from=example.com;"
+
+
+def test_yahoo_watch_only_from_people_khalid_emailed():
+    y = yahoo_with([("y1_1", "Sara <SARA@example.com>", headers(PASS)),
+                    ("y1_2", "Stranger <s@example.org>", headers(PASS.replace("example.com", "example.org")))],
+                   {"sara@example.com"})
     assert [m.id for m in y.watch_unread(24, 10)] == ["y1_1"]
+
+
+@pytest.mark.parametrize("auth, ok", [
+    ((PASS,), True),
+    ((PASS.replace("dmarc=pass", "dmarc=fail"),), False),
+    ((PASS.replace("dmarc=pass(p=REJECT)", "dmarc=none"),), False),
+    ((PASS.replace("header.from=example.com", "header.from=evil.example"),), False),
+    ((PASS.replace(YAHOO_AR, "mx.evil.example"),), False),
+    ((PASS.replace(YAHOO_AR, "yahoo.com.evil.example"),), False),
+    # a forged "pass" written by the sender sits BELOW Yahoo's own header, so it is never read
+    ((PASS.replace("dmarc=pass", "dmarc=fail"), PASS), False),
+    ((), False),
+])
+def test_sec125_yahoo_watch_trusts_only_yahoos_own_dmarc_pass_for_the_senders_domain(auth, ok):
+    from src.snafi_worker.yahoo.mail import sender_verified
+    assert sender_verified(headers(*auth), "Sara <sara@example.com>") is ok
+    y = yahoo_with([("y1_1", "Sara <sara@example.com>", headers(*auth))], {"sara@example.com"})
+    assert bool(y.watch_unread(24, 10)) is ok
+
+
+def test_sec125_the_header_is_fetched_with_the_summaries():
+    from src.snafi_worker.yahoo.mail import HEADERS
+    assert "AUTHENTICATION-RESULTS" in HEADERS.split()
+
+
+# ---------- SEC-127: cleared after 30 days, never in a backup ----------
+def test_sec127_cards_and_the_sent_record_are_cleared_after_30_days():
+    store, notifier, _ = setup()
+    now = quiet_free()
+    old, recent = (now - timedelta(days=31)).isoformat(), (now - timedelta(days=29)).isoformat()
+    store.insert("cards", {"user_id": OWNER, "kind": "mail", "title": "Old", "body": "x", "created_at": old,
+                           "dismissed_at": None})
+    store.insert("cards", {"user_id": OWNER, "kind": "mail", "title": "Recent", "body": "x", "created_at": recent})
+    store.insert("notifications", {"user_id": OWNER, "kind": "mail", "dedupe_key": "mail:gmail:old", "created_at": old})
+    store.insert("notifications", {"user_id": OWNER, "kind": "learned", "dedupe_key": "mail-learned:gmail",
+                                   "created_at": old})
+    store.insert("notifications", {"user_id": OWNER, "kind": "mail", "dedupe_key": "mail:gmail:new", "created_at": recent})
+    assert notifier.prune(now) == {"cards": 1, "notifications": 1}
+    assert [c["title"] for c in store.tables["cards"]] == ["Recent"]
+    assert sorted(n["dedupe_key"] for n in store.tables["notifications"]) == ["mail-learned:gmail", "mail:gmail:new"]
+    sched = Scheduler(notifier, Personal())
+    assert sched.clear_old(now) == {"cards": 0, "notifications": 0}
+    assert sched.clear_old(now + timedelta(minutes=30)) is None          # once an hour
+
+
+def test_sec127_the_ledger_keeps_no_text_after_delivery_and_backups_hold_neither():
+    from src.snafi_worker.backup import export_tables
+    store, notifier, _ = setup()
+    notifier.deliver("mail", "mail:gmail:5", "Gmail · Sara", "Private subject", now=quiet_free())
+    assert store.tables["notifications"][0]["card"] is None and store.tables["cards"][0]["body"] == "Private subject"
+    exported = export_tables(store)
+    assert "cards" not in exported and "notifications" not in exported and "user_settings" in exported
+    assert "Private subject" not in json.dumps(exported, default=str)
+
+
+# ---------- 12-hour times on approval cards and in the log ----------
+def test_card_and_log_texts_show_12_hour_times():
+    from src.snafi_worker.tools import TOOLS
+    event = TOOLS["create_event"].describe({"title": "Dentist", "start": "2026-11-20T15:00:00+03:00",
+                                            "end": "2026-11-20T16:00:00+03:00"})
+    assert event == {"en": "Calendar event (only you): Dentist, Fri 20 Nov 3:00 PM",
+                     "ar": "موعد في التقويم (أنت فقط): Dentist، الجمعة 20 نوفمبر 3:00 م"}
+    move = TOOLS["reschedule_task"].describe({"id": "1", "due": "2026-11-21T00:30:00+03:00"})
+    assert "Sat 21 Nov 12:30 AM" in move["en"] and "12:30 ص" in move["ar"]
+    delete = TOOLS["delete_task"].describe({"id": "1", "task_content": "Pay", "task_due": "2026-11-21T09:00 (repeats: every day)"})
+    assert delete["en"] == "Delete from Todoist: Pay (due Sat 21 Nov 9:00 AM (repeats: every day))"
 
 
 def test_one_failing_job_never_stops_the_others():

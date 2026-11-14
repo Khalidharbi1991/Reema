@@ -73,6 +73,16 @@ What step 5 gets right, from the code I read (not verified by running anything):
 
 **Open Critical: 0. Open High: 0.** Medium SEC-119 and SEC-120, and the Low and Info rows above, are for Khalid to decide. I ran nothing, and this review is not a certification; Khalid decides.
 
+## Khalid's decisions (Nov 14, 2026, recorded by Ahmad)
+
+Khalid's own words, passed on unchanged:
+
+> - SEC-120: I accept it, the same as SEC-80 and SEC-105.
+> - SEC-125: add the Yahoo sender-verification check.
+> - SEC-127: clear cards and the sent record after 30 days, including in backups.
+
+So SEC-120 is **Medium, accepted** (with SEC-80 and SEC-105). SEC-125 and SEC-127 were built on branch `fix/snafi-step5-decisions` (see the re-check round). Recorded by Ahmad.
+
 ## Fixes after this round (Nov 14, by Ahmad as the coding agent; not re-checked by Agent 16)
 
 These were bugs in what Khalid asked for, so Ahmad fixed them before the merge. Agent 16 has **not** re-checked them; until a re-check, their rows above stay as written, marked here as "fixed, awaiting re-check". Both suites pass after them (Python 1372, web 169; eslint and tsc clean).
