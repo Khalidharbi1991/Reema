@@ -76,6 +76,7 @@ class Engine:
     def __init__(self, store, brain, time_zone: str = "Asia/Riyadh", services=None):
         self.store, self.brain, self.time_zone = store, brain, time_zone
         self.services = services  # step 3: Personal(mail, calendar, files), or None
+        self.scheduler = None     # step 5: the proactive Scheduler, for the Settings test push
 
     # ---------- entry ----------
     def handle(self, job: Dict) -> Dict:
@@ -86,7 +87,17 @@ class Engine:
             return self.approval_resume(job)
         if kind == "action.undo":
             return self.action_undo(job)
+        if kind == "push.test":
+            return self.push_test(job)
         raise JobError(f"unknown job kind {kind!r}")
+
+    def push_test(self, job: Dict) -> Dict:
+        """Settings' "Send test": one card and one push, under the same manners as everything else."""
+        if self.scheduler is None:
+            raise JobError("the scheduler is not running")
+        if job.get("user_id") != self.scheduler.owner_id:
+            raise JobError("test push is only for Snafi's owner")
+        return {"outcome": self.scheduler.test_push(job["id"])}
 
     def apologise(self, job: Dict) -> None:
         """After the last failed try, tell Khalid plainly instead of leaving him waiting."""

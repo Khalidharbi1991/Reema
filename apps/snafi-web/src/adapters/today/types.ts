@@ -2,7 +2,7 @@
  * What the Today screen shows. Each part comes from its own source: prayer times and
  * dates are computed locally (step 2), approvals come from the mailbox, the next event and
  * important emails (Gmail and Yahoo) and today's Todoist tasks come from the PC worker's
- * snapshot (steps 3 and 4), and cards stay marked samples until step 5.
+ * snapshot (steps 3 and 4), and Ahmad's cards from the worker's scheduler (step 5).
  */
 import type { ApprovalCard } from "@/adapters/mailbox/types";
 import type { Lang } from "@/i18n/messages";
@@ -25,7 +25,8 @@ export type TodaySnapshot = {
   yahoo: SourceState;
   todoist: SourceState;
   tasks: { id: string; title: string; due: string; overdue?: boolean; priority?: 1 | 2 | 3 | 4 }[];
-  cards: { id: string; title: string; body: string }[];
+  /** Step 5: Ahmad's cards (reminders, the morning brief, important mail), with when they came, 12-hour. */
+  cards: { id: string; title: string; body: string; kind?: "reminder" | "brief" | "mail" | "test"; time?: string }[];
   approvals: ApprovalCard[];
   /** Which parts are still sample data; the screen labels them. */
   samples: { prayer: boolean; nextEvent: boolean; emails: boolean; tasks: boolean; cards: boolean };

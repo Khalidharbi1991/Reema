@@ -24,14 +24,17 @@ import gzip
 import json
 import re
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
 from .backup import FORMAT, digest, signature_ok
 
 # Parents before children (foreign keys).
-ORDER = ("jobs", "approvals", "messages", "action_log", "notes", "reminders", "facts", "worker_status")
-JSON_COLUMNS = {"payload", "result", "args", "meta", "undo", "lanes"}
+ORDER = ("jobs", "approvals", "messages", "action_log", "notes", "reminders", "facts", "worker_status",
+         "notifications", "cards", "user_settings")
+JSON_COLUMNS = {"payload", "result", "args", "meta", "undo", "lanes", "card"}
+WAITING_NOTICES = {"new", "held", "delivering"}
 COLUMN = re.compile(r"^[a-z_][a-z0-9_]{0,62}$")
 UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 LIVE_JOBS = {"queued", "claimed", "running"}
@@ -66,7 +69,7 @@ def load(path: Path, signing_key: Optional[str] = None, accept_unsigned: bool = 
     return tables
 
 
-def neutralise(tables: Dict[str, List[Dict]]) -> Dict[str, List[Dict]]:
+def neutralise(tables: Dict[str, List[Dict]], now: Optional[datetime] = None) -> Dict[str, List[Dict]]:
     """Restored data never acts by itself: no live jobs, no open approval cards, no pending Undo."""
     out = dict(tables)
     out["jobs"] = [({**j, "status": "cancelled", "error": "cancelled by restore"} if j.get("status") in LIVE_JOBS else j)
@@ -75,7 +78,30 @@ def neutralise(tables: Dict[str, List[Dict]]) -> Dict[str, List[Dict]]:
                         for a in tables.get("approvals", [])]
     out["action_log"] = [({**a, "undo_requested_at": None} if a.get("undo_requested_at") and not a.get("undone_at") else a)
                          for a in tables.get("action_log", [])]
+    # Step 5: a notification that was waiting (for example held for prayer time) is not sent after a
+    # restore; the ledger's other rows stay, so nothing already sent is ever sent again.
+    out["notifications"] = [({**n, "status": "cancelled", "reason": "cancelled by restore"}
+                             if n.get("status") in WAITING_NOTICES else n) for n in tables.get("notifications", [])
+                            # SEC-122: the mail watch learns again after a restore instead of pushing
+                            # everything that arrived since the backup.
+                            if not str(n.get("dedupe_key") or "").startswith("mail-learned:")]
+    # SEC-122: a reminder whose time has already passed does not go off after a restore (it may have
+    # gone off after the backup was made, or the backup may be from before step 5).
+    restored_at = (now or datetime.now(timezone.utc)).isoformat()
+    out["reminders"] = [({**r, "fired_at": restored_at} if not r.get("fired_at") and _past(r.get("due_at"), now) else r)
+                        for r in tables.get("reminders", [])]
     return out
+
+
+def _past(value, now: Optional[datetime]) -> bool:
+    if not value:
+        return False
+    try:
+        when = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return True  # unreadable: never fire it after a restore
+    when = when if when.tzinfo else when.replace(tzinfo=timezone.utc)
+    return when <= (now or datetime.now(timezone.utc))
 
 
 def map_users(tables: Dict[str, List[Dict]], mapping: Dict[str, str]) -> Dict[str, List[Dict]]:

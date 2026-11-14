@@ -26,6 +26,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List
 from zoneinfo import ZoneInfo
 
+from .clock import clock, day_clock
 from .google.http import GoogleError
 from .personal.base import NotConnected, PartlySent, ServiceError
 from .tool_types import NeverError, Tool, ToolArgError, ToolResult
@@ -285,14 +286,16 @@ def _list_events(store, user_id, args, ctx):
     if not events:
         return ToolResult(True, {"en": "No events in that time.", "ar": "لا توجد مواعيد في هذه الفترة."}, {"count": 0})
 
-    def when(e):
+    def when(e, lang):
         if e.all_day:
             return e.start
-        return datetime.fromisoformat(e.start.replace("Z", "+00:00")).astimezone(tz).strftime("%a %d %b %H:%M")
-    shown = "\n".join(f"• {when(e)}: {_short(e.title, 70)}" for e in events)
+        return day_clock(datetime.fromisoformat(e.start.replace("Z", "+00:00")).astimezone(tz), lang)
+
+    def shown(lang):
+        return "\n".join(f"• {when(e, lang)}: {_short(e.title, 70)}" for e in events)
     detail = "\n".join(f"id={e.id} | {e.start} to {e.end} | {e.title} | place: {e.location} | "
                        f"guests: {len(e.attendees)}\n  {_short(e.description, 300)}" for e in events)
-    return ToolResult(True, {"en": f"Your events:\n{shown}", "ar": f"مواعيدك:\n{shown}"},
+    return ToolResult(True, {"en": f"Your events:\n{shown('en')}", "ar": f"مواعيدك:\n{shown('ar')}"},
                       {"count": len(events)}, untrusted=_limited(detail))
 
 
@@ -489,12 +492,12 @@ def _task_group(task, today, now: datetime, tz: ZoneInfo) -> str:
     return day.isoformat()
 
 
-def _local_time(due: str, tz: ZoneInfo) -> str:
+def _local_time(due: str, tz: ZoneInfo, lang: str = "en") -> str:
     try:
         when = datetime.fromisoformat(due.replace("Z", "+00:00"))
     except ValueError:
         return ""
-    return (when if when.tzinfo is None else when.astimezone(tz)).strftime("%H:%M")
+    return clock(when if when.tzinfo is None else when.astimezone(tz), lang)
 
 
 def _grouped(found, ctx: Dict, show: int):
@@ -517,9 +520,9 @@ def _grouped(found, ctx: Dict, show: int):
             lines["en"].append(f"{en}:")
             lines["ar"].append(f"{ar}:")
             last = group
-        at = f" {_local_time(task.due, tz)}" if len(task.due) > 10 else ""
         repeat = f" (repeats: {_short(task.due_string, 30)})" if task.recurring else ""
         for lang in ("en", "ar"):
+            at = f" {_local_time(task.due, tz, lang)}" if len(task.due) > 10 else ""
             lines[lang].append(f"• {_short(task.content, 80)}{at}{repeat}")
     return [t for _, t in shown], lines
 

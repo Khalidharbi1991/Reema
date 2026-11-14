@@ -73,6 +73,47 @@ export type TodayFeed = {
   updatedAt: string;
 };
 
+/** Step 5: a card from Ahmad (reminder, morning brief, important mail, test). Written by the PC only. */
+export type CardKind = "reminder" | "brief" | "mail" | "test";
+export type AhmadCard = { id: string; kind: CardKind; title: string; body: string; createdAt: string };
+
+/** Step 5: Khalid's settings. briefTime is "HH:MM" (24-hour) as stored; the screen shows it with AM/PM. */
+export type Settings = { pushEnabled: boolean; briefTime: string; dailyCap: number; lang: Lang };
+export const DEFAULT_SETTINGS: Settings = { pushEnabled: false, briefTime: "07:00", dailyCap: 10, lang: "en" };
+export const CAP_MIN = 1;
+export const CAP_MAX = 50;
+
+/** A browser push subscription, as PushSubscription.toJSON() gives it. */
+export type PushKeys = { endpoint: string; p256dh: string; auth: string };
+
+/** The four browser push services the worker may post to (the same rule as push_endpoint_ok in 0008). */
+export const PUSH_ENDPOINT =
+  /^https:\/\/(fcm\.googleapis\.com|web\.push\.apple\.com|[a-z0-9-]+\.push\.apple\.com|updates\.push\.services\.mozilla\.com|[a-z0-9-]+\.notify\.windows\.com)\/[A-Za-z0-9._~:/?#[\]@!$&'()*+,;=%-]+$/;
+
+export function checkSettings(s: Settings): Settings {
+  if (typeof s.pushEnabled !== "boolean") throw new MailboxError("invalid push setting");
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(s.briefTime)) throw new MailboxError("invalid brief time");
+  if (!Number.isInteger(s.dailyCap) || s.dailyCap < CAP_MIN || s.dailyCap > CAP_MAX) throw new MailboxError("invalid daily cap");
+  if (s.lang !== "en" && s.lang !== "ar") throw new MailboxError("invalid language");
+  return s;
+}
+
+export function checkPushKeys(k: PushKeys): PushKeys {
+  if (typeof k.endpoint !== "string" || k.endpoint.length < 20 || k.endpoint.length > 1000 || !PUSH_ENDPOINT.test(k.endpoint)) {
+    throw new MailboxError("not a known push service address");
+  }
+  if (!/^[A-Za-z0-9_-]{87}$/.test(k.p256dh) || !/^[A-Za-z0-9_-]{22}$/.test(k.auth)) throw new MailboxError("invalid push keys");
+  return k;
+}
+
+const CARD_KINDS: readonly CardKind[] = ["reminder", "brief", "mail", "test"];
+export function toCard(r: { id?: unknown; kind?: unknown; title?: unknown; body?: unknown; created_at?: unknown }): AhmadCard {
+  return {
+    id: text(r.id, 40), kind: CARD_KINDS.includes(r.kind as CardKind) ? (r.kind as CardKind) : "test",
+    title: text(r.title, 200), body: text(r.body, 3000), createdAt: text(r.created_at, 40),
+  };
+}
+
 export const MAX_MESSAGE_LENGTH = 8000;
 /** The app shows "PC offline" when the worker's heartbeat is older than this. */
 export const OFFLINE_AFTER_MS = 45_000;
@@ -92,6 +133,15 @@ export interface MailboxAdapter {
   workerStatus(): Promise<WorkerStatus | null>;
   /** The worker's latest Google snapshot for Today, or null before the first one. */
   todayFeed(): Promise<TodayFeed | null>;
+  /** Step 5: Ahmad's cards not yet dismissed, newest first. */
+  cards(limit?: number): Promise<AhmadCard[]>;
+  dismissCard(id: string): Promise<void>;
+  settings(): Promise<Settings>;
+  saveSettings(s: Settings): Promise<Settings>;
+  savePushSubscription(k: PushKeys): Promise<void>;
+  removePushSubscription(endpoint: string): Promise<void>;
+  /** Queues a push.test job for the worker (at most one waiting). */
+  requestTestPush(): Promise<void>;
 }
 
 const STATUSES: readonly GoogleStatus[] = ["ok", "off", "not_connected", "reconnect", "error"];

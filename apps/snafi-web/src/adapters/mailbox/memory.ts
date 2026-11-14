@@ -2,11 +2,17 @@ import type { Lang } from "@/i18n/messages";
 import {
   checkId,
   checkMessageBody,
+  checkPushKeys,
+  checkSettings,
+  DEFAULT_SETTINGS,
   MailboxError,
   type ActionEntry,
+  type AhmadCard,
   type ApprovalCard,
   type MailboxAdapter,
   type MailboxMessage,
+  type PushKeys,
+  type Settings,
   type TodayFeed,
   type WorkerStatus,
 } from "./types";
@@ -19,6 +25,9 @@ type Store = {
   actions: (ActionEntry & { userId: string })[];
   status: Record<string, WorkerStatus>;
   feeds: Record<string, TodayFeed>;
+  cards: (AhmadCard & { userId: string; dismissed?: boolean })[];
+  settings: Record<string, Settings>;
+  pushes: (PushKeys & { userId: string })[];
 };
 
 /**
@@ -26,7 +35,7 @@ type Store = {
  * mirroring the row-level security rules: a user sees and changes only their own rows.
  */
 export function createMemoryStore(): Store {
-  return { messages: [], jobs: [], approvals: [], actions: [], status: {}, feeds: {} };
+  return { messages: [], jobs: [], approvals: [], actions: [], status: {}, feeds: {}, cards: [], settings: {}, pushes: [] };
 }
 
 export class MemoryMailboxAdapter implements MailboxAdapter {
@@ -116,5 +125,50 @@ export class MemoryMailboxAdapter implements MailboxAdapter {
 
   async todayFeed() {
     return this.store.feeds[this.me()] ?? null;
+  }
+
+  // ---------- step 5 ----------
+  async cards(limit = 10) {
+    const me = this.me();
+    return this.store.cards.filter((c) => c.userId === me && !c.dismissed)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit)
+      .map(({ id, kind, title, body, createdAt }) => ({ id, kind, title, body, createdAt }));
+  }
+
+  async dismissCard(id: string) {
+    const me = this.me();
+    const card = this.store.cards.find((c) => c.id === checkId(id) && c.userId === me && !c.dismissed);
+    if (!card) throw new MailboxError("no card with that id");
+    card.dismissed = true;
+  }
+
+  async settings() {
+    return { ...(this.store.settings[this.me()] ?? DEFAULT_SETTINGS) };
+  }
+
+  async saveSettings(s: Settings) {
+    const v = checkSettings({ ...s });
+    this.store.settings[this.me()] = v;
+    return { ...v };
+  }
+
+  async savePushSubscription(k: PushKeys) {
+    const me = this.me();
+    const v = checkPushKeys(k);
+    if (this.store.pushes.some((p) => p.endpoint === v.endpoint && p.userId !== me)) {
+      throw new MailboxError("that push address is already in use");
+    }
+    this.store.pushes = [...this.store.pushes.filter((p) => p.endpoint !== v.endpoint), { ...v, userId: me }];
+  }
+
+  async removePushSubscription(endpoint: string) {
+    const me = this.me();
+    this.store.pushes = this.store.pushes.filter((p) => !(p.userId === me && p.endpoint === endpoint));
+  }
+
+  async requestTestPush() {
+    const me = this.me();
+    if (this.store.jobs.some((j) => j.userId === me && j.kind === "push.test")) return;
+    this.store.jobs.push({ id: this.id(), userId: me, kind: "push.test", payload: {}, conversationId: "" });
   }
 }

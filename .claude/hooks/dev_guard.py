@@ -182,7 +182,9 @@ def _first_operand(words):
 SNAFI_PRIVATE = (
     (r"appdata.*reema|reema.*appdata|appdata[^\s'\"]*[*?\[]", "the worker's folder under %APPDATA%\\REEMA\\"),
     (r"reema-snafi|snafi_worker[./]secret_store|snafi_worker[./]set_secrets|secret_store|set_secrets"
-     r"|google_refresh_token|google_client_secret|yahoo_app_password|todoist_api_token",
+     r"|google_refresh_token|google_client_secret|yahoo_app_password|todoist_api_token"
+     # Step 5 (SEC-128): the Web Push private key.
+     r"|snafi_vapid_private_key",
      "the worker's secrets in Credential Manager"),
     # Step 3: connecting, checking or cancelling Khalid's Google connection is his alone (it signs in
     # as him and stores or reads his refresh token).

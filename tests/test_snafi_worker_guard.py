@@ -48,6 +48,9 @@ def _guard():
     (r".venv\Scripts\python.exe -m src.snafi_worker.restore x --verify", False),
     (r"python -m src.snafi_worker.set_secrets --status", False),
     (r"powershell -File src\snafi_worker\install_task.ps1", True),
+    # Step 5 (SEC-128): the Web Push private key, by name.
+    (r"python -c \"import os; print(os.environ.get('SNAFI_VAPID_PRIVATE_KEY'))\"", False),
+    (r"$env:SNAFI_VAPID_PRIVATE_KEY", True),
 ])
 def test_guard_blocks_snafi_secrets_and_backups(command, powershell):
     assert "Snafi" in (_guard().reason(command, powershell=powershell) or "")

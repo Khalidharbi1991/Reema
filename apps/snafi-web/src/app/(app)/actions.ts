@@ -46,6 +46,68 @@ export async function decideApproval(
   return { ok: true, status };
 }
 
+// ---------- step 5: cards, settings and push ----------
+export async function dismissCard(id: string): Promise<{ ok: boolean }> {
+  const session = await requireSession();
+  try {
+    await mailboxFor(session).dismissCard(id);
+  } catch {
+    return { ok: false };
+  }
+  revalidatePath("/today");
+  return { ok: true };
+}
+
+export type SettingsInput = { pushEnabled: boolean; briefTime: string; dailyCap: number };
+
+/** Saves the Settings screen. The language comes from the app's own preference (for lock-screen text). */
+export async function saveSettings(input: SettingsInput): Promise<{ ok: boolean }> {
+  const session = await requireSession();
+  const { lang } = await getPreferences();
+  try {
+    await mailboxFor(session).saveSettings({
+      pushEnabled: input?.pushEnabled === true, briefTime: String(input?.briefTime ?? ""),
+      dailyCap: Number(input?.dailyCap), lang,
+    });
+  } catch {
+    return { ok: false };
+  }
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
+export async function savePushSubscription(keys: { endpoint: string; p256dh: string; auth: string }): Promise<{ ok: boolean }> {
+  const session = await requireSession();
+  try {
+    await mailboxFor(session).savePushSubscription({
+      endpoint: String(keys?.endpoint ?? ""), p256dh: String(keys?.p256dh ?? ""), auth: String(keys?.auth ?? ""),
+    });
+  } catch {
+    return { ok: false };
+  }
+  return { ok: true };
+}
+
+export async function removePushSubscription(endpoint: string): Promise<{ ok: boolean }> {
+  const session = await requireSession();
+  try {
+    await mailboxFor(session).removePushSubscription(String(endpoint ?? ""));
+  } catch {
+    return { ok: false };
+  }
+  return { ok: true };
+}
+
+export async function requestTestPush(): Promise<{ ok: boolean }> {
+  const session = await requireSession();
+  try {
+    await mailboxFor(session).requestTestPush();
+  } catch {
+    return { ok: false };
+  }
+  return { ok: true };
+}
+
 export async function undoAction(actionId: string): Promise<{ ok: boolean }> {
   const session = await requireSession();
   try {

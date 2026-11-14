@@ -23,7 +23,10 @@ NAMES = ("SNAFI_SUPABASE_URL", "SNAFI_SUPABASE_SECRET_KEY", "SNAFI_OWNER_USER_ID
          # Step 3: Google. The refresh token is written only by connect-google, never typed or shown.
          "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REFRESH_TOKEN",
          # Step 4: Yahoo (address and app password) and Todoist (API token), typed hidden in set-secrets.
-         "YAHOO_EMAIL", "YAHOO_APP_PASSWORD", "TODOIST_API_TOKEN")
+         "YAHOO_EMAIL", "YAHOO_APP_PASSWORD", "TODOIST_API_TOKEN",
+         # Step 5: Web Push. The VAPID private key is made at random by set-secrets and never shown;
+         # the contact (the Snafi site's https address) goes to the push services with each push.
+         "SNAFI_VAPID_PRIVATE_KEY", "SNAFI_PUSH_CONTACT")
 CRED_TYPE_GENERIC = 1
 CRED_PERSIST_LOCAL_MACHINE = 2  # this user, this PC, survives restarts; not roamed
 ERROR_NOT_FOUND = 1168

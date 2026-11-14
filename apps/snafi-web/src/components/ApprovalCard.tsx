@@ -3,7 +3,9 @@
 import { useState, useTransition } from "react";
 import { effectiveStatus, type ApprovalCard as Card, type ApprovalStatus } from "@/adapters/mailbox/types";
 import { APP_SETTINGS } from "@/config/app";
+import { dayMonthClock } from "@/core/clock";
 import { tapFeedback } from "@/core/haptics";
+import type { Lang } from "@/i18n/messages";
 
 type Labels = {
   approve: string;
@@ -18,6 +20,7 @@ type Props = {
   labels: Labels;
   decide: (id: string, decision: "approved" | "rejected", argsHash: string) => Promise<{ ok: boolean; status?: string }>;
   now?: Date;
+  lang?: Lang;
 };
 
 function show(value: unknown): string {
@@ -29,14 +32,12 @@ function show(value: unknown): string {
  * the exact action and every argument in full (SEC-13), and Approve carries their hash, so
  * the database approves only what was shown. Nothing runs until Approve.
  */
-export function ApprovalCard({ card, labels, decide, now = new Date() }: Props) {
+export function ApprovalCard({ card, labels, decide, now = new Date(), lang = "en" }: Props) {
   const [pending, start] = useTransition();
   const [failed, setFailed] = useState(false);
   const [local, setLocal] = useState<ApprovalStatus | null>(null);
   const status = local ?? effectiveStatus(card, now);
-  const expiry = new Intl.DateTimeFormat("en-GB", {
-    day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: APP_SETTINGS.timeZone,
-  }).format(new Date(card.expiresAt));
+  const expiry = dayMonthClock(new Date(card.expiresAt), lang, APP_SETTINGS.timeZone);
 
   const choose = (decision: "approved" | "rejected") => {
     tapFeedback();

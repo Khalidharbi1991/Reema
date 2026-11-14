@@ -12,7 +12,7 @@ export const SAMPLE = {
       { id: "t2", title: "Sample: call the contractor", due: "Today" },
       { id: "t3", title: "Sample: renew car registration", due: "Tomorrow" },
     ],
-    cards: [{ id: "c1", title: "Sample card", body: "Ahmad's cards (briefs and alerts) will appear here from step 5." }],
+    cards: [{ id: "c1", title: "Sample card", body: "Ahmad's cards (reminders, the morning brief and important mail) appear here." }],
   },
   ar: {
     hijri: "تاريخ هجري تجريبي",
@@ -23,7 +23,7 @@ export const SAMPLE = {
       { id: "t2", title: "نموذج: الاتصال بالمقاول", due: "اليوم" },
       { id: "t3", title: "نموذج: تجديد استمارة السيارة", due: "غداً" },
     ],
-    cards: [{ id: "c1", title: "بطاقة تجريبية", body: "ستظهر بطاقات أحمد (الملخصات والتنبيهات) هنا ابتداءً من المرحلة الخامسة." }],
+    cards: [{ id: "c1", title: "بطاقة تجريبية", body: "تظهر هنا بطاقات أحمد (التذكيرات وملخص الصباح والبريد المهم)." }],
   },
 } as const;
 

@@ -1,5 +1,6 @@
 import { isOnline, type WorkerStatus } from "@/adapters/mailbox/types";
 import { APP_SETTINGS } from "@/config/app";
+import { dayMonthClock } from "@/core/clock";
 import type { Messages } from "@/i18n/messages";
 
 /** Lines for the menu: PC online/offline and the last backup's result. */
@@ -7,9 +8,7 @@ export function statusLines(status: WorkerStatus | null, now: Date, t: Messages,
   const online = isOnline(status, now);
   const lines = [online ? t.pcOnline : t.pcOffline];
   if (status?.lastBackupAt) {
-    const when = new Intl.DateTimeFormat(lang === "ar" ? "ar-SA-u-ca-gregory-nu-latn" : "en-GB", {
-      day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: APP_SETTINGS.timeZone,
-    }).format(new Date(status.lastBackupAt));
+    const when = dayMonthClock(new Date(status.lastBackupAt), lang, APP_SETTINGS.timeZone);
     lines.push(t.lastBackup(when, status.lastBackupOk === true));
   } else {
     lines.push(t.noBackup);

@@ -1,7 +1,8 @@
-import type { ApprovalCard, TodayFeed } from "@/adapters/mailbox/types";
+import type { AhmadCard, ApprovalCard, TodayFeed } from "@/adapters/mailbox/types";
 import { APP_SETTINGS } from "@/config/app";
+import { clock12 } from "@/core/clock";
 import type { Lang } from "@/i18n/messages";
-import { gregorianDate, SAMPLE } from "./placeholder";
+import { gregorianDate } from "./placeholder";
 import { hijriDate, nextPrayer } from "./prayer";
 import type { GoogleState, TodaySnapshot, TodaySource } from "./types";
 
@@ -12,7 +13,7 @@ function localDay(date: Date, timeZone: string): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
 }
 
-/** "18:30" today, "Tue 18:30" on another day; all-day events show the day only. */
+/** "6:30 PM" today, "Tue 6:30 PM" on another day (ص/م in Arabic); all-day events show the day only. */
 export function when(iso: string, lang: Lang, now: Date, timeZone: string, allDay = false, allDayLabel = ""): string {
   const locale = lang === "ar" ? "ar-SA-u-ca-gregory-nu-latn" : "en-GB";
   if (allDay) {
@@ -23,7 +24,7 @@ export function when(iso: string, lang: Lang, now: Date, timeZone: string, allDa
   }
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
-  const time = new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone }).format(date);
+  const time = clock12(date, lang, timeZone);
   if (localDay(date, timeZone) === localDay(now, timeZone)) return time;
   return `${new Intl.DateTimeFormat(locale, { weekday: "short", timeZone }).format(date)} ${time}`;
 }
@@ -32,7 +33,7 @@ const ALL_DAY = { en: "All day", ar: "طوال اليوم" } as const;
 const TODAY = { en: "Today", ar: "اليوم" } as const;
 const OVERDUE = { en: "Overdue", ar: "متأخرة" } as const;
 
-/** A Todoist due date: "Today" or "18:30" today, the day for another day, "Overdue · …" when late. */
+/** A Todoist due date: "Today" or "6:30 PM" today, the day for another day, "Overdue · …" when late. */
 export function taskDue(due: string, overdue: boolean, lang: Lang, now: Date, timeZone: string): string {
   let shown = "";
   if (/^\d{4}-\d{2}-\d{2}$/.test(due)) {
@@ -52,23 +53,23 @@ function withStale(status: GoogleState, feed: TodayFeed | null, now: Date): Goog
 /**
  * Today: real prayer times and Hijri date for the configured city, real pending approvals
  * from the mailbox, and from the PC worker's snapshot the next event, important emails from
- * Gmail and Yahoo (steps 3 and 4) and today's Todoist tasks (step 4). Cards stay marked
- * samples until step 5.
+ * Gmail and Yahoo (steps 3 and 4) and today's Todoist tasks (step 4), and Ahmad's cards (step 5).
  */
 export class LiveTodaySource implements TodaySource {
   constructor(
     private readonly pendingApprovals: () => Promise<ApprovalCard[]>,
     private readonly feed: () => Promise<TodayFeed | null> = async () => null,
+    private readonly ahmadCards: () => Promise<AhmadCard[]> = async () => [],
   ) {}
 
   async getToday(lang: Lang, now: Date): Promise<TodaySnapshot> {
     const city = APP_SETTINGS.city;
     const tz = city.timeZone;
-    const prayer = nextPrayer(city, now);
-    const s = SAMPLE[lang];
-    const [approvals, feed] = await Promise.all([
+    const prayer = nextPrayer(city, now, lang);
+    const [approvals, feed, cards] = await Promise.all([
       this.pendingApprovals().catch(() => [] as ApprovalCard[]), // the rest of Today still shows if the mailbox is unreachable
       this.feed().catch(() => null),
+      this.ahmadCards().catch(() => [] as AhmadCard[]),
     ]);
 
     const google = withStale(feed ? feed.googleStatus : "waiting", feed, now);
@@ -88,9 +89,9 @@ export class LiveTodaySource implements TodaySource {
       todoist,
       tasks: (feed?.tasks ?? []).map((t, i) => ({ id: `t${i}`, title: t.content, due: taskDue(t.due, t.overdue, lang, now, tz),
         overdue: t.overdue, priority: t.priority })),
-      cards: s.cards.map((c) => ({ ...c })),
+      cards: cards.map((c) => ({ id: c.id, kind: c.kind, title: c.title, body: c.body, time: c.createdAt ? when(c.createdAt, lang, now, tz) : "" })),
       approvals,
-      samples: { prayer: false, nextEvent: false, emails: false, tasks: false, cards: true },
+      samples: { prayer: false, nextEvent: false, emails: false, tasks: false, cards: false },
     };
   }
 }

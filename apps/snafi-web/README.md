@@ -16,7 +16,7 @@ Snafi is Khalid's personal assistant app and part of REEMA. The plan is
 - **Step 4:** Today shows important unread Yahoo emails next to Gmail's (at most five from
   each, newest first, each labelled Gmail or Yahoo) and up to ten Todoist tasks due today
   or overdue (migration 0007), with a note for each source that needs connecting. Yahoo
-  and Todoist actions run on the PC. Ahmad's cards stay marked samples until step 5.
+  and Todoist actions run on the PC. Ahmad's cards (reminders, the morning brief, important mail) come from the PC's scheduler (step 5); Settings turns phone notifications on (see `docs/snafi/PUSH_SETUP.md`).
 
 The web app never calls a model; the worker on the PC does. No deploy.
 

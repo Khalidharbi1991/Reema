@@ -56,6 +56,12 @@ class FakeMail:
         found = [m for m in self.messages.values() if self.flags[m.id]["unread"] and self.flags[m.id]["important"]]
         return [self._summary(m) for m in sorted(found, key=lambda m: m.date, reverse=True)[:limit]]
 
+    def watch_unread(self, hours, limit):
+        """The mail watch's "truly important": important unread mail, minus any marked watch=False."""
+        found = [m for m in self.messages.values() if self.flags[m.id]["unread"] and self.flags[m.id]["important"]
+                 and self.flags[m.id].get("watch", True)]
+        return [self._summary(m) for m in sorted(found, key=lambda m: m.date, reverse=True)[:limit]]
+
     def create_draft(self, to, cc, subject, body, in_reply_to=None):
         did = _next(self.prefix + "d")
         self.drafts[did] = {"to": list(to), "cc": list(cc), "subject": subject, "body": body,

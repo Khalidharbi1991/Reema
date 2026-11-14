@@ -99,7 +99,7 @@ class SupabaseRestStore:
     def update_if(self, table, row_id, expect, changes):
         params = {"id": f"eq.{row_id}"}
         for column, value in expect.items():
-            params[check_name(column)] = f"eq.{_value(value)}"
+            params[check_name(column)] = "is.null" if value is None else f"eq.{_value(value)}"
         rows = self._call("PATCH", check_name(table), params, changes, "return=representation")
         return rows[0] if rows else None
 
@@ -107,6 +107,16 @@ class SupabaseRestStore:
         rows = self._call("POST", check_name(table), {"on_conflict": check_name(key)}, row,
                           "resolution=merge-duplicates,return=representation")
         return rows[0]
+
+    def insert_once(self, table, row, keys):
+        """ON CONFLICT DO NOTHING on the UNIQUE constraint over `keys`: an empty answer means it existed."""
+        on_conflict = ",".join(check_name(k) for k in keys)
+        rows = self._call("POST", check_name(table), {"on_conflict": on_conflict}, row,
+                          "resolution=ignore-duplicates,return=representation")
+        return rows[0] if rows else None
+
+    def delete(self, table, row_id):
+        self._call("DELETE", check_name(table), {"id": f"eq.{row_id}"})
 
     def claim_job(self, lane, worker_id):
         rows = self._call("POST", "rpc/claim_job", body={"p_lane": lane, "p_worker": worker_id})

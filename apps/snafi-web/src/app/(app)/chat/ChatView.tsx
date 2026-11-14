@@ -44,7 +44,7 @@ export function ChatView({ lang, messages, cards, actions, preview, decide, undo
             <li key={m.id} className={`rise-in flex flex-col ${mine ? "items-end" : "items-start"}`}
               style={{ ["--i" as string]: Math.min(i, 6) }}>
               {card ? (
-                <div className="w-full max-w-[85%]"><ApprovalCard card={card} labels={cardLabels} decide={decide} /></div>
+                <div className="w-full max-w-[85%]"><ApprovalCard card={card} labels={cardLabels} decide={decide} lang={lang} /></div>
               ) : (
                 <div lang={m.lang} dir={m.lang === "ar" ? "rtl" : "ltr"}
                   className={`max-w-[85%] whitespace-pre-line rounded-2xl px-4 py-3 text-sm ${

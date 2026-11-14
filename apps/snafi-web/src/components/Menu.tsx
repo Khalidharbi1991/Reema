@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LANG_COOKIE, preferenceCookie, THEME_COOKIE, type Theme } from "@/core/preferences";
 import { direction, type Lang } from "@/i18n/messages";
 
 type Labels = {
   menu: string; closeMenu: string; theme: string; dark: string; light: string;
-  language: string; signOut: string;
+  language: string; signOut: string; settings?: string;
 };
 
 type Props = {
@@ -119,6 +120,12 @@ export function Menu({ labels, theme: initialTheme, lang, signOutAction, statusL
               العربية
             </button>
           </div>
+          {signOutAction && labels.settings && (
+            <Link href="/settings" onClick={() => setOpen(false)} data-testid="menu-settings"
+              className="mt-5 flex min-h-11 w-full items-center justify-center rounded-xl border border-edge text-sm text-ink">
+              {labels.settings}
+            </Link>
+          )}
           {signOutAction && (
             <form action={signOutAction} className="mt-5 border-t border-edge pt-4">
               <button type="submit" className="min-h-11 w-full rounded-xl text-sm text-muted hover:text-ink">

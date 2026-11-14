@@ -69,6 +69,18 @@ def _service(data: dict, kind: str) -> Dict[str, object]:
     return {f"{kind}_provider": provider, f"{kind}_options": section}
 
 
+def _proactive(data: dict) -> Dict[str, object]:
+    proactive, city = dict(data.get("proactive") or {}), dict(data.get("city") or {})
+    out = {"mail_watch_minutes": float(proactive.get("mail_minutes", 10)),
+           "quiet_minutes": int(proactive.get("quiet_minutes", 20)),
+           "latitude": float(city.get("latitude", 21.4858)), "longitude": float(city.get("longitude", 39.1925))}
+    if not 2 <= out["mail_watch_minutes"] <= 120 or not 0 <= out["quiet_minutes"] <= 60:
+        raise ValueError("proactive.mail_minutes must be 2-120 and quiet_minutes 0-60")
+    if not -90 <= out["latitude"] <= 90 or not -180 <= out["longitude"] <= 180:
+        raise ValueError("city latitude or longitude is out of range")
+    return out
+
+
 @dataclass(frozen=True)
 class LaneSettings:
     poll_seconds: float
@@ -100,6 +112,11 @@ class Settings:
     yahoo_options: Dict[str, object] = field(default_factory=dict)
     tasks_provider: str = "none"
     tasks_options: Dict[str, object] = field(default_factory=dict)
+    # Step 5: the scheduler (mail watch every N minutes, prayer quiet time) and the prayer-time city.
+    mail_watch_minutes: float = 10.0
+    quiet_minutes: int = 20
+    latitude: float = 21.4858
+    longitude: float = 39.1925
 
     @classmethod
     def load(cls, path: Optional[Path] = None, overrides: Optional[dict] = None) -> "Settings":
@@ -133,6 +150,7 @@ class Settings:
                 today_feed_minutes=float((data.get("today_feed") or {}).get("minutes", 10)),
                 **_service(data, "yahoo"),
                 **_service(data, "tasks"),
+                **_proactive(data),
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise ConfigError(f"worker.yaml is incomplete or invalid: {exc}") from None
