@@ -5,6 +5,15 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md). The [finite ledger](PENDING_LEDGER.md) records external
 requirements as they stood before the no-API migration below.
 
+## 2026-11-14 — Snafi: task limits fix from the first live test (not pushed)
+
+"All my tasks" failed with "limit must be a number from 1 to 30": the brain asked for more and the
+gate refused. Now any `limit` out of range is brought into range for every tool (other numbers are
+still checked strictly), and the brain's tool list shows each real maximum. `list_tasks` takes
+`when: "all"` for every open Todoist task (read page by page, at most 1,000), grouped by due date
+(overdue, today, tomorrow, later dates, no date), at most 30 shown with "and N more". Tag
+`before-snafi-task-limits` marks main before this fix.
+
 ## 2026-11-14 — Snafi step 4: Yahoo Mail and Todoist (not pushed)
 
 Yahoo Mail (`yahoo/mail.py`, provider `yahoo_imap`: IMAP to read and save drafts, SMTP to send, fixed

@@ -98,10 +98,12 @@ Setup for Khalid: `docs/snafi/YAHOO_TODOIST_SETUP.md`. The adapters are `yahoo/m
 
 | Level | Tools |
 | --- | --- |
-| 1 | `list_tasks` (today and overdue), `search_tasks` |
+| 1 | `list_tasks` (`when`: `today`, the default, for today and overdue; `all` for every open task grouped by due date, at most 30 shown and "and N more"), `search_tasks` |
 | 2 (Undo) | `add_task` (Undo deletes it, only if unchanged), `complete_task` (Undo reopens it; a repeating task gets its date back), `reschedule_task` (Undo puts the old date back) |
 | 3 (card) | `delete_task` (refused if the task changed after Approve) |
 
+- **Limits:** a `limit` above a tool's maximum (or below 1) is brought into range, not refused,
+  for every tool; the brain is told each maximum (`tool_types.py`, `prompt.py`).
 - **Today feed:** also up to five important Yahoo emails (unread, Inbox, last 24 hours, not a
   newsletter, list or automatic email) and up to ten Todoist tasks due today or overdue
   (title, due, priority, overdue). `yahoo_status` and `todoist_status` say what Today shows.

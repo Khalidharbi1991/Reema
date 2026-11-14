@@ -452,8 +452,97 @@ def _task_list(found, en_title: str, ar_title: str, none_en: str, none_ar: str) 
                       untrusted=_limited("\n".join(_task_line(t) for t in found)))
 
 
+SHOW_TASKS = 30            # tasks shown in one list; the rest are counted ("and N more")
+ALL_TASKS_MAX = 1000       # open tasks read for "all", at most
+GROUPS = {"overdue": ("Overdue", "متأخرة"), "today": ("Today", "اليوم"), "tomorrow": ("Tomorrow", "غداً"),
+          "none": ("No date", "بلا موعد")}
+
+
+def _check_list_tasks(args: Dict) -> Dict:
+    when = str(args.get("when") or "today").strip().lower()
+    if when not in ("today", "all"):
+        raise ToolArgError('when must be "today" (today and overdue) or "all" (every open task)')
+    args["when"] = when
+    return args
+
+
+def _task_group(task, today, now: datetime, tz: ZoneInfo) -> str:
+    """overdue, today, tomorrow, a date (YYYY-MM-DD), or none; in Khalid's time zone."""
+    if not task.due:
+        return "none"
+    try:
+        if len(task.due) == 10:
+            day = datetime.fromisoformat(task.due).date()
+            late = day < today
+        else:
+            when = datetime.fromisoformat(task.due.replace("Z", "+00:00"))
+            when = when.replace(tzinfo=tz) if when.tzinfo is None else when.astimezone(tz)
+            day, late = when.date(), when < now
+    except ValueError:
+        return "none"
+    if late:
+        return "overdue"
+    if day == today:
+        return "today"
+    if day == today + timedelta(days=1):
+        return "tomorrow"
+    return day.isoformat()
+
+
+def _local_time(due: str, tz: ZoneInfo) -> str:
+    try:
+        when = datetime.fromisoformat(due.replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+    return (when if when.tzinfo is None else when.astimezone(tz)).strftime("%H:%M")
+
+
+def _grouped(found, ctx: Dict, show: int):
+    """Tasks by due date (overdue, today, tomorrow, later dates, no date), at most `show` of them."""
+    tz = _tz(ctx)
+    now = datetime.now(tz)
+    keyed = [(_task_group(t, now.date(), now, tz), t) for t in found]
+
+    def order(pair):
+        group, task = pair
+        rank = {"overdue": "0", "today": "1", "tomorrow": "2", "none": "9"}.get(group, "3" + group)
+        return (rank, task.priority, task.due or "")
+    keyed.sort(key=order)
+    shown = keyed[:show]
+    lines = {"en": [], "ar": []}
+    last = None
+    for group, task in shown:
+        if group != last:
+            en, ar = GROUPS.get(group) or (datetime.fromisoformat(group).strftime("%a %d %b"), group)
+            lines["en"].append(f"{en}:")
+            lines["ar"].append(f"{ar}:")
+            last = group
+        at = f" {_local_time(task.due, tz)}" if len(task.due) > 10 else ""
+        repeat = f" (repeats: {_short(task.due_string, 30)})" if task.recurring else ""
+        for lang in ("en", "ar"):
+            lines[lang].append(f"• {_short(task.content, 80)}{at}{repeat}")
+    return [t for _, t in shown], lines
+
+
 def _list_tasks(store, user_id, args, ctx):
-    found = _service(ctx, "tasks").today(args.get("limit", 20))
+    tasks = _service(ctx, "tasks")
+    show = min(args.get("limit", SHOW_TASKS if args.get("when") == "all" else 20), SHOW_TASKS)
+    if args.get("when") == "all":
+        found = tasks.all_open(ALL_TASKS_MAX)
+        if not found:
+            return ToolResult(True, {"en": "You have no open Todoist tasks.", "ar": "لا توجد مهام مفتوحة في Todoist."},
+                              {"count": 0})
+        shown, lines = _grouped(found, ctx, show)
+        more = len(found) - len(shown)
+        tail = {"en": f"\n…and {more} more" if more else "", "ar": f"\n…و{more} أخرى" if more else ""}
+        en_title = f"All your open Todoist tasks ({len(found)}), by due date"
+        ar_title = f"كل مهامك المفتوحة في Todoist ({len(found)})، حسب الموعد"
+        return ToolResult(True, {"en": f"{en_title}:\n" + "\n".join(lines["en"]) + tail["en"],
+                                 "ar": f"{ar_title}:\n" + "\n".join(lines["ar"]) + tail["ar"]},
+                          {"count": len(found), "shown": len(shown), "ids": [t.id for t in shown]},
+                          untrusted=_limited("\n".join(_task_line(t) for t in shown)
+                                             + (f"\n(and {more} more not listed)" if more else "")))
+    found = tasks.today(show)
     return _task_list(found, "Your Todoist tasks for today and overdue", "مهامك في Todoist لليوم والمتأخرة",
                       "No Todoist tasks for today, and nothing overdue.", "لا مهام في Todoist لليوم ولا متأخرة.")
 
@@ -599,8 +688,9 @@ PERSONAL_TOOLS: List[Tool] = [
          _d("Delete the {account} draft: {draft}", "حذف مسودة {account}: {draft}"), _check_mail_id,
          prepare=_prepare_delete_draft),
     # Step 4: Todoist
-    Tool("list_tasks", 1, {"limit": (int, 30, False)}, _list_tasks,
-         describe=_d("Look at today's Todoist tasks", "الاطلاع على مهام Todoist لليوم"), reads_outside=True),
+    Tool("list_tasks", 1, {"when": (str, 10, False), "limit": (int, SHOW_TASKS, False)}, _list_tasks,
+         describe=_d("Look at your Todoist tasks", "الاطلاع على مهامك في Todoist"), validate=_check_list_tasks,
+         reads_outside=True),
     Tool("search_tasks", 1, {"query": (str, 200, True), "limit": (int, 20, False)}, _search_tasks,
          describe=_d("Search Todoist: {query}", "بحث في Todoist: {query}"), reads_outside=True),
     Tool("add_task", 2, {"content": (str, 500, True), "description": (str, 2000, False), "due": (str, 40, False),

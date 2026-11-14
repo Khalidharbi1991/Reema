@@ -39,8 +39,7 @@ def test_the_brain_cannot_lower_a_level():
     ("add_note", {}, "required"),
     ("add_note", {"body": 42}, "text"),
     ("add_fact", {"body": "x" * 1001}, "too long"),
-    ("list_notes", {"limit": 500}, "number"),
-    ("list_notes", {"limit": True}, "number"),
+    ("list_notes", {"limit": True}, "number"),   # limit 500 is now lowered to 20, not refused (test_snafi_worker_limits.py)
     ("add_reminder", {"body": "x", "due": "tomorrow"}, "date"),
     ("add_reminder", {"body": "x", "due": "2026-11-10T09:00"}, "time zone"),
 ])

@@ -44,11 +44,22 @@ def base_text() -> str:
     return build_base_text()
 
 
+def _arg(name: str, kind: type, most: int, required: bool) -> str:
+    """The brain sees the real limits: "limit (optional, 1-30)", "to (list, at most 5)"."""
+    notes = []
+    if kind is list:
+        notes.append(f"list, at most {most}")
+    if not required:
+        notes.append("optional")
+    if kind is int:
+        notes.append(f"1-{most}")
+    return name + (f" ({', '.join(notes)})" if notes else "")
+
+
 def tool_list() -> str:
     lines = []
     for tool in TOOLS.values():
-        args = ", ".join(f"{name}{' (list)' if kind is list else ''}{'' if req else ' (optional)'}"
-                         for name, (kind, _, req) in tool.args.items())
+        args = ", ".join(_arg(name, kind, most, req) for name, (kind, most, req) in tool.args.items())
         lines.append(f"- {tool.name}({args}): Level {tool.level}, {LEVEL_WORDS[tool.level]}")
     return "\n".join(lines)
 
@@ -69,9 +80,11 @@ Khalid has two mail accounts: Gmail and Yahoo. Every mail tool takes account "gm
 [Gmail] or [Yahoo]. Always tell Khalid which account an email came from, and which account a
 draft or reply goes from. A reply always goes from the account the email came from (its id
 decides it: Yahoo ids start with "y"). Google Calendar and Google Drive are his Google account.
-Todoist holds his tasks: list_tasks (today and overdue), search_tasks, add_task, complete_task,
+Todoist holds his tasks: list_tasks (when "today", the default: today and overdue; when "all":
+every open task, grouped by due date, at most 30 shown with a count of the rest), search_tasks,
+add_task, complete_task,
 reschedule_task (due is a date like 2026-11-20 or a time with its offset), delete_task.
-Priority 1 is the most urgent, 4 is normal.
+Priority 1 is the most urgent, 4 is normal. A limit above a tool's maximum is lowered to it.
 To answer from mail, events, files or tasks, propose the read (search_mail, read_mail,
 list_events, search_files, read_file, list_tasks, search_tasks); the system runs it and asks
 you once more with the results. Lists, cc, bcc and attendees are JSON lists of email
