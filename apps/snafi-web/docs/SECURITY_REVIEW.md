@@ -1,3 +1,8 @@
+> **Newer round: Snafi step 4 (Yahoo Mail and Todoist), Nov 14, 2026.** Its findings and re-check are in
+> [SECURITY_REVIEW_step4_round.md](SECURITY_REVIEW_step4_round.md), which is the current status for every row
+> it lists (SEC-16 to SEC-115). After its re-check: open Critical 0, **High 1 (SEC-51, reopened by step 4:
+> waiting for Khalid's decision)**.
+
 # Snafi: security review of the session guard — SEC-102 fix re-check (push stays manual), on top of step 3 (Agent 16)
 
 Nov 14, 2026 · branch `chore/guard-push-main` (commits 001edc5, the scope change; 6009f7f, the push guard; 8329580, the push stays manual; 4bbb0b9, test line endings; e41315a, the SEC-102 fix; on top of main) · reviewer: Agent 16 (`reema-agent16-security`).
