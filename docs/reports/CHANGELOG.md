@@ -5,6 +5,16 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md). The [finite ledger](PENDING_LEDGER.md) records external
 requirements as they stood before the no-API migration below.
 
+## 2026-11-14 — Snafi: connect-google callback fix, SEC-89 closed (not pushed)
+
+connect-google crashed in the browser callback (the page template was a bound `str.encode`, so
+`PAGE(text=...)` raised TypeError), the wait ran out and the token was never stored. The page is now
+built by `page()`, the handler (`callback_handler`) always ends the wait, and `outcome()` refuses an
+error or empty code; new tests run the real handler end to end on a fake socket. SEC-89: outside the
+deployed worker the secret store now allows only plain-English (ASCII) test names, everything else is
+refused. Agent 16: SEC-89 closed, callback fix noted under SEC-85, no new finding; 0 Critical, 0 High.
+Python 1033 passed, web 142 passed, lint clean.
+
 ## 2026-11-14 — Snafi: SEC-88 closed (not pushed)
 
 The worker's secret store now checks the full credential name (prefix and name together) on every
