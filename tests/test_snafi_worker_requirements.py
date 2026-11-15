@@ -27,8 +27,10 @@ WORKER_PYTHON = {"implementation_name": "cpython", "platform_python_implementati
 WHEEL_TAG = re.compile(r"-(cp312-cp312|cp3\d+-abi3|(py2\.)?py3-none)-(win_amd64|any)\.whl$")
 # Absolute `src.` imports outside src/snafi_worker that never run in C:\SnafiWorker, each with why:
 REPO_ONLY = {
+    # (file, module): (the only function it may sit in, why). SEC-136: anywhere else it is refused.
     ("prompt.py", "src.agents.secretary_agent"):
-        "build_base_text runs only in the repository (prompt --write); deploy.ps1 refuses without ahmad_base.txt",
+        ("build_base_text",
+         "runs only in the repository (prompt --write); deploy.ps1 refuses without ahmad_base.txt"),
 }
 
 
@@ -53,16 +55,33 @@ def lock():
     return {p["name"].lower(): p for p in data["package"]}
 
 
-def third_party_imports():
+def _in_function(tree, node, function: str) -> bool:
+    """SEC-136: True only when `node` sits inside the function named `function`."""
+    for fn in ast.walk(tree):
+        if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)) and fn.name == function:
+            if any(child is node for child in ast.walk(fn)):
+                return True
+    return False
+
+
+def third_party_imports(root: Path = WORKER):
     """Top-level names the worker's own code imports that are not the standard library or itself."""
     found = {}
-    for path in WORKER.rglob("*.py"):
+    for path in root.rglob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        depth = len(path.relative_to(root).parts)    # folders below src/snafi_worker, plus the file
+        rel = path.relative_to(root).as_posix()
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 names = [a.name for a in node.names]
             elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
                 names = [node.module]
+            elif isinstance(node, ast.ImportFrom):
+                # SEC-134: a relative import may not climb out of src/snafi_worker (deployed alone).
+                if node.level > depth:
+                    found.setdefault(f"{'.' * node.level}{node.module or ''} (outside src/snafi_worker)",
+                                     set()).add(rel)
+                continue
             else:
                 continue
             for name in names:
@@ -70,14 +89,20 @@ def third_party_imports():
                 if top in sys.stdlib_module_names:
                     continue
                 if top == "src":  # the worker's own package, deployed as src/snafi_worker
-                    rel = path.relative_to(WORKER).as_posix()
                     if name == "src.snafi_worker" or name.startswith("src.snafi_worker."):
                         continue
-                    if (rel, name) not in REPO_ONLY:
+                    allowed = REPO_ONLY.get((rel, name))
+                    if not (allowed and _in_function(tree, node, allowed[0])):
                         found.setdefault(f"{name} (outside src/snafi_worker)", set()).add(rel)
                     continue
-                found.setdefault(top, set()).add(str(path.relative_to(WORKER)))
+                found.setdefault(top, set()).add(rel)
     return found
+
+
+def test_the_standard_library_list_is_the_workers_python():
+    """SEC-135: what counts as standard library comes from the Python running the tests, so it must be
+    the worker's own 3.12 (deploy.ps1 pins 3.12.10)."""
+    assert sys.version_info[:2] == (3, 12), "run the worker tests with Python 3.12, the deployed worker's version"
 
 
 def test_the_worker_imports_nothing_from_outside_its_own_folder():
@@ -111,8 +136,20 @@ def test_the_check_catches_the_step_5_bug(tmp_path):
             keep.append(line)
     old.write_text("\n".join(keep) + "\n", encoding="utf-8")
     assert sorted(pinned(old)) == ["pyyaml", "tzdata"]
-    assert missing_imports(old) == {"cryptography": ["proactive\\webpush.py" if sys.platform == "win32"
-                                                     else "proactive/webpush.py"]}
+    assert missing_imports(old) == {"cryptography": ["proactive/webpush.py"]}
+
+
+def test_sec134_sec136_climbing_out_or_a_repo_only_import_elsewhere_is_caught(tmp_path):
+    (tmp_path / "proactive").mkdir()
+    (tmp_path / "proactive" / "ok.py").write_text("from ..store import x\nfrom . import y\n", encoding="utf-8")
+    (tmp_path / "proactive" / "bad.py").write_text("from ...agents import secretary_agent\n", encoding="utf-8")
+    (tmp_path / "prompt.py").write_text(
+        "from src.agents.secretary_agent import A\n"                                   # top level: refused
+        "def build_base_text():\n    from src.agents.secretary_agent import A\n",      # allowed only here
+        encoding="utf-8")
+    assert third_party_imports(tmp_path) == {
+        "...agents (outside src/snafi_worker)": {"proactive/bad.py"},
+        "src.agents.secretary_agent (outside src/snafi_worker)": {"prompt.py"}}
 
 
 def test_zoneinfo_has_its_time_zone_data_on_windows():
