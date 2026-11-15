@@ -1,4 +1,8 @@
-> **Newest: the worker's packages (cryptography for Web Push), Nov 15, 2026.** In
+> **Newest: Settings push live-bug fix, Nov 15, 2026.** In
+> [SECURITY_REVIEW_settings_push.md](SECURITY_REVIEW_settings_push.md) (SEC-140 to SEC-146). Open Critical 0,
+> **open High 0**; SEC-140 fixed and SEC-141 partly fixed after it (awaiting re-check).
+>
+> **The worker's packages (cryptography for Web Push), Nov 15, 2026.** In
 > [SECURITY_REVIEW_worker_requirements.md](SECURITY_REVIEW_worker_requirements.md) (SEC-134 to SEC-139).
 > Open Critical 0, **open High 0**; SEC-134, 135, 136 and 138 fixed after it; Info SEC-137 and 139 wait for Khalid.
 >

@@ -92,8 +92,16 @@ export async function enablePush(
     (await reg.pushManager.getSubscription())
       ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) })));
   const json = sub.toJSON();
-  const saved = await step("server", limits.server, () =>
-    save({ endpoint: sub.endpoint, p256dh: toBase64Url(json.keys?.p256dh), auth: toBase64Url(json.keys?.auth) }));
+  let saved: { ok: boolean };
+  try {
+    saved = await step("server", limits.server, () =>
+      save({ endpoint: sub.endpoint, p256dh: toBase64Url(json.keys?.p256dh), auth: toBase64Url(json.keys?.auth) }));
+  } catch (error) {
+    // SEC-141: the address may still land on the server late; without this phone's subscription a
+    // push sent to it is refused (410), and the worker then removes the address.
+    await sub.unsubscribe().catch(() => undefined);
+    throw error;
+  }
   if (!saved.ok) {
     await sub.unsubscribe().catch(() => undefined);
     throw new PushStepError("server", "refused");

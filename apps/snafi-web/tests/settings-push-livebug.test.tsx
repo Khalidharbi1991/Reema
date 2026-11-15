@@ -68,6 +68,10 @@ describe("enablePush: every step has a time limit and names itself", () => {
     const refused = fakeEnv();
     await expect(enablePush(KEY, async () => ({ ok: false }), refused.env, FAST)).rejects.toBeInstanceOf(PushStepError);
     expect(refused.sub.unsubscribe).toHaveBeenCalled();
+    // SEC-141: a save that times out also removes this phone's subscription
+    const slow = fakeEnv();
+    await expect(enablePush(KEY, never, slow.env, FAST)).rejects.toMatchObject({ step: "server", detail: "timed out" });
+    expect(slow.sub.unsubscribe).toHaveBeenCalled();
   });
 });
 
@@ -119,6 +123,21 @@ describe("Settings screen after the fix", () => {
     expect(subscribe).toHaveBeenCalledTimes(1);
     expect(save).toHaveBeenCalledWith({ pushEnabled: true, briefTime: "07:00", dailyCap: 10 });
     expect(screen.getByRole("button", { name: "On" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("SEC-140: Save tapped while Off is still saving sends push off, never the old on", async () => {
+    let finishOff: (v: { ok: boolean }) => void = () => undefined;
+    const save = vi.fn((s: { pushEnabled: boolean }) =>
+      s.pushEnabled === false && save.mock.calls.length === 1
+        ? new Promise<{ ok: boolean }>((r) => { finishOff = r; }) : Promise.resolve({ ok: true }));
+    render(<SettingsForm initial={{ ...DEFAULT_SETTINGS, pushEnabled: true }} lang="en" t={t} publicKey={KEY} save={save}
+      subscribe={ok} unsubscribe={ok} test={ok} env={() => null} />);
+    fireEvent.click(screen.getByRole("button", { name: "Off" }));
+    await screen.findByRole("button", { name: "Working…" });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText("Saved.");
+    await act(async () => { finishOff({ ok: true }); });
+    expect(save.mock.calls.map((c) => c[0].pushEnabled)).toEqual([false, false]);
   });
 
   it("a failed or rejected save is shown, and the button comes back", async () => {

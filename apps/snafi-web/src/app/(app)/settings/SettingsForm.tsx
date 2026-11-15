@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, useSyncExternalStore } from "react";
+import { useId, useRef, useState, useSyncExternalStore } from "react";
 import { CAP_MAX, CAP_MIN, type Settings } from "@/adapters/mailbox/types";
 import { joinHHMM, splitHHMM } from "@/core/clock";
 import { browserEnv, disablePush, enablePush, PushStepError, within, type PushEnv, type PushStep } from "@/core/push-client";
@@ -48,6 +48,9 @@ function pushSupported(): boolean {
 export function SettingsForm({ initial, lang, t, publicKey, save, subscribe, unsubscribe, test, env = browserEnv }: Props) {
   const start = splitHHMM(initial.briefTime);
   const [push, setPush] = useState(initial.pushEnabled);
+  // SEC-140: what Khalid last asked for (set the moment On or Off starts), so a Save tapped meanwhile
+  // never sends the old value and switches push back.
+  const wanted = useRef(initial.pushEnabled);
   const [hour12, setHour12] = useState(start.hour12);
   const [minute, setMinute] = useState(start.minute);
   const [pm, setPm] = useState(start.pm);
@@ -91,16 +94,19 @@ export function SettingsForm({ initial, lang, t, publicKey, save, subscribe, uns
 
   const onSave = () => job("save", async () => {
     if (!capOk) return setNote({ where: "save", text: t.capInvalid, error: true });
-    const ok = await saveValues(push);
+    const ok = await saveValues(wanted.current);
     setNote({ where: "save", text: ok ? t.saved : t.saveFailed, error: !ok });
   });
 
   const turnOn = () => job("push", async () => {
     if (!publicKey) return setNote({ where: "push", text: t.pushNotSetUp, error: true });
     if (!capOk) return setNote({ where: "push", text: t.capInvalid, error: true });
+    const before = wanted.current;
+    wanted.current = true;
     try {
       await enablePush(publicKey, subscribe, env());
     } catch (error) {
+      wanted.current = before;
       const e = error instanceof PushStepError ? error : new PushStepError("subscribe", "error");
       const text = e.step === "unsupported" ? t.pushUnsupported
         : e.step === "permission" && (e.detail === "denied" || e.detail === "default") ? t.pushDenied
@@ -113,6 +119,7 @@ export function SettingsForm({ initial, lang, t, publicKey, save, subscribe, uns
   });
 
   const turnOff = () => job("push", async () => {
+    wanted.current = false;
     try {
       await disablePush(unsubscribe, env());
     } catch {
