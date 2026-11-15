@@ -72,7 +72,8 @@ export async function saveSettings(input: SettingsInput): Promise<{ ok: boolean 
   } catch {
     return { ok: false };
   }
-  revalidatePath("/settings");
+  // No revalidatePath("/settings"): the form keeps its own values, and a page refresh after Save only
+  // added a wait before the button came back (live bug, Nov 15, 2026).
   return { ok: true };
 }
 

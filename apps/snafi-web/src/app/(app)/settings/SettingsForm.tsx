@@ -1,9 +1,12 @@
 "use client";
 
-import { useId, useState, useSyncExternalStore, useTransition } from "react";
+import { useId, useRef, useState, useSyncExternalStore } from "react";
 import { CAP_MAX, CAP_MIN, type Settings } from "@/adapters/mailbox/types";
 import { joinHHMM, splitHHMM } from "@/core/clock";
+import { browserEnv, disablePush, enablePush, PushStepError, within, type PushEnv, type PushStep } from "@/core/push-client";
 import type { Lang, Messages } from "@/i18n/messages";
+
+export { toBase64Url } from "@/core/push-client";
 
 type Result = Promise<{ ok: boolean }>;
 type Props = {
@@ -16,44 +19,45 @@ type Props = {
   subscribe: (k: { endpoint: string; p256dh: string; auth: string }) => Result;
   unsubscribe: (endpoint: string) => Result;
   test: () => Result;
+  /** The browser's push objects; tests pass fakes. */
+  env?: () => PushEnv | null;
 };
+
+type Job = "push" | "save" | "test";
+type Note = { where: "push" | "save"; text: string; error: boolean } | null;
 
 const HOURS = Array.from({ length: 12 }, (_, i) => i + 1);
 const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5);
-
-/** base64url (no padding) of a key from PushSubscription.toJSON(), whatever form the browser gave. */
-export function toBase64Url(value: string | undefined): string {
-  return (value ?? "").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-function keyBytes(base64url: string): Uint8Array<ArrayBuffer> {
-  const b64 = base64url.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (base64url.length % 4)) % 4);
-  const raw = atob(b64);
-  const out = new Uint8Array(new ArrayBuffer(raw.length));
-  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
-  return out;
-}
+const SAVE_LIMIT = 20_000;
 
 const noSubscribe = () => () => undefined;
 
 function pushSupported(): boolean {
-  return typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  return browserEnv() !== null;
 }
 
 /**
  * The Settings screen. Push is asked for only when Khalid taps On (iPhone requires a tap, and only in
  * the installed app). The phone's push address goes to the database through save_push_subscription,
  * which accepts only the four browser push services.
+ *
+ * Live bug fix (Nov 15, 2026): each button has its own busy state, always cleared (finally), so a step
+ * that waits (the permission prompt, the service worker) can never leave Save on "Saving…"; every step
+ * has a time limit; and every outcome is shown right under the button that was tapped.
  */
-export function SettingsForm({ initial, lang, t, publicKey, save, subscribe, unsubscribe, test }: Props) {
+export function SettingsForm({ initial, lang, t, publicKey, save, subscribe, unsubscribe, test, env = browserEnv }: Props) {
   const start = splitHHMM(initial.briefTime);
   const [push, setPush] = useState(initial.pushEnabled);
+  // SEC-140: what Khalid last asked for (set the moment On or Off starts), so a Save tapped meanwhile
+  // never sends the old value and switches push back.
+  const wanted = useRef(initial.pushEnabled);
   const [hour12, setHour12] = useState(start.hour12);
   const [minute, setMinute] = useState(start.minute);
   const [pm, setPm] = useState(start.pm);
   const [cap, setCap] = useState(String(initial.dailyCap));
-  const [note, setNote] = useState<string | null>(null);
-  const [pending, run] = useTransition();
+  const [note, setNote] = useState<Note>(null);
+  // One flag per button: Save never waits on the push steps, and the push steps never wait on Save.
+  const [busy, setBusy] = useState<Record<Job, boolean>>({ push: false, save: false, test: false });
   const ids = { hour: useId(), minute: useId(), cap: useId() };
 
   // Whether this browser can take push at all (server render: assume yes, to avoid a flash).
@@ -63,70 +67,109 @@ export function SettingsForm({ initial, lang, t, publicKey, save, subscribe, uns
   const capOk = Number.isInteger(capValue) && capValue >= CAP_MIN && capValue <= CAP_MAX && /^\d+$/.test(cap.trim());
   const values = (pushEnabled = push) => ({ pushEnabled, briefTime: joinHHMM(hour12, minute, pm), dailyCap: capValue });
 
-  const onSave = () => run(async () => {
-    if (!capOk) return setNote(t.saveFailed);
-    setNote((await save(values())).ok ? t.saved : t.saveFailed);
-  });
+  const stepText: Record<PushStep, string> = {
+    unsupported: t.stepUnsupported, permission: t.stepPermission, worker: t.stepWorker,
+    subscribe: t.stepSubscribe, server: t.stepServer,
+  };
 
-  const turnOn = () => run(async () => {
-    setNote(null);
-    if (!publicKey) return setNote(t.pushNotSetUp);
-    if (!pushSupported()) return setNote(t.pushUnsupported);
-    try {
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") return setNote(t.pushDenied);
-      const reg = await navigator.serviceWorker.ready;
-      const existing = await reg.pushManager.getSubscription();
-      const sub = existing ?? await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) });
-      const json = sub.toJSON();
-      const saved = await subscribe({ endpoint: sub.endpoint, p256dh: toBase64Url(json.keys?.p256dh), auth: toBase64Url(json.keys?.auth) });
-      if (!saved.ok) {
-        await sub.unsubscribe().catch(() => undefined);
-        return setNote(t.pushFailed);
-      }
-      const ok = capOk && (await save(values(true))).ok;
-      setPush(true);
-      setNote(ok ? t.saved : t.saveFailed);
-    } catch {
-      setNote(t.pushFailed);
-    }
-  });
-
-  const turnOff = () => run(async () => {
+  /** Runs one button's job; the busy flag is always cleared, whatever happens. */
+  async function job(which: Job, work: () => Promise<void>) {
+    if (busy[which]) return;
+    setBusy((b) => ({ ...b, [which]: true }));
     setNote(null);
     try {
-      const reg = pushSupported() ? await navigator.serviceWorker.ready : null;
-      const sub = reg ? await reg.pushManager.getSubscription() : null;
-      if (sub) {
-        await unsubscribe(sub.endpoint);
-        await sub.unsubscribe().catch(() => undefined);
-      }
-    } catch {
-      // the server switch below still stops every push
+      await work();
+    } finally {
+      setBusy((b) => ({ ...b, [which]: false }));
     }
-    setPush(false);
-    setNote(capOk && (await save(values(false))).ok ? t.saved : t.saveFailed);
+  }
+
+  async function saveValues(pushEnabled: boolean): Promise<boolean> {
+    try {
+      return (await within(save(values(pushEnabled)), SAVE_LIMIT, "server")).ok;
+    } catch {
+      return false;
+    }
+  }
+
+  const onSave = () => job("save", async () => {
+    if (!capOk) return setNote({ where: "save", text: t.capInvalid, error: true });
+    const ok = await saveValues(wanted.current);
+    setNote({ where: "save", text: ok ? t.saved : t.saveFailed, error: !ok });
   });
 
-  const onTest = () => run(async () => setNote((await test()).ok ? t.testSent : t.testFailed));
+  const turnOn = () => job("push", async () => {
+    if (!publicKey) return setNote({ where: "push", text: t.pushNotSetUp, error: true });
+    if (!capOk) return setNote({ where: "push", text: t.capInvalid, error: true });
+    const before = wanted.current;
+    wanted.current = true;
+    try {
+      await enablePush(publicKey, subscribe, env());
+    } catch (error) {
+      wanted.current = before;
+      const e = error instanceof PushStepError ? error : new PushStepError("subscribe", "error");
+      const text = e.step === "unsupported" ? t.pushUnsupported
+        : e.step === "permission" && (e.detail === "denied" || e.detail === "default") ? t.pushDenied
+        : t.pushFailedAt.replace("{step}", stepText[e.step]) + (e.detail ? ` (${e.detail})` : "");
+      return setNote({ where: "push", text, error: true });
+    }
+    const ok = await saveValues(true);
+    setPush(true);
+    setNote({ where: "push", text: ok ? t.pushReady : t.saveFailed, error: !ok });
+  });
+
+  const turnOff = () => job("push", async () => {
+    wanted.current = false;
+    try {
+      await disablePush(unsubscribe, env());
+    } catch {
+      // The server switch below still stops every push to every phone.
+    }
+    const ok = await saveValues(false);
+    if (ok) setPush(false);
+    setNote({ where: "push", text: ok ? t.saved : t.saveFailed, error: !ok });
+  });
+
+  const onTest = () => job("test", async () => {
+    let ok = false;
+    try {
+      ok = (await within(test(), SAVE_LIMIT, "server")).ok;
+    } catch {
+      ok = false;
+    }
+    setNote({ where: "push", text: ok ? t.testSent : t.testFailed, error: !ok });
+  });
 
   const option = (active: boolean) =>
     `min-h-11 flex-1 rounded-xl border px-3 text-sm transition-colors ${active ? "border-gold bg-gold/15 text-gold-ink" : "border-edge text-ink"}`;
   const field = "min-h-11 rounded-xl border border-edge bg-card px-3 text-sm text-ink";
+  const shown = (where: "push" | "save") => note && note.where === where && (
+    <p role={note.error ? "alert" : "status"} data-testid={`settings-note-${where}`}
+      className={`mt-3 rounded-xl border px-3 py-2 text-sm ${note.error ? "border-gold/60 text-gold-ink" : "border-edge text-muted"}`}>
+      {note.text}
+    </p>
+  );
 
   return (
     <div className="mt-6 space-y-6" data-testid="settings-form">
       <section className="rounded-2xl border border-edge bg-card p-4">
         <h2 className="text-lg">{t.pushTitle}</h2>
         <div className="mt-3 flex gap-2" role="group" aria-label={t.pushTitle}>
-          <button type="button" className={option(push)} aria-pressed={push} disabled={pending} onClick={turnOn}>{t.pushOn}</button>
-          <button type="button" className={option(!push)} aria-pressed={!push} disabled={pending} onClick={turnOff}>{t.pushOff}</button>
+          <button type="button" className={option(push)} aria-pressed={push} disabled={busy.push} onClick={turnOn}>
+            {busy.push && !push ? t.working : t.pushOn}
+          </button>
+          <button type="button" className={option(!push)} aria-pressed={!push} disabled={busy.push} onClick={turnOff}>
+            {busy.push && push ? t.working : t.pushOff}
+          </button>
         </div>
+        {shown("push")}
         <p className="mt-3 text-xs text-muted">{t.pushHelp}</p>
         {!publicKey && <p className="mt-2 text-xs text-gold-ink" data-testid="push-not-set-up">{t.pushNotSetUp}</p>}
         {publicKey && !supported && <p className="mt-2 text-xs text-gold-ink">{t.pushUnsupported}</p>}
-        <button type="button" onClick={onTest} disabled={pending || !push}
-          className="mt-3 min-h-11 rounded-xl border border-edge px-4 text-sm disabled:opacity-50">{t.test}</button>
+        <button type="button" onClick={onTest} disabled={busy.test || busy.push || !push}
+          className="mt-3 min-h-11 rounded-xl border border-edge px-4 text-sm disabled:opacity-50">
+          {busy.test ? t.working : t.test}
+        </button>
       </section>
 
       <section className="rounded-2xl border border-edge bg-card p-4">
@@ -163,11 +206,13 @@ export function SettingsForm({ initial, lang, t, publicKey, save, subscribe, uns
         <p className="mt-2 text-xs text-muted">{t.capHelp}</p>
       </section>
 
-      <button type="button" onClick={onSave} disabled={pending || !capOk}
-        className="min-h-11 w-full rounded-xl bg-gold px-4 text-sm font-medium text-[#0E0E10] disabled:opacity-50">
-        {pending ? t.saving : t.save}
-      </button>
-      {note && <p role="status" className="text-sm text-muted" data-testid="settings-note">{note}</p>}
+      <div>
+        <button type="button" onClick={onSave} disabled={busy.save || !capOk}
+          className="min-h-11 w-full rounded-xl bg-gold px-4 text-sm font-medium text-[#0E0E10] disabled:opacity-50">
+          {busy.save ? t.saving : t.save}
+        </button>
+        {shown("save")}
+      </div>
     </div>
   );
 }
