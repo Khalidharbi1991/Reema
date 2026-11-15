@@ -130,7 +130,7 @@ describe("Settings screen after the fix", () => {
     pushManager.getSubscription.mockResolvedValue(null);
     render(<SettingsForm initial={{ ...DEFAULT_SETTINGS, pushEnabled: true }} lang="en" t={t} publicKey={KEY} save={ok}
       subscribe={ok} unsubscribe={ok} test={ok} env={() => env} />);
-    expect(await screen.findByTestId("push-other-phone")).toHaveTextContent("not this one yet");
+    expect(await screen.findByTestId("push-other-phone")).toHaveTextContent("this phone isn't signed up yet");
     expect(screen.getByRole("button", { name: "On" })).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(screen.getByRole("button", { name: "On" }));
     expect(await screen.findByText(/Notifications are on for this phone/)).toBeInTheDocument();
