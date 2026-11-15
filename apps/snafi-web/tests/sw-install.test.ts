@@ -49,4 +49,20 @@ describe("the service worker's precached files", () => {
     expect(self.skipWaiting).toHaveBeenCalled();
     expect(added).toEqual(precacheList().filter((u) => u !== "/offline.html"));
   });
+
+  it("SEC-147: offline with no cached offline page, a built-in page is shown", async () => {
+    const listeners: Record<string, (event: unknown) => void> = {};
+    const self = { addEventListener: (n: string, fn: (e: unknown) => void) => { listeners[n] = fn; },
+      location: { origin: "https://snafi.example.com" }, registration: {}, clients: {} };
+    runInNewContext(readFileSync(SW, "utf8"), {
+      self, URL, Response, caches: { match: async () => undefined },
+      fetch: async () => { throw new TypeError("offline"); },
+    });
+    let answer: Promise<Response> = Promise.reject(new Error("no answer"));
+    listeners.fetch({ request: { method: "GET", url: "https://snafi.example.com/today", mode: "navigate" },
+      respondWith: (p: Promise<Response>) => { answer = p; } });
+    const res = await answer;
+    expect(res.status).toBe(503);
+    expect(await res.text()).toContain("You are offline");
+  });
 });

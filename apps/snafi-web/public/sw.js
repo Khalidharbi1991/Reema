@@ -57,7 +57,13 @@ self.addEventListener("fetch", (event) => {
 
   if (request.mode === "navigate") {
     // Network only; show the offline page if the network is down.
-    event.respondWith(fetch(request).catch(() => caches.match("/offline.html")));
+    // SEC-147: if /offline.html was not cached, a small built-in page (no private content) is shown instead.
+    event.respondWith(fetch(request).catch(() => caches.match("/offline.html").then((hit) => hit || new Response(
+      '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+      + "<title>Snafi · Offline</title><p>You are offline. Snafi will reconnect when the network is back.</p>"
+      + '<p dir="rtl" lang="ar">أنت غير متصل. سيعود سنافي عند عودة الشبكة.</p>',
+      { status: 503, headers: { "Content-Type": "text/html; charset=utf-8" } },
+    ))));
   }
 });
 

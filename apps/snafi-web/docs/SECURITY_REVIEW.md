@@ -1,4 +1,8 @@
-> **Newest: Settings push live-bug fix, Nov 15, 2026.** In
+> **Newest: offline page missing on Vercel (push could not start), Nov 15, 2026.** In
+> [SECURITY_REVIEW_sw_offline.md](SECURITY_REVIEW_sw_offline.md) (SEC-147 to SEC-152). Open Critical 0,
+> **open High 0**; SEC-147 fixed after it (awaiting re-check).
+>
+> **Settings push live-bug fix, Nov 15, 2026.** In
 > [SECURITY_REVIEW_settings_push.md](SECURITY_REVIEW_settings_push.md) (SEC-140 to SEC-146). Open Critical 0,
 > **open High 0**; SEC-140 fixed and SEC-141 partly fixed after it (awaiting re-check).
 >
