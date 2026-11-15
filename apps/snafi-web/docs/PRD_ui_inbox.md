@@ -1,6 +1,6 @@
 # PRD: Snafi UI job — Inbox, simpler Today, Chat scroll, mobile fit, calmer look
 
-Status: draft for Khalid to confirm. Author: Agent 12. Date: Nov 15, 2026.
+Status: confirmed by Khalid on Nov 15, 2026, with the answers in section 9. Author: Agent 12. Date: Nov 15, 2026.
 Source: Khalid's request as passed by Ahmad. The technology is not chosen here (Agent 13).
 
 ## 1. Problem and goal
@@ -181,11 +181,11 @@ merge.
 - A12 On Today, an approval is shown as a message that opens the Inbox; Approve and Reject are
   only in the Inbox and in Chat.
 
-## 9. Open questions
+## 9. Questions, answered by Khalid on Nov 15, 2026 (these override the text above)
 
-- Q1 Should Approve and Reject also be on Today's message, to save a tap (changes A12)?
-- Q2 Should a decided approval stay in the Inbox as a read item for 7 days (changes A2)?
-- Q3 Should the plan cap events as well (for example 5 plus a count) on a busy day (A5)?
-- Q4 Should test-push cards be kept out of the badge count (A8)?
-- Q5 Is the Inbox a full page or a panel over the current screen? Left to Agents 13 and 17 unless
-  Khalid prefers one.
+- Q1 Approve and Reject on Today's message: no. They stay in the Inbox and Chat (A12 stands).
+- Q2 A decided approval does not stay in the Inbox; it remains in Chat and the action log (A2 stands).
+- Q3 The plan caps events: at most 5 of today's remaining events, plus "+N more" (changes AC-16, A5).
+- Q4 Test-push cards show in the Inbox but never count in the badge or as unread for the bell
+  (changes AC-2, A8). They can still be marked read and clear after 7 days like any card.
+- Q5 The Inbox is a full page (`/inbox`), not a panel.
