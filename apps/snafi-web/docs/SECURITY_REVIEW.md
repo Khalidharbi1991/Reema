@@ -1,4 +1,8 @@
-> **Newest: offline page missing on Vercel (push could not start), Nov 15, 2026.** In
+> **Newest: push On/Off shown per phone (Android not signed up), Nov 15, 2026.** In
+> [SECURITY_REVIEW_push_per_phone.md](SECURITY_REVIEW_push_per_phone.md) (SEC-153 to SEC-160). Open Critical 0,
+> **open High 0**; SEC-154 fixed after it; SEC-153 (what Off should do) waits for Khalid.
+>
+> **Offline page missing on Vercel (push could not start), Nov 15, 2026.** In
 > [SECURITY_REVIEW_sw_offline.md](SECURITY_REVIEW_sw_offline.md) (SEC-147 to SEC-152). Open Critical 0,
 > **open High 0**; SEC-147 fixed after it (awaiting re-check).
 >

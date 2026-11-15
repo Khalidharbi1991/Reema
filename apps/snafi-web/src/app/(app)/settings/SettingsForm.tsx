@@ -1,9 +1,11 @@
 "use client";
 
-import { useId, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { CAP_MAX, CAP_MIN, type Settings } from "@/adapters/mailbox/types";
 import { joinHHMM, splitHHMM } from "@/core/clock";
-import { browserEnv, disablePush, enablePush, PushStepError, within, type PushEnv, type PushStep } from "@/core/push-client";
+import {
+  browserEnv, deviceSubscribed, disablePush, enablePush, PushStepError, within, type PushEnv, type PushStep,
+} from "@/core/push-client";
 import type { Lang, Messages } from "@/i18n/messages";
 
 export { toBase64Url } from "@/core/push-client";
@@ -59,6 +61,16 @@ export function SettingsForm({ initial, lang, t, publicKey, save, subscribe, uns
   // One flag per button: Save never waits on the push steps, and the push steps never wait on Save.
   const [busy, setBusy] = useState<Record<Job, boolean>>({ push: false, save: false, test: false });
   const ids = { hour: useId(), minute: useId(), cap: useId() };
+  // Push is per PHONE, while push on/off is per account (live bug, Nov 15, 2026: after the iPhone turned
+  // push on, Android showed On too, though Android itself was never signed up). null = not known yet.
+  const [device, setDevice] = useState<boolean | null>(null);
+  const envRef = useRef(env);
+  useEffect(() => {
+    let live = true;
+    deviceSubscribed(envRef.current()).then((v) => { if (live) setDevice(v); });
+    return () => { live = false; };
+  }, []);
+  const thisPhoneOn = push && device !== false;
 
   // Whether this browser can take push at all (server render: assume yes, to avoid a flash).
   const supported = useSyncExternalStore(noSubscribe, pushSupported, () => true);
@@ -113,6 +125,7 @@ export function SettingsForm({ initial, lang, t, publicKey, save, subscribe, uns
         : t.pushFailedAt.replace("{step}", stepText[e.step]) + (e.detail ? ` (${e.detail})` : "");
       return setNote({ where: "push", text, error: true });
     }
+    setDevice(true);
     const ok = await saveValues(true);
     setPush(true);
     setNote({ where: "push", text: ok ? t.pushReady : t.saveFailed, error: !ok });
@@ -125,6 +138,7 @@ export function SettingsForm({ initial, lang, t, publicKey, save, subscribe, uns
     } catch {
       // The server switch below still stops every push to every phone.
     }
+    setDevice(false);
     const ok = await saveValues(false);
     if (ok) setPush(false);
     setNote({ where: "push", text: ok ? t.saved : t.saveFailed, error: !ok });
@@ -155,14 +169,18 @@ export function SettingsForm({ initial, lang, t, publicKey, save, subscribe, uns
       <section className="rounded-2xl border border-edge bg-card p-4">
         <h2 className="text-lg">{t.pushTitle}</h2>
         <div className="mt-3 flex gap-2" role="group" aria-label={t.pushTitle}>
-          <button type="button" className={option(push)} aria-pressed={push} disabled={busy.push} onClick={turnOn}>
-            {busy.push && !push ? t.working : t.pushOn}
+          <button type="button" className={option(thisPhoneOn)} aria-pressed={thisPhoneOn} disabled={busy.push} onClick={turnOn}>
+            {busy.push && !thisPhoneOn ? t.working : t.pushOn}
           </button>
-          <button type="button" className={option(!push)} aria-pressed={!push} disabled={busy.push} onClick={turnOff}>
-            {busy.push && push ? t.working : t.pushOff}
+          <button type="button" className={option(!thisPhoneOn)} aria-pressed={!thisPhoneOn} disabled={busy.push} onClick={turnOff}>
+            {busy.push && thisPhoneOn ? t.working : t.pushOff}
           </button>
         </div>
         {shown("push")}
+        {push && device === false && !note && (
+          <p role="status" data-testid="push-other-phone"
+            className="mt-3 rounded-xl border border-gold/60 px-3 py-2 text-sm text-gold-ink">{t.pushOtherPhone}</p>
+        )}
         <p className="mt-3 text-xs text-muted">{t.pushHelp}</p>
         {!publicKey && <p className="mt-2 text-xs text-gold-ink" data-testid="push-not-set-up">{t.pushNotSetUp}</p>}
         {publicKey && !supported && <p className="mt-2 text-xs text-gold-ink">{t.pushUnsupported}</p>}

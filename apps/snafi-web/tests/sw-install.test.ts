@@ -58,10 +58,11 @@ describe("the service worker's precached files", () => {
       self, URL, Response, caches: { match: async () => undefined },
       fetch: async () => { throw new TypeError("offline"); },
     });
-    let answer: Promise<Response> = Promise.reject(new Error("no answer"));
+    let answer: Promise<Response> | null = null;
     listeners.fetch({ request: { method: "GET", url: "https://snafi.example.com/today", mode: "navigate" },
       respondWith: (p: Promise<Response>) => { answer = p; } });
-    const res = await answer;
+    expect(answer).not.toBeNull();
+    const res = await (answer as unknown as Promise<Response>);
     expect(res.status).toBe(503);
     expect(await res.text()).toContain("You are offline");
   });
