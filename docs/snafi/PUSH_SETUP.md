@@ -90,7 +90,14 @@ If you change Snafi's language, tap **Save** in Settings once so the lock-screen
 
 ## Turning it off
 
-- One phone: Settings → Phone notifications → **Off**.
+- One phone: on that phone, Settings → Phone notifications → **Off**. Only the phone you are holding
+  stops; your other phones keep their notifications (your decision, Nov 15, 2026).
+- All phones: Settings → **Turn off on all phones** → **Yes, turn off on all phones**. Cards still
+  appear on Today. The other phones stay signed up, so tapping **On** on any phone later turns
+  notifications back on for all of them (the phone you turned it off from needs its own **On**).
+- Each phone signs up on its own the first time: tap **On** on every phone you want notifications on.
+- "All phones" does not remove a lost phone's sign-up; it only pauses notifications until On is tapped
+  again. A lost phone's notifications never show private text, only the fixed words.
 - Everything: remove `NEXT_PUBLIC_SNAFI_VAPID_PUBLIC_KEY` in Vercel, or remove the push key with
   `snafi.cmd set-secrets --remove` (this removes every Snafi value; run `set-secrets` again after).
   Cards still appear on Today without push.

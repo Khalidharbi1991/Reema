@@ -148,14 +148,90 @@ describe("Settings screen after the fix", () => {
     expect(screen.queryByTestId("push-other-phone")).toBeNull();
   });
 
-  it("SEC-140: Save tapped while Off is still saving sends push off, never the old on", async () => {
+  it("SEC-153: Off removes only this phone and never touches the account setting", async () => {
+    const save = vi.fn(ok);
+    const unsubscribe = vi.fn(ok);
+    const { env, pushManager, sub } = fakeEnv();
+    pushManager.getSubscription.mockResolvedValue(sub as never);
+    render(<SettingsForm initial={{ ...DEFAULT_SETTINGS, pushEnabled: true }} lang="en" t={t} publicKey={KEY} save={save}
+      subscribe={ok} unsubscribe={unsubscribe} test={ok} env={() => env} />);
+    await new Promise((r) => setTimeout(r, 0));
+    fireEvent.click(screen.getByRole("button", { name: "Off" }));
+    expect(await screen.findByTestId("settings-note-push")).toHaveTextContent("Other phones are not changed.");
+    expect(unsubscribe).toHaveBeenCalledWith(sub.endpoint);
+    expect(sub.unsubscribe).toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Off" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Send a test" })).toBeEnabled();   // the account is still on
+  });
+
+  it("SEC-153: Off on a phone that was never signed up changes nothing", async () => {
+    const save = vi.fn(ok);
+    const unsubscribe = vi.fn(ok);
+    const { env } = fakeEnv({ registration: "none" });
+    render(<SettingsForm initial={{ ...DEFAULT_SETTINGS, pushEnabled: true }} lang="en" t={t} publicKey={KEY} save={save}
+      subscribe={ok} unsubscribe={unsubscribe} test={ok} env={() => env} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Off" }));
+    expect(await screen.findByTestId("settings-note-push")).toHaveTextContent("wasn't signed up");
+    expect(save).not.toHaveBeenCalled();
+    expect(unsubscribe).not.toHaveBeenCalled();
+  });
+
+  it("SEC-163: if an earlier step fails, nothing is cancelled and the screen does not claim it is off", async () => {
+    const unsubscribe = vi.fn(ok);
+    const { env, pushManager, sub } = fakeEnv();
+    pushManager.getSubscription.mockResolvedValueOnce(sub as never)            // the first check: signed up
+      .mockRejectedValueOnce(Object.assign(new Error("x"), { name: "InvalidStateError" }));
+    render(<SettingsForm initial={{ ...DEFAULT_SETTINGS, pushEnabled: true }} lang="en" t={t} publicKey={KEY} save={ok}
+      subscribe={ok} unsubscribe={unsubscribe} test={ok} env={() => env} />);
+    await new Promise((r) => setTimeout(r, 0));
+    fireEvent.click(screen.getByRole("button", { name: "Off" }));
+    expect(await screen.findByTestId("settings-note-push"))
+      .toHaveTextContent("Couldn't turn this phone off: the phone's push service didn't answer. It may still get notifications.");
+    expect(unsubscribe).not.toHaveBeenCalled();
+    expect(sub.unsubscribe).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "On" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("SEC-153: if the server can't remove the address, the phone is still cancelled and the screen says so", async () => {
+    const { env, pushManager, sub } = fakeEnv();
+    pushManager.getSubscription.mockResolvedValue(sub as never);
+    render(<SettingsForm initial={{ ...DEFAULT_SETTINGS, pushEnabled: true }} lang="en" t={t} publicKey={KEY} save={ok}
+      subscribe={ok} unsubscribe={async () => ({ ok: false })} test={ok} env={() => env} />);
+    await new Promise((r) => setTimeout(r, 0));
+    fireEvent.click(screen.getByRole("button", { name: "Off" }));
+    const note = await screen.findByTestId("settings-note-push");
+    expect(note).toHaveAttribute("role", "alert");
+    expect(note).toHaveTextContent("couldn't be removed");
+    expect(sub.unsubscribe).toHaveBeenCalled();
+  });
+
+  it("Turn off on all phones asks first; Cancel changes nothing, Yes switches the account off", async () => {
+    const save = vi.fn(ok);
+    render(<SettingsForm initial={{ ...DEFAULT_SETTINGS, pushEnabled: true }} lang="en" t={t} publicKey={KEY} save={save}
+      subscribe={ok} unsubscribe={ok} test={ok} env={() => null} />);
+    fireEvent.click(screen.getByRole("button", { name: "Turn off on all phones" }));
+    expect(screen.getByTestId("off-all-confirm")).toHaveTextContent("Turn off notifications on all your phones?");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByTestId("off-all-confirm")).toBeNull();
+    expect(save).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Turn off on all phones" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yes, turn off on all phones" }));
+    expect(await screen.findByText(/Notifications are off on all phones/)).toBeInTheDocument();
+    expect(save).toHaveBeenCalledWith({ pushEnabled: false, briefTime: "07:00", dailyCap: 10 });
+    expect(screen.queryByRole("button", { name: "Turn off on all phones" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Send a test" })).toBeDisabled();
+  });
+
+  it("SEC-140: Save tapped while 'all phones' is still saving sends push off, never the old on", async () => {
     let finishOff: (v: { ok: boolean }) => void = () => undefined;
     const save = vi.fn((s: { pushEnabled: boolean }) =>
       s.pushEnabled === false && save.mock.calls.length === 1
         ? new Promise<{ ok: boolean }>((r) => { finishOff = r; }) : Promise.resolve({ ok: true }));
     render(<SettingsForm initial={{ ...DEFAULT_SETTINGS, pushEnabled: true }} lang="en" t={t} publicKey={KEY} save={save}
       subscribe={ok} unsubscribe={ok} test={ok} env={() => null} />);
-    fireEvent.click(screen.getByRole("button", { name: "Off" }));
+    fireEvent.click(screen.getByRole("button", { name: "Turn off on all phones" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yes, turn off on all phones" }));
     await screen.findByRole("button", { name: "Working…" });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await screen.findByText("Saved.");
