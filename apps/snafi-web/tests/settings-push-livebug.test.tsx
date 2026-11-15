@@ -125,6 +125,29 @@ describe("Settings screen after the fix", () => {
     expect(screen.getByRole("button", { name: "On" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("push on for the account but not this phone: On is not shown as on, and the screen says so", async () => {
+    const { env, pushManager } = fakeEnv();   // this phone has a worker but no subscription
+    pushManager.getSubscription.mockResolvedValue(null);
+    render(<SettingsForm initial={{ ...DEFAULT_SETTINGS, pushEnabled: true }} lang="en" t={t} publicKey={KEY} save={ok}
+      subscribe={ok} unsubscribe={ok} test={ok} env={() => env} />);
+    expect(await screen.findByTestId("push-other-phone")).toHaveTextContent("not this one yet");
+    expect(screen.getByRole("button", { name: "On" })).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(screen.getByRole("button", { name: "On" }));
+    expect(await screen.findByText(/Notifications are on for this phone/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "On" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByTestId("push-other-phone")).toBeNull();
+  });
+
+  it("a phone that is already subscribed shows On", async () => {
+    const { env, pushManager, sub } = fakeEnv();
+    pushManager.getSubscription.mockResolvedValue(sub as never);
+    render(<SettingsForm initial={{ ...DEFAULT_SETTINGS, pushEnabled: true }} lang="en" t={t} publicKey={KEY} save={ok}
+      subscribe={ok} unsubscribe={ok} test={ok} env={() => env} />);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByRole("button", { name: "On" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByTestId("push-other-phone")).toBeNull();
+  });
+
   it("SEC-140: Save tapped while Off is still saving sends push off, never the old on", async () => {
     let finishOff: (v: { ok: boolean }) => void = () => undefined;
     const save = vi.fn((s: { pushEnabled: boolean }) =>

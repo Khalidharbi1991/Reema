@@ -108,6 +108,22 @@ export async function enablePush(
   }
 }
 
+/**
+ * Whether THIS phone has a push subscription (push is per phone: the on/off setting is per account).
+ * null when it cannot be told (no push support, or no answer in time).
+ */
+export async function deviceSubscribed(env: PushEnv | null = browserEnv(), ms = 5_000): Promise<boolean | null> {
+  if (!env?.supported) return null;
+  try {
+    return await within((async () => {
+      const reg = await env.serviceWorker.getRegistration("/");
+      return reg ? (await reg.pushManager.getSubscription()) !== null : false;
+    })(), ms, "worker");
+  } catch {
+    return null;
+  }
+}
+
 /** Unsubscribes this phone (best effort) and tells the server; push_enabled is saved separately. */
 export async function disablePush(
   remove: (endpoint: string) => Promise<{ ok: boolean }>,
