@@ -64,6 +64,7 @@ export function SettingsForm({ initial, lang, t, publicKey, save, subscribe, uns
   // Push is per PHONE, while push on/off is per account (live bug, Nov 15, 2026: after the iPhone turned
   // push on, Android showed On too, though Android itself was never signed up). null = not known yet.
   const [device, setDevice] = useState<boolean | null>(null);
+  const [confirmAll, setConfirmAll] = useState(false);
   const envRef = useRef(env);
   useEffect(() => {
     let live = true;
@@ -131,17 +132,35 @@ export function SettingsForm({ initial, lang, t, publicKey, save, subscribe, uns
     setNote({ where: "push", text: ok ? t.pushReady : t.saveFailed, error: !ok });
   });
 
+  /** SEC-153 (Khalid): Off removes only the phone he is holding; the account setting and other phones stay. */
   const turnOff = () => job("push", async () => {
+    setConfirmAll(false);
+    let removed = false;
+    try {
+      removed = await disablePush(unsubscribe, env());
+    } catch (error) {
+      const e = error instanceof PushStepError ? error : new PushStepError("server", "error");
+      setDevice(false);  // the phone's own subscription is cancelled even when the server step fails
+      return setNote({ where: "push", error: true,
+        text: t.offThisFailed.replace("{step}", stepText[e.step]) + (e.detail ? ` (${e.detail})` : "") });
+    }
+    setDevice(false);
+    setNote({ where: "push", text: removed ? t.offThisDone : t.offThisNone, error: false });
+  });
+
+  /** "Turn off on all phones": only after the confirm step. Switches the account setting off. */
+  const turnOffAll = () => job("push", async () => {
+    setConfirmAll(false);
     wanted.current = false;
     try {
       await disablePush(unsubscribe, env());
     } catch {
-      // The server switch below still stops every push to every phone.
+      // The account switch below still stops every push to every phone.
     }
     setDevice(false);
     const ok = await saveValues(false);
     if (ok) setPush(false);
-    setNote({ where: "push", text: ok ? t.saved : t.saveFailed, error: !ok });
+    setNote({ where: "push", text: ok ? t.offAllDone : t.saveFailed, error: !ok });
   });
 
   const onTest = () => job("test", async () => {
@@ -184,10 +203,34 @@ export function SettingsForm({ initial, lang, t, publicKey, save, subscribe, uns
         <p className="mt-3 text-xs text-muted">{t.pushHelp}</p>
         {!publicKey && <p className="mt-2 text-xs text-gold-ink" data-testid="push-not-set-up">{t.pushNotSetUp}</p>}
         {publicKey && !supported && <p className="mt-2 text-xs text-gold-ink">{t.pushUnsupported}</p>}
-        <button type="button" onClick={onTest} disabled={busy.test || busy.push || !push}
-          className="mt-3 min-h-11 rounded-xl border border-edge px-4 text-sm disabled:opacity-50">
-          {busy.test ? t.working : t.test}
-        </button>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" onClick={onTest} disabled={busy.test || busy.push || !push}
+            className="min-h-11 rounded-xl border border-edge px-4 text-sm disabled:opacity-50">
+            {busy.test ? t.working : t.test}
+          </button>
+          {push && !confirmAll && (
+            <button type="button" onClick={() => { setNote(null); setConfirmAll(true); }} disabled={busy.push}
+              data-testid="off-all" className="min-h-11 rounded-xl border border-edge px-4 text-sm text-muted disabled:opacity-50">
+              {t.offAll}
+            </button>
+          )}
+        </div>
+        {confirmAll && (
+          <div role="alertdialog" aria-label={t.offAll} data-testid="off-all-confirm"
+            className="mt-3 rounded-xl border border-gold/60 px-3 py-3 text-sm">
+            <p className="text-gold-ink">{t.offAllConfirm}</p>
+            <div className="mt-3 flex gap-2">
+              <button type="button" onClick={turnOffAll} disabled={busy.push}
+                className="min-h-11 flex-1 rounded-xl border border-gold bg-gold/15 px-3 text-sm text-gold-ink disabled:opacity-50">
+                {t.offAllYes}
+              </button>
+              <button type="button" onClick={() => setConfirmAll(false)} disabled={busy.push}
+                className="min-h-11 flex-1 rounded-xl border border-edge px-3 text-sm">
+                {t.cancel}
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="rounded-2xl border border-edge bg-card p-4">

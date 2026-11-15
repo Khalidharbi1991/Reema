@@ -124,16 +124,27 @@ export async function deviceSubscribed(env: PushEnv | null = browserEnv(), ms = 
   }
 }
 
-/** Unsubscribes this phone (best effort) and tells the server; push_enabled is saved separately. */
+/**
+ * Removes THIS phone only (SEC-153, Khalid, Nov 15, 2026): its address is deleted on the server
+ * (remove_push_subscription) and the phone's own subscription is cancelled. push_enabled, the account
+ * setting, is not touched, so the other phones keep their notifications. Returns false when this phone
+ * was not signed up. The phone's subscription is cancelled even if the server step fails: a push sent
+ * to it then gets a 410 and the worker removes the address itself.
+ */
 export async function disablePush(
   remove: (endpoint: string) => Promise<{ ok: boolean }>,
   env: PushEnv | null = browserEnv(),
   limits: { [K in keyof typeof LIMITS]: number } = LIMITS,
-): Promise<void> {
-  if (!env?.supported) return;
+): Promise<boolean> {
+  if (!env?.supported) return false;
   const reg = await step("worker", limits.worker, async () => (await env.serviceWorker.getRegistration("/")) ?? null);
   const sub = reg ? await step("subscribe", limits.subscribe, () => reg.pushManager.getSubscription()) : null;
-  if (!sub) return;
-  await step("server", limits.server, () => remove(sub.endpoint));
-  await sub.unsubscribe().catch(() => undefined);
+  if (!sub) return false;
+  try {
+    const removed = await step("server", limits.server, () => remove(sub.endpoint));
+    if (!removed.ok) throw new PushStepError("server", "refused");
+  } finally {
+    await sub.unsubscribe().catch(() => undefined);
+  }
+  return true;
 }
