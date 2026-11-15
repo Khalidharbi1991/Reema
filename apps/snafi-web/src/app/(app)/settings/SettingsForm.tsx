@@ -140,9 +140,14 @@ export function SettingsForm({ initial, lang, t, publicKey, save, subscribe, uns
       removed = await disablePush(unsubscribe, env());
     } catch (error) {
       const e = error instanceof PushStepError ? error : new PushStepError("server", "error");
-      setDevice(false);  // the phone's own subscription is cancelled even when the server step fails
-      return setNote({ where: "push", error: true,
-        text: t.offThisFailed.replace("{step}", stepText[e.step]) + (e.detail ? ` (${e.detail})` : "") });
+      const detail = e.detail ? ` (${e.detail})` : "";
+      if (e.step === "server") {
+        // Only the server step runs inside disablePush's finally, so only then is the phone already cancelled.
+        setDevice(false);
+        return setNote({ where: "push", error: true, text: t.offThisFailed.replace("{step}", stepText[e.step]) + detail });
+      }
+      // SEC-163: an earlier step failed, so nothing was cancelled; the phone's state is left as it was.
+      return setNote({ where: "push", error: true, text: t.offThisCouldNot.replace("{step}", stepText[e.step]) + detail });
     }
     setDevice(false);
     setNote({ where: "push", text: removed ? t.offThisDone : t.offThisNone, error: false });
@@ -160,6 +165,7 @@ export function SettingsForm({ initial, lang, t, publicKey, save, subscribe, uns
     setDevice(false);
     const ok = await saveValues(false);
     if (ok) setPush(false);
+    else wanted.current = push;  // SEC-168: a later Save keeps what the account really has
     setNote({ where: "push", text: ok ? t.offAllDone : t.saveFailed, error: !ok });
   });
 

@@ -1,4 +1,8 @@
-> **Newest: push On/Off shown per phone (Android not signed up), Nov 15, 2026.** In
+> **Newest: Off for this phone only, and "Turn off on all phones" (SEC-153, Khalid's decision), Nov 15, 2026.** In
+> [SECURITY_REVIEW_off_this_phone.md](SECURITY_REVIEW_off_this_phone.md) (SEC-161 to SEC-169; SEC-153, 154 and 158
+> closed). Open Critical 0, **open High 0**; SEC-163, 164, 166 (wording) and 168 fixed after it.
+>
+> **Push On/Off shown per phone (Android not signed up), Nov 15, 2026.** In
 > [SECURITY_REVIEW_push_per_phone.md](SECURITY_REVIEW_push_per_phone.md) (SEC-153 to SEC-160). Open Critical 0,
 > **open High 0**; SEC-154 fixed after it; SEC-153 (what Off should do) waits for Khalid.
 >

@@ -157,7 +157,7 @@ describe("Settings screen after the fix", () => {
       subscribe={ok} unsubscribe={unsubscribe} test={ok} env={() => env} />);
     await new Promise((r) => setTimeout(r, 0));
     fireEvent.click(screen.getByRole("button", { name: "Off" }));
-    expect(await screen.findByTestId("settings-note-push")).toHaveTextContent("Your other phones still do.");
+    expect(await screen.findByTestId("settings-note-push")).toHaveTextContent("Other phones are not changed.");
     expect(unsubscribe).toHaveBeenCalledWith(sub.endpoint);
     expect(sub.unsubscribe).toHaveBeenCalled();
     expect(save).not.toHaveBeenCalled();
@@ -175,6 +175,22 @@ describe("Settings screen after the fix", () => {
     expect(await screen.findByTestId("settings-note-push")).toHaveTextContent("wasn't signed up");
     expect(save).not.toHaveBeenCalled();
     expect(unsubscribe).not.toHaveBeenCalled();
+  });
+
+  it("SEC-163: if an earlier step fails, nothing is cancelled and the screen does not claim it is off", async () => {
+    const unsubscribe = vi.fn(ok);
+    const { env, pushManager, sub } = fakeEnv();
+    pushManager.getSubscription.mockResolvedValueOnce(sub as never)            // the first check: signed up
+      .mockRejectedValueOnce(Object.assign(new Error("x"), { name: "InvalidStateError" }));
+    render(<SettingsForm initial={{ ...DEFAULT_SETTINGS, pushEnabled: true }} lang="en" t={t} publicKey={KEY} save={ok}
+      subscribe={ok} unsubscribe={unsubscribe} test={ok} env={() => env} />);
+    await new Promise((r) => setTimeout(r, 0));
+    fireEvent.click(screen.getByRole("button", { name: "Off" }));
+    expect(await screen.findByTestId("settings-note-push"))
+      .toHaveTextContent("Couldn't turn this phone off: the phone's push service didn't answer. It may still get notifications.");
+    expect(unsubscribe).not.toHaveBeenCalled();
+    expect(sub.unsubscribe).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "On" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("SEC-153: if the server can't remove the address, the phone is still cancelled and the screen says so", async () => {
