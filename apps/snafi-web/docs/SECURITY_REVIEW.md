@@ -1,4 +1,8 @@
-> **Newest: Snafi step 5 re-check, Nov 15, 2026.** In
+> **Newest: the worker's packages (cryptography for Web Push), Nov 15, 2026.** In
+> [SECURITY_REVIEW_worker_requirements.md](SECURITY_REVIEW_worker_requirements.md) (SEC-134 to SEC-139).
+> Open Critical 0, **open High 0**; SEC-134, 135, 136 and 138 fixed after it; Info SEC-137 and 139 wait for Khalid.
+>
+> **Snafi step 5 re-check, Nov 15, 2026.** In
 > [SECURITY_REVIEW_step5_recheck.md](SECURITY_REVIEW_step5_recheck.md), the current status for SEC-119 to SEC-133:
 > SEC-119, 123, 125, 126, 127 and 128 closed, SEC-120 accepted by Khalid, SEC-131 and 133 fixed after it (awaiting
 > re-check). Open Critical 0, **open High 0**; Low SEC-121, 122 and 130 wait for Khalid.

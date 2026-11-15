@@ -20,8 +20,8 @@
      no installer), downloaded into the locked folder, checked against its pinned SHA-256 (which
      matches the SHA-512 nuget.org publishes for it), and unpacked fresh into C:\SnafiWorker\python.
      It does not touch, need or conflict with any other Python on this PC. Then installs exactly
-     pyyaml 6.0.3 and tzdata 2026.6 into it, as wheels whose SHA-256 must match
-     requirements-worker.txt.
+     the packages in requirements-worker.txt into it (pyyaml, tzdata, and since step 5 cryptography
+     with cffi and pycparser), as wheels whose SHA-256 must match that file.
   4. Lets you (and so the worker) change files in the backups folder, with Administrators and
      SYSTEM; nobody else. Your own processes, Claude Code included, can now open it: only Claude
      Code's deny rules and its guard keep sessions out (a backstop, not an OS boundary). The dormant

@@ -28,7 +28,11 @@ def test_deploy_copies_only_the_worker_and_installs_exactly_the_approved_package
     assert s.count("pip install") == 1 and '$PythonVersion = "3.12.10"' in s
     assert "--require-hashes --only-binary=:all: --no-deps" in s
     req = text("requirements-worker.txt")
-    assert "pyyaml==6.0.3" in req and "tzdata==2026.6" in req and req.count("--hash=sha256:") == 2
+    pinned = sorted(line.split("==")[0] for line in req.splitlines() if "==" in line and not line.startswith("#"))
+    # Step 5: cryptography (Web Push) and the two packages it needs; each version and hash is checked
+    # against uv.lock in tests/test_snafi_worker_requirements.py.
+    assert pinned == ["cffi", "cryptography", "pycparser", "pyyaml", "tzdata"]
+    assert "pyyaml==6.0.3" in req and "tzdata==2026.6" in req and req.count("--hash=sha256:") == 6
     assert "Program Files" not in s and "winget" not in s  # no machine-wide Python, no installer
 
 
