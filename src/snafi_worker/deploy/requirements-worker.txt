@@ -1,6 +1,18 @@
 # The Snafi worker's only packages (approved by Khalid), pinned to version AND file hash.
-# Installed by deploy.ps1 with --require-hashes --only-binary=:all: --no-deps.
+# Installed by deploy.ps1 with --require-hashes --only-binary=:all: --no-deps, so every dependency is
+# listed here too. Versions match uv.lock; the hashes are its wheels for the worker's own Python
+# 3.12 on 64-bit Windows. tests/test_snafi_worker_requirements.py checks both.
 pyyaml==6.0.3 \
     --hash=sha256:5fcd34e47f6e0b794d17de1b4ff496c00986e1c83f7ab2fb8fcfe9616ff7477b
 tzdata==2026.6 \
     --hash=sha256:0a10eec6e13ef16b627fabed9a5f2ba61a62b1c67f327305f4e7e412a70b4aec
+# Step 5: Web Push (RFC 8291 encryption and VAPID signing in proactive/webpush.py). Both of its
+# Windows wheels are listed; pip takes the best match for Python 3.12 (cp311-abi3, else cp39-abi3).
+cryptography==50.0.1 \
+    --hash=sha256:aed8db4f6d71c51efb89530e12d9464e7bf2923d46c3205dc794a2a93f8c0648 \
+    --hash=sha256:55d16b1ef3ee0958d893a977b19777887e546c9954ea81b200c3301a864013f2
+# cryptography needs cffi (on CPython), and cffi needs pycparser.
+cffi==2.1.1 \
+    --hash=sha256:f53e442b08449d42821fa4a4fba000095af9f62742a500f978a9f557ec44339a
+pycparser==3.0 \
+    --hash=sha256:b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992
