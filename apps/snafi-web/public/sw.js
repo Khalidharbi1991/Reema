@@ -8,12 +8,19 @@
  * private: no sender, subject, reminder text or brief. Tapping it opens Today, where the card
  * with the details waits behind sign-in.
  */
-const VERSION = "snafi-v2";
+const VERSION = "snafi-v3";
 const STATIC_CACHE = `${VERSION}-static`;
 const PRECACHE = ["/offline.html", "/manifest.webmanifest", "/icons/icon.svg", "/icons/icon-192.png", "/icons/icon-512.png"];
 
+// Each file is cached on its own: one that fails to load is skipped, never the whole install. (Live bug,
+// Nov 15, 2026: /offline.html was missing on Vercel, cache.addAll failed, the worker never installed,
+// and push could not start on any phone.)
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(STATIC_CACHE).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting()));
+  event.waitUntil(
+    caches.open(STATIC_CACHE)
+      .then((cache) => Promise.all(PRECACHE.map((url) => cache.add(url).catch(() => undefined))))
+      .then(() => self.skipWaiting()),
+  );
 });
 
 self.addEventListener("activate", (event) => {

@@ -83,6 +83,9 @@ output/
 *.pdf
 *.docx
 *.html
+# ...except the app's own static page: the service worker precaches it, and without it the worker
+# never installs, so push cannot start (live bug, Nov 15, 2026).
+!apps/snafi-web/public/offline.html
 
 # Customer data, email, CAD/diagram sources and local stores, in any folder
 *.xlsx
