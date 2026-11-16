@@ -61,7 +61,9 @@ def describe_date(row: Dict, member: Optional[Dict], lang: str = "en") -> str:
 def all_items(book, user_id: str):
     members = book.members(user_id)
     by_id = {m["id"]: m for m in members}
-    items = [Item("fact", f["id"], f["body"], f.get("section") or "me") for f in book.facts(user_id)]
+    # SEC-204: a fact saved before step 6 that breaks the no-secrets rule is never searched or shown to the brain.
+    items = [Item("fact", f["id"], f["body"], f.get("section") or "me") for f in book.facts(user_id)
+             if refusal(f.get("body") or "") is None]
     for m in members:
         relation = RELATION_WORDS["en"].get(m.get("relation") or "other", "family")
         note = f" · {m['note']}" if m.get("note") else ""

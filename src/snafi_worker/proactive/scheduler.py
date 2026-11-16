@@ -30,6 +30,7 @@ from zoneinfo import ZoneInfo
 from ..clock import clock, day_clock, day_only
 from ..memory import family as family_dates
 from ..memory import interview
+from ..memory.guard import ok as memory_ok
 from ..memory.normalise import normalise
 from ..memory.store_book import StoreMemoryBook
 from ..today_feed import _emails, _tasks, sender_name
@@ -330,7 +331,8 @@ class Scheduler(threading.Thread):
         age = family_dates.age_turning(row, occurrence)
         name = normalise(member.get("name") or "")
         facts = [f["body"] for f in self.memory.facts(self.owner_id)
-                 if f.get("section") == "family" and name and name in normalise(f.get("body") or "")][:10]
+                 if f.get("section") == "family" and name and name in normalise(f.get("body") or "")
+                 and memory_ok(f.get("body") or "")][:10]  # SEC-204
         data = "\n".join(x for x in (
             f"relation: {member.get('relation')}", f"age turning: {age}" if age else "age: not known",
             f"note: {member.get('note')}" if member.get("note") else "", *[f"fact: {f}" for f in facts]) if x)

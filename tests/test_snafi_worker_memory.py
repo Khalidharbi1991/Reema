@@ -543,3 +543,5 @@ def test_sec204_old_facts_that_break_the_rule_never_reach_the_brain():
     work(store, engine)
     block = next(b for b in brain.requests[-1].data_blocks if 'source="memory"' in b)
     assert "Likes tea" in block and "4321" not in block
+    from src.snafi_worker.memory.tools import all_items
+    assert [i.text for i in all_items(StoreMemoryBook(store=store), OWNER)] == ["Likes tea"]
