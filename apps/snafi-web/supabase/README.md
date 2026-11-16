@@ -18,6 +18,13 @@ Code; no Claude Code session has a key that could change the database.
    sign-in throttle; adds the hidden `signin_attempts` table). The app built from this
    change needs both: without 0004 chat cannot send, and without 0005 sign-in answers
    "not available".
+4c. **Step 6, Memory and family (Nov 16):** after 0006 to 0009, run
+   `migrations/0010_memory_family.sql` (facts grouped with a source, `family_members`,
+   `family_dates`, `interview_state`, the no-secrets rule, the save and forget functions; it also
+   deletes facts already removed with Undo), then `migrations/0011_push_off_all.sql` ("Turn off on
+   all phones"). Each runs once: neither can be run a second time. Until 0010 is run the About me
+   page says memory isn't set up; until 0011 is run "Turn off on all phones" only switches push off
+   for the account.
 5. Project Settings → API Keys: the Project URL and the **publishable** key go in
    `apps/snafi-web/.env.local` (see `.env.example`). The **secret** key goes only in
    the worker, stored in Windows Credential Manager by `set_secrets` (see `src/snafi_worker/README.md`);
@@ -28,7 +35,7 @@ Code; no Claude Code session has a key that could change the database.
 | Who | Can |
 | --- | --- |
 | Anonymous | only the sign-in throttle's `signin_begin()` and `signin_forget()`, which take keyed hashes or a random attempt id, never an email |
-| Signed-in user (the app) | read own rows in every table; post own `user` messages; queue own `chat.reply` jobs in the chat lane (the app does both at once through `send_chat()`); decide own pending approvals only through `decide_approval()`; ask for Undo only through `request_undo()` |
+| Signed-in user (the app) | read own rows in every table; post own `user` messages; queue own `chat.reply` jobs in the chat lane (the app does both at once through `send_chat()`); decide own pending approvals only through `decide_approval()`; ask for Undo only through `request_undo()`; change own memory only through `save_fact()`, `forget_fact()`, `save_family_member()`, `forget_family_member()`, `save_family_date()` and `forget_family_date()` (step 6); remove all own push addresses through `remove_all_push_subscriptions()` |
 | PC worker (secret key, on the PC only) | everything, including `claim_job()` |
 
 Nobody can update or delete through the app. `decide_approval()` and

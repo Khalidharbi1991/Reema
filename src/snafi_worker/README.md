@@ -144,6 +144,36 @@ Setup for Khalid: `docs/snafi/PUSH_SETUP.md`. No brain call anywhere in it.
   Authentication-Results header is Yahoo's own (`*.yahoo.com`) and says `dmarc=pass` for the From
   address's domain (`yahoo/mail.py` `sender_verified`).
 
+## Memory and family (step 6)
+
+Migrations 0010 and 0011 must be run in Supabase first (see `apps/snafi-web/supabase/README.md`).
+
+- **Adapters** (`memory/`, chosen in `worker.yaml` under `memory:`): `provider: store` keeps facts,
+  family members, key dates and the interview's state in the worker's store (`store_book.py`);
+  `search: keyword` (`search.py`) normalises Arabic and English first (`normalise.py`, the same steps
+  as the database's `snafi_norm` and the app's `core/memory-guard.ts`).
+- **No secrets** (`guard.py`): no group of 9 or more digits and no password, PIN, OTP, CVV, card, ID,
+  passport or account wording, in English or Arabic. The worker, the app and the database (a CHECK on
+  every memory row) apply the same rule; `tests/fixtures/snafi_memory_guard.json` is checked by both
+  suites.
+- **Tools** (`memory/tools.py`): `add_fact`, `add_family_member`, `add_family_date` (Level 2; Undo
+  deletes), `search_memory`, `list_family` (Level 1). No forget tool: Khalid forgets on the About me
+  page. The engine refuses memory saves in the follow-up after outside content, and allows three a
+  message (six in the interview).
+- **Each turn** (`memory/turn.py`): what Ahmad knows goes to the brain inside
+  `<data source="memory">` (everything up to 40 items, else the best 15 matches and the family list).
+  A sentence saying he doesn't remember is removed when memory matches, and code adds what it holds.
+- **Interview** (`memory/interview.py`): fixed questions, a few at a time; "interview me (again)",
+  "stop the interview" and "continue the interview" (and the Arabic) are matched in code with no
+  brain call; `interview_state` keeps the place. The scheduler offers it once by a card.
+- **Family dates** (`memory/family.py`, `memory/hijri.py`): Gregorian or Hijri; the Umm al-Qura
+  month table (1440–1480 AH) is checked by the web suite against Intl. The scheduler sends a reminder
+  a week before and on the day, from Khalid's brief time (kind `reminder`: never counts to the cap).
+  A week before a birthday it queues one `family.gift_ideas` background job: one brain call for three
+  gift ideas (relation, age, note and family facts as data; `memory.gift_ideas: false` turns it off).
+- **Backup** (schema 7) includes `family_members`, `family_dates` and `interview_state`; restore
+  drops facts removed before step 6 and facts that break the no-secrets rule.
+
 ## The Claude API brain (configured)
 
 `brain/claude_api.py` sends one text request to Anthropic's Messages API (`claude-haiku-5-5`, low

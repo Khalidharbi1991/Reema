@@ -62,6 +62,11 @@ ONE_READ = {"en": "Not done: one round of reading per message; ask me again for 
             "ar": "لم يُنفَّذ: جولة قراءة واحدة في كل رسالة؛ اطلب مني مرة أخرى للمزيد."}
 OUTSIDE_NOTE = {"en": "Suggested after reading outside content (an email, event, file or task). Check it carefully. ",
                 "ar": "مقترح بعد قراءة محتوى خارجي (بريد أو موعد أو ملف أو مهمة). راجعه بعناية. "}
+OTHER_ACTIONS = 5
+TOO_MANY = {"en": "Not done: at most {n} actions a message besides memory saves; ask me again for more.",
+            "ar": "لم يُنفَّذ: لا أكثر من {n} إجراءات في الرسالة غير الحفظ في الذاكرة؛ اطلب مني مرة أخرى للمزيد."}
+UNGROUNDED = {"en": "Not saved: I only save what you tell me yourself; say it in your own words and I'll save it.",
+              "ar": "لم يُحفظ: لا أحفظ إلا ما تقوله لي بنفسك؛ قله بكلماتك وسأحفظه."}
 NO_OUTSIDE_MEMORY = {"en": "Not saved: I never save to memory from emails, events, files or tasks.",
                      "ar": "لم يُحفظ: لا أحفظ في الذاكرة شيئاً من البريد أو المواعيد أو الملفات أو المهام."}
 MEMORY_LIMIT = {"en": "Not saved: at most {n} memory saves a message; tell me again for more.",
@@ -246,13 +251,25 @@ class Engine:
         accounts drafted in, sent from or deleted in (for the honesty check's account rule)."""
         lines, succeeded, action_ids, approvals, outside = [], [], [], [], []
         limit = memory_turn.INTERVIEW_WRITE_LIMIT if job.get("_interview") else memory_turn.WRITE_LIMIT
+        others = 0
         for action in actions:
+            # SEC-202: the brain may propose up to 8 actions (an interview answer naming a family), but
+            # everything other than a memory save stays at 5 a call, as before step 6.
+            if action.tool not in MEMORY_WRITES:
+                others += 1
+                if others > OTHER_ACTIONS:
+                    lines.append(TOO_MANY[lang].format(n=OTHER_ACTIONS))
+                    continue
             decision = decide(action)
             if accounts is not None and decision.verdict in (RUN, APPROVE) and decision.tool.name in MAIL_WRITES:
                 accounts.add(decision.args.get("account") or "gmail")
             memory_write = decision.verdict == RUN and decision.tool.name in MEMORY_WRITES
             if memory_write and after_outside:
                 lines.append(NO_OUTSIDE_MEMORY[lang])  # an email or file can never plant a memory
+                continue
+            if memory_write and job.get("_tainted") and not memory_turn.grounded(
+                    decision.tool.name, decision.args, job.get("_message") or ""):
+                lines.append(UNGROUNDED[lang])  # SEC-200: not even one message later
                 continue
             if memory_write:
                 job["_memory_writes"] = job.get("_memory_writes", 0) + 1
@@ -314,7 +331,12 @@ class Engine:
         if interviewing:
             job["_interview"] = True
 
-        turns, blocks = self._turns_and_results(self._history(user_id, conversation_id))
+        history = self._history(user_id, conversation_id)
+        # SEC-200: a reply Ahmad wrote after reading mail, events, files or tasks is still in the chat the
+        # brain sees; while it is, a memory save must come from Khalid's own words in this message.
+        job["_tainted"] = any((m.get("meta") or {}).get("read_outside") for m in history if m["role"] == "assistant")
+        job["_message"] = message
+        turns, blocks = self._turns_and_results(history)
         if not turns or turns[-1][0] != "user":
             turns.append(("user", clean_for_prompt(message)))
         everything = memory_turn.items(self.memory, user_id)
@@ -361,8 +383,9 @@ class Engine:
                 lines.append(memory_turn.recall_line(found, lang))
         if interviewing:
             text = self._interview_next(user_id, state, lang, text)
+        extra = {"read_outside": True} if outside else {}
         posted = self._post(job, lang, reply=text, outcomes=lines, actions=action_ids,
-                            approvals=[c["id"] for c, _ in approvals])
+                            approvals=[c["id"] for c, _ in approvals], **extra)
         for card, summary in approvals:
             self._post(job, lang, outcomes=[summary], approval_id=card["id"], kind="approval_card")
         return {"message_id": posted["id"], "actions": action_ids, "approvals": [c["id"] for c, _ in approvals]}
@@ -479,6 +502,8 @@ class Engine:
                 why = str(exc)[:200] if isinstance(exc, SAFE_ERRORS) else type(exc).__name__
                 self._post(job, lang, outcomes=[UNDO_FAILED[lang].format(s=summary, r=why)])
             return {"undone": None, "failed": action_id}
+        if tool.name in MEMORY_WRITES:  # SEC-201: an undone memory save keeps no copy of its text in the log
+            self.store.update("action_log", action_id, {"args": {}, "result": None, "summary": "Removed from memory"})
         if job.get("conversation_id"):
             self._post(job, lang, outcomes=[UNDONE[lang].format(s=summary)], undone=action_id)
         return {"undone": action_id}

@@ -8,23 +8,30 @@
 const DIGITS: Record<string, string> = Object.fromEntries(
   [..."٠١٢٣٤٥٦٧٨٩"].map((d, i) => [d, String(i)]).concat([..."۰۱۲۳۴۵۶۷۸۹"].map((d, i) => [d, String(i)])),
 );
-const LETTERS: Record<string, string> = { "أ": "ا", "إ": "ا", "آ": "ا", "ٱ": "ا", "ة": "ه", "ى": "ي" };
-const MARKS = /[ً-ٰٟـ]/g;
+const LETTERS: Record<string, string> = {
+  "أ": "ا", "إ": "ا", "آ": "ا", "ٱ": "ا", "ة": "ه", "ى": "ي", "ی": "ي", "ک": "ك",
+};
+const MARKS = /[ً-ٰٟـ​-‏⁠﻿­]/g;
 
-/** أإآٱ -> ا, ة -> ه, ى -> ي, Arabic-Indic digits -> 0-9, no tashkeel or tatweel, lower case. */
+/**
+ * NFKC, invisible characters removed, أإآٱ -> ا, ة -> ه, ى and Persian ی -> ي, Persian ک -> ك,
+ * Arabic-Indic digits -> 0-9, no tashkeel or tatweel, lower case.
+ */
 export function normalise(text: string): string {
-  return [...(text ?? "")].map((c) => LETTERS[c] ?? DIGITS[c] ?? c).join("").replace(MARKS, "").toLowerCase();
+  return [...(text ?? "").normalize("NFKC")].map((c) => LETTERS[c] ?? DIGITS[c] ?? c).join("").replace(MARKS, "")
+    .toLowerCase();
 }
 
-const LONG_NUMBER = /[0-9](?:[ .-]?[0-9]){8,}/;
+const LONG_NUMBER = /[0-9](?:[ ./()-]{0,3}[0-9]){8,}/;
 const EN_WORDS = new RegExp(
-  "(^|[^a-z0-9_])(password|passwords|passcode|passwd|pin|pins|otp|cvv|cvc|iban|iqama|token|secret|api key|card number"
-  + "|card no|credit card|debit card|id number|national id|passport number|passport no|security code"
-  + "|verification code|login code)(?![a-z0-9_])",
+  "(^|[^a-z0-9_])(password[a-z0-9]*|passwd[a-z0-9]*|passcode[a-z0-9]*|pwd|pin[0-9]*|pins|otp[0-9]*|cvv|cvc|iban"
+  + "|iqama|token|secret|api key|card number|card no|credit card|debit card|id number|national id|passport number"
+  + "|passport no|security code|verification code|login code|door code|alarm code|gate code|safe code)(?![a-z0-9_])",
 );
 const AR_WORDS = new RegExp(
-  "(كلمه المرور|كلمه السر|كلمات المرور|الرقم السري|الرمز السري|رمز التحقق|رمز الدخول|رقم الهويه"
-  + "|الهويه الوطنيه|رقم الاقامه|رقم الجواز|رقم البطاقه|البطاقه الائتمانيه|رقم الحساب|الايبان|ايبان)",
+  "(كلمه المرور|كلمه السر|كلمات المرور|كلمه مرور|كلمه سر|الرقم السري|رقم سري|الرمز السري|رمز سري|باسورد"
+  + "|باسوورد|رمز التحقق|كود التحقق|رمز الدخول|كود الدخول|كود الباب|رمز الباب|رقم الهويه|الهويه الوطنيه"
+  + "|رقم الاقامه|رقم الجواز|رقم البطاقه|البطاقه الائتمانيه|رقم الحساب|الايبان|ايبان)",
 );
 
 export type Refusal = "number" | "secret";

@@ -12,7 +12,9 @@ import re
 from typing import List, Sequence
 
 from ..brain import data_block
-from .search import Item
+from .guard import ok as memory_ok
+from .normalise import normalise, words
+from .search import STOP, Item
 from .tools import all_items
 
 ALL_ITEMS = 40
@@ -29,7 +31,8 @@ FROM_MEMORY = {"en": "From memory:", "ar": "من الذاكرة:"}
 
 
 def items(book, user_id: str) -> List[Item]:
-    return all_items(book, user_id)
+    # SEC-204: a fact saved before step 6 that breaks the no-secrets rule never reaches the brain.
+    return [i for i in all_items(book, user_id) if memory_ok(i.text)]
 
 
 def memory_block(everything: Sequence[Item], search, message: str) -> str:
@@ -43,6 +46,22 @@ def memory_block(everything: Sequence[Item], search, message: str) -> str:
         chosen = list(dict.fromkeys(best + family))
     lines = [f"- [{i.section}] {i.text}" for i in chosen]
     return data_block("\n".join(lines), "memory")
+
+
+SAVED_TEXT = {"add_fact": ("body",), "add_family_member": ("name", "note"), "add_family_date": ("person", "title")}
+
+
+def grounded(tool: str, args: dict, message: str) -> bool:
+    """SEC-200: after Ahmad has read outside content in the recent chat, a memory save must come from
+    Khalid's own words: at least half of the saved text's words (3 letters or more, common words
+    left out) must appear in his current message, after normalising."""
+    said = normalise(message)
+    words_ = [w for name in SAVED_TEXT.get(tool, ()) for w in words(str(args.get(name) or ""))
+              if len(w) >= 3 and w not in STOP]
+    if not words_:
+        return False
+    found = sum(1 for w in words_ if w in said or (w.startswith("ال") and w[2:] in said))
+    return found * 2 >= len(words_)
 
 
 def forgetful(reply: str) -> bool:

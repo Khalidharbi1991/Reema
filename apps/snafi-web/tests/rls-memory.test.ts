@@ -79,6 +79,20 @@ describe("facts: save, edit and forget", () => {
     expect(log).toEqual({ summary: "Forgotten", args: {}, result: null, undo: null, undoable: false });
   });
 
+  it("SEC-201: forget also blanks memory reads and every other save of the same text", async () => {
+    const f = await one<{ id: string }>("authenticated", ALICE, "select (public.save_fact(null, 'family', 'Huda loves horses')).id");
+    const log = (tool: string, summary: string, args: object) => as(db, "service_role", null,
+      "insert into public.action_log (user_id, tool, level, summary, args, status) values ($1, $2, 1, $3, $4, 'done')",
+      [ALICE, tool, summary, JSON.stringify(args)]);
+    await log("search_memory", "From memory: Huda loves horses", { query: "Huda" });
+    await log("add_fact", "Already in memory: Huda loves horses", { body: "huda  loves horses" });
+    await log("add_fact", "Saved to memory: Likes tea", { body: "Likes tea" });
+    await as(db, "authenticated", ALICE, "select public.forget_fact($1)", [f.id]);
+    const rows = (await as<{ tool: string; summary: string }>(db, "service_role", null,
+      "select tool, summary from public.action_log where user_id = $1 and (summary like '%Huda%' or summary like '%tea%')", [ALICE])).rows;
+    expect(rows).toEqual([{ tool: "add_fact", summary: "Saved to memory: Likes tea" }]);
+  });
+
   it("gives the app no direct write on memory tables", async () => {
     for (const sql of [
       `insert into public.facts (user_id, body) values ('${ALICE}', 'x')`,

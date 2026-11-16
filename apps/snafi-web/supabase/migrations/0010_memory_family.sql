@@ -29,8 +29,8 @@ immutable
 set search_path = ''
 as $$
   select lower(regexp_replace(
-           translate(coalesce(p, ''), 'أإآٱةى٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹', 'ااااهي01234567890123456789'),
-           '[ً-ٰٟـ]', '', 'g'))
+           translate(normalize(coalesce(p, ''), NFKC), 'أإآٱةىیک٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹', 'ااااهييك01234567890123456789'),
+           '[ً-ٰٟـ​-‏⁠﻿­]', '', 'g'))
 $$;
 
 create function public.snafi_memory_ok(p text)
@@ -40,14 +40,13 @@ immutable
 set search_path = ''
 as $$
   select p is null or (
-        public.snafi_norm(p) !~ '[0-9]([ .-]?[0-9]){8,}'
-    and public.snafi_norm(p) !~* '\m(password|passwords|passcode|passwd|pin|pins|otp|cvv|cvc|iban|iqama|token|secret|api key|card number|card no|credit card|debit card|id number|national id|passport number|passport no|security code|verification code|login code)\M'
-    and public.snafi_norm(p) !~ '(كلمه المرور|كلمه السر|كلمات المرور|الرقم السري|الرمز السري|رمز التحقق|رمز الدخول|رقم الهويه|الهويه الوطنيه|رقم الاقامه|رقم الجواز|رقم البطاقه|البطاقه الائتمانيه|رقم الحساب|الايبان|ايبان)'
+        public.snafi_norm(p) !~ '[0-9]([ ./()-]{0,3}[0-9]){8,}'
+    and public.snafi_norm(p) !~* '\m(password[a-z0-9]*|passwd[a-z0-9]*|passcode[a-z0-9]*|pwd|pin[0-9]*|pins|otp[0-9]*|cvv|cvc|iban|iqama|token|secret|api key|card number|card no|credit card|debit card|id number|national id|passport number|passport no|security code|verification code|login code|door code|alarm code|gate code|safe code)\M'
+    and public.snafi_norm(p) !~ '(كلمه المرور|كلمه السر|كلمات المرور|كلمه مرور|كلمه سر|الرقم السري|رقم سري|الرمز السري|رمز سري|باسورد|باسوورد|رمز التحقق|كود التحقق|رمز الدخول|كود الدخول|كود الباب|رمز الباب|رقم الهويه|الهويه الوطنيه|رقم الاقامه|رقم الجواز|رقم البطاقه|البطاقه الائتمانيه|رقم الحساب|الايبان|ايبان)'
   )
 $$;
 
--- ---------- facts: grouped, with a source; forgotten rows really go ----------
-delete from public.facts where deleted_at is not null;
+-- ---------- facts: grouped, with a source (rows removed with Undo are deleted further down) ----------
 alter table public.facts
   add column section    text not null default 'me' check (section in ('me', 'family', 'preferences', 'routine')),
   add column source     text not null default 'told' check (source in ('told', 'interview', 'learned')),
@@ -131,6 +130,37 @@ as $$
 $$;
 revoke all on function public.snafi_scrub_log(uuid, text, uuid[]) from public, anon, authenticated;
 
+-- SEC-201: the other copies of memory text in the log. Every memory read (search_memory, list_family,
+-- list_facts) holds memory text in its summary, and a save that found the item already there, failed,
+-- or was undone has no undo pointer left: those are found by the saved text itself.
+create function public.snafi_scrub_memory_text(p_user uuid, p_texts text[])
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  update public.action_log
+     set args = '{}'::jsonb, result = null, undo = null, undoable = false, summary = 'Forgotten'
+   where user_id = p_user
+     and (tool in ('search_memory', 'list_family', 'list_facts')
+          or (tool in ('add_fact', 'add_family_member', 'add_family_date')
+              and (btrim(regexp_replace(public.snafi_norm(coalesce(args->>'body', args->>'name', args->>'person', '')), '\s+', ' ', 'g'))
+                   = any (select btrim(regexp_replace(public.snafi_norm(t), '\s+', ' ', 'g')) from unnest(p_texts) t))));
+$$;
+revoke all on function public.snafi_scrub_memory_text(uuid, text[]) from public, anon, authenticated;
+
+-- Facts removed with Undo before step 6 go for good, with every copy of their text in the log.
+do $$
+declare r record;
+begin
+  for r in select user_id, array_agg(id) ids, array_agg(body) bodies from public.facts
+            where deleted_at is not null group by user_id loop
+    perform public.snafi_scrub_log(r.user_id, 'facts', r.ids);
+    perform public.snafi_scrub_memory_text(r.user_id, r.bodies);
+  end loop;
+end $$;
+delete from public.facts where deleted_at is not null;
+
 -- ---------- facts: save (add or edit) and forget ----------
 create function public.save_fact(p_id uuid, p_section text, p_body text)
 returns public.facts
@@ -174,13 +204,15 @@ set search_path = ''
 as $$
 declare
   uid uuid := auth.uid();
+  v_body text;
 begin
   if uid is null then
     raise exception 'not signed in' using errcode = '42501';
   end if;
-  delete from public.facts where id = p_id and user_id = uid;
+  delete from public.facts where id = p_id and user_id = uid returning body into v_body;
   if found then
     perform public.snafi_scrub_log(uid, 'facts', array[p_id]);
+    perform public.snafi_scrub_memory_text(uid, array[v_body]);
   end if;
 end;
 $$;
@@ -234,15 +266,17 @@ as $$
 declare
   uid uuid := auth.uid();
   dates uuid[];
+  v_name text;
 begin
   if uid is null then
     raise exception 'not signed in' using errcode = '42501';
   end if;
   select coalesce(array_agg(id), '{}') into dates from public.family_dates where member_id = p_id and user_id = uid;
-  delete from public.family_members where id = p_id and user_id = uid;
+  delete from public.family_members where id = p_id and user_id = uid returning name into v_name;
   if found then
     perform public.snafi_scrub_log(uid, 'family_members', array[p_id]);
     perform public.snafi_scrub_log(uid, 'family_dates', dates);
+    perform public.snafi_scrub_memory_text(uid, array[v_name]);  -- the person's saves and their dates' saves
   end if;
 end;
 $$;
@@ -308,6 +342,7 @@ begin
   delete from public.family_dates where id = p_id and user_id = uid;
   if found then
     perform public.snafi_scrub_log(uid, 'family_dates', array[p_id]);
+    perform public.snafi_scrub_memory_text(uid, '{}');  -- memory reads that listed it
   end if;
 end;
 $$;

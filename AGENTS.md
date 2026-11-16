@@ -15,7 +15,7 @@ coordination run inside Claude Code; REEMA's own commands make no model call.
 Snafi, Khalid's personal assistant web app, is part of REEMA: a Next.js app in
 `apps/snafi-web/` that talks to a Supabase mailbox, and a worker on the PC
 (`src/snafi_worker/`) that picks up its jobs. Its plan is `docs/snafi/PRD.md` (source
-of truth). Steps 1 to 5 are built: sign-in, Today (real Umm al-Qura prayer times and
+of truth). Steps 1 to 6 are built: sign-in, Today (real Umm al-Qura prayer times and
 Hijri date for Jeddah, the next Google Calendar event, important unread Gmail and Yahoo
 mail, and today's Todoist tasks), Chat with Ahmad's brain, approval cards, the action log
 with Undo, the PC online/offline banner, a daily backup with a tested restore, Khalid's
@@ -26,9 +26,16 @@ Ahmad (step 5; see `docs/snafi/PUSH_SETUP.md`): the worker's scheduler fires rem
 the morning brief and watches mail, each as a card on Today and a Web Push to the installed app,
 with the manners (never twice, no repeats, 20 minutes of quiet after each adhan, a daily cap, no
 private text on the lock screen) enforced in code, and every time shown 12-hour with AM/PM or ص/م.
+Step 6, Memory and family (migrations 0010 and 0011): the onboarding interview in chat ("interview me
+again"), family members and their key dates (Gregorian or Hijri) with reminders a week ahead and on
+the day and gift ideas a week before birthdays, durable facts saved after a chat turn (code-checked:
+never passwords, ID, card, account or phone numbers, never from outside content), the About me page
+with Edit and Forget (Forget deletes), and keyword memory search with Arabic normalised; memory reaches
+the brain only as data, and each part sits behind its own adapter (`memory:` in `worker.yaml`,
+`SNAFI_MEMORY_ADAPTER` in the app).
 
 Not yet built: patch report PowerPoint (PPTX export), SCCM/Intune export intake, and
-Snafi steps 6–8.
+Snafi steps 7–8.
 
 It is a Python CLI that makes no model call: Claude Code writes the text, and REEMA
 plans, checks, exports and records it. It has no model settings and has not moved
