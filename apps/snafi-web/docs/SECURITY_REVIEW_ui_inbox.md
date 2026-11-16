@@ -118,3 +118,26 @@ Nov 16, 2026 · branch `feat/snafi-ui-inbox`, compared with tag `before-snafi-ui
 **Open counts for this round:** Critical 0, High 0, Medium 1 (SEC-170), Low 12 (SEC-171 to SEC-182), Info 11 (SEC-183 to SEC-193, of which 7 are records of checks).
 
 **Blocks merge: no** (open Critical 0, open High 0). Khalid decides.
+
+---
+
+## Ahmad's follow-up, Nov 16, 2026 (after Agent 16's round; Agent 16 has not re-reviewed these)
+
+- **SEC-170 fixed.** `.claude/hooks/dev_guard.py` now refuses to run the design skills (their
+  launcher, detector, hooks, live mode, `npx impeccable`, a `gate.mjs`, anything in a skill's
+  `scripts/` folder), for every session and agent; reading their markdown is still allowed.
+  AGENTS.md carries the rule as non-negotiable. The skills stay in `.claude/skills/` because that
+  is where Khalid asked for them. New `tests/test_design_skills_guard.py` (27 tests, passing).
+- **SEC-171 fixed.** Agent 17 now writes `docs/UI.md` only, reads no secrets file, and is told it
+  never runs the skills.
+- **SEC-193 closed by test.** The new tests prove each installed skill folder holds only text (no
+  `scripts/`), that every file matches the SHA-256 recorded in its `SOURCE.md` next to the pinned
+  commit, and that no file holds control, bidi or zero-width characters.
+- **SEC-173 scope narrowed, by reading the worker.** A mail card is written by
+  `src/snafi_worker/proactive/scheduler.py`: `title` is "Gmail · <sender>" or "Yahoo · <sender>",
+  and `body` is the subject (cut to 300 characters) plus a "Received <time>" line. No mail body is
+  ever put in a card, so what reaches the browser is the sender, the subject and the time. Agent
+  14's mapping (sender from the title, subject from the body's first line) matches what the worker
+  writes. The bidi and zero-width point in SEC-179 still stands.
+- Still open for Khalid: SEC-172, 174 to 182 and the Info items. The REEMA Python suite passes
+  (1422 tests) with the guard change.
