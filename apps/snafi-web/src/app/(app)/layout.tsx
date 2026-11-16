@@ -34,7 +34,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           theme={theme}
           lang={lang}
           labels={{ menu: t.menu, closeMenu: t.closeMenu, theme: t.theme, dark: t.dark, light: t.light, language: t.language,
-            signOut: t.signOut, settings: t.settingsLink, needsAttention: t.settings.needsAttention }}
+            signOut: t.signOut, settings: t.settingsLink, about: t.aboutLink, needsAttention: t.settings.needsAttention }}
           signOutAction={session.preview ? undefined : signOut}
           statusLines={session.preview ? [] : statusLines(status, now, t, lang)}
           settingsAttention={attention}

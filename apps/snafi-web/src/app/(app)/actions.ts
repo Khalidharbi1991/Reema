@@ -106,6 +106,17 @@ export async function removePushSubscription(endpoint: string): Promise<{ ok: bo
   return { ok: true };
 }
 
+/** "Turn off on all phones" (0011). `missing` only when the database has no such function yet. */
+export async function removeAllPushSubscriptions(): Promise<{ ok: boolean; missing?: boolean }> {
+  const session = await requireSession();
+  try {
+    await mailboxFor(session).removeAllPushSubscriptions();
+  } catch (error) {
+    return { ok: false, missing: error instanceof MailboxError && error.schemaMissing };
+  }
+  return { ok: true };
+}
+
 export async function requestTestPush(): Promise<{ ok: boolean }> {
   const session = await requireSession();
   try {

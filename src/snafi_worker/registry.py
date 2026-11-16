@@ -5,7 +5,7 @@ one-line change in worker.yaml plus the new adapter's own file; nothing else cha
 
 from typing import Callable, Dict, Type
 
-KINDS = ("brain", "store", "mail", "calendar", "files", "tasks")
+KINDS = ("brain", "store", "mail", "calendar", "files", "tasks", "memory", "memory_search")
 _REGISTRY: Dict[str, Dict[str, type]] = {kind: {} for kind in KINDS}
 
 
@@ -40,7 +40,7 @@ def providers(kind: str) -> list:
 
 def _load_builtin() -> None:
     # Importing the packages registers their providers.
-    from . import brain, personal, store  # noqa: F401
+    from . import brain, memory, personal, store  # noqa: F401
     from .google import drive, gcal, gmail  # noqa: F401
     from .todoist import tasks  # noqa: F401
     from .yahoo import mail  # noqa: F401

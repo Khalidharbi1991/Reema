@@ -170,6 +170,15 @@ export class MemoryMailboxAdapter implements MailboxAdapter {
     this.store.pushes = this.store.pushes.filter((p) => !(p.userId === me && p.endpoint === endpoint));
   }
 
+  /** Like remove_all_push_subscriptions (0011): every phone's address goes, and push is switched off. */
+  async removeAllPushSubscriptions() {
+    const me = this.me();
+    const before = this.store.pushes.length;
+    this.store.pushes = this.store.pushes.filter((p) => p.userId !== me);
+    this.store.settings[me] = { ...(this.store.settings[me] ?? DEFAULT_SETTINGS), pushEnabled: false };
+    return before - this.store.pushes.length;
+  }
+
   async requestTestPush() {
     const me = this.me();
     if (this.store.jobs.some((j) => j.userId === me && j.kind === "push.test")) return;

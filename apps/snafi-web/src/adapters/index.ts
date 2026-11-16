@@ -11,6 +11,9 @@ import type { AuthAdapter } from "./auth/types";
 import { createMemoryStore, MemoryMailboxAdapter } from "./mailbox/memory";
 import { SupabaseMailboxAdapter } from "./mailbox/supabase";
 import type { MailboxAdapter } from "./mailbox/types";
+import { createMemoryBookStore, InMemoryMemoryAdapter } from "./memory/inmemory";
+import { SupabaseMemoryAdapter } from "./memory/supabase";
+import type { MemoryAdapter } from "./memory/types";
 import { sampleApprovals, sampleCards, sampleFeed, sampleMessages } from "./sample";
 import { MemoryThrottleAdapter } from "./throttle/memory";
 import { SupabaseThrottleAdapter } from "./throttle/supabase";
@@ -44,6 +47,12 @@ const TODAY: Record<string, (mailbox: MailboxAdapter) => TodaySource> = {
   placeholder: () => new PlaceholderTodaySource(),
 };
 
+const previewMemory = createMemoryBookStore();
+const MEMORY: Record<string, (userId: string | null) => MemoryAdapter> = {
+  supabase: () => new SupabaseMemoryAdapter(),
+  memory: (userId) => new InMemoryMemoryAdapter(previewMemory, userId ?? PREVIEW_USER),
+};
+
 const THROTTLE: Record<string, () => ThrottleAdapter> = {
   supabase: () => new SupabaseThrottleAdapter(),
   memory: () => memoryThrottle,
@@ -61,6 +70,11 @@ export function mailboxAdapter(userId: string | null = null): MailboxAdapter {
 
 export function todaySource(mailbox: MailboxAdapter): TodaySource {
   return TODAY[choice().today](mailbox);
+}
+
+/** Step 6: what Ahmad knows about the signed-in user (the About me page). */
+export function memoryAdapter(userId: string | null = null): MemoryAdapter {
+  return MEMORY[choice().memory](userId);
 }
 
 export function throttleAdapter(): ThrottleAdapter {

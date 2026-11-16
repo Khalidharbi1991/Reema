@@ -71,6 +71,13 @@ def build_personal(settings: Settings, secrets: Secrets, reload: Optional[Callab
     return Personal(built["mail"], built["calendar"], built["files"], auth, built["yahoo"], built["tasks"])
 
 
+def build_memory(settings: Settings, secrets: Secrets, store):
+    """Step 6: the memory book and its search, each chosen in worker.yaml (memory.provider, memory.search)."""
+    book = provider_class("memory", settings.memory_provider)(dict(settings.memory_options), secrets, store=store)
+    search = provider_class("memory_search", settings.memory_search_provider)(dict(settings.memory_options), secrets)
+    return book, search
+
+
 def guarded_brain(settings: Settings, secrets: Secrets, pause_dir=None):
     """The configured brain, paused while not ready and after any lockdown breach, and held to the
     daily call limit (brain.daily_call_limit in worker.yaml, SEC-47)."""

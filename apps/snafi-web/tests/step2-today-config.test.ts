@@ -104,12 +104,12 @@ describe("PC online / offline", () => {
 
 describe("adapters are chosen by config", () => {
   it("defaults to Supabase and live Today", () => {
-    expect(adapterChoice({})).toEqual({ auth: "supabase", mailbox: "supabase", today: "live", throttle: "supabase" });
+    expect(adapterChoice({})).toEqual({ auth: "supabase", mailbox: "supabase", today: "live", throttle: "supabase", memory: "supabase" });
   });
 
   it("switches one adapter with one setting and nothing else", () => {
-    expect(adapterChoice({ SNAFI_MAILBOX_ADAPTER: "memory" })).toEqual({ auth: "supabase", mailbox: "memory", today: "live", throttle: "supabase" });
-    expect(adapterChoice({ SNAFI_TODAY_ADAPTER: "placeholder" })).toEqual({ auth: "supabase", mailbox: "supabase", today: "placeholder", throttle: "supabase" });
+    expect(adapterChoice({ SNAFI_MAILBOX_ADAPTER: "memory" })).toEqual({ auth: "supabase", mailbox: "memory", today: "live", throttle: "supabase", memory: "supabase" });
+    expect(adapterChoice({ SNAFI_TODAY_ADAPTER: "placeholder" })).toEqual({ auth: "supabase", mailbox: "supabase", today: "placeholder", throttle: "supabase", memory: "supabase" });
   });
 
   it("refuses unknown providers and uses memory in preview mode", () => {

@@ -63,6 +63,12 @@ city:                           # prayer times (Umm al-Qura), as the app compute
   latitude: 21.4858
   longitude: 39.1925
 
+# Step 6: Ahmad's memory of Khalid and his family. Each part is its own adapter.
+memory:
+  provider: store               # facts, family, key dates and the interview, in the store above (memory: tests)
+  search: keyword               # keyword search with Arabic normalised first; meaning search (pgvector) later
+  gift_ideas: true              # one brain call a week before each birthday (counts toward daily_call_limit)
+
 heartbeat:
   seconds: 15                   # the app shows "PC offline" after 45 seconds
 

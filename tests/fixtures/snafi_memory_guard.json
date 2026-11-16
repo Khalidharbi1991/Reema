@@ -1,0 +1,37 @@
+{
+  "about": "The no-secrets rule for Snafi's memory (step 6). Checked by the worker (memory/guard.py), the database (snafi_memory_ok, migration 0010) and the app (core/memory-guard.ts).",
+  "allowed": [
+    "Likes black coffee, no sugar",
+    "Born 1990-05-12",
+    "Wakes up at 5:30 AM on work days",
+    "Has 3 children",
+    "Works at the ministry since 2015",
+    "Prefers short answers in Arabic",
+    "Goes to a spinning class on Mondays",
+    "Car plate ABC 1234",
+    "زوجتي سارة تحب الورد الأبيض",
+    "عيد ميلاد نورة ١٤ مارس",
+    "يفضّل القهوة العربية",
+    "Pinned the family photo on the fridge",
+    "Sara's birthday is 14-03-2015"
+  ],
+  "refused": [
+    "National ID 1012345678",
+    "Card 4111 1111 1111 1111",
+    "card 4111-1111-1111-1111",
+    "My password is hunter2",
+    "The Wi-Fi PASSWORD is home2026",
+    "PIN is 4321",
+    "OTP 8812",
+    "The api key is abc",
+    "iqama renewal number is on the card",
+    "IBAN SA03 8000 0000 6080 1016 7519",
+    "جوالي 0501234567",
+    "رقم الهوية ١٠١٢٣٤٥٦٧٨",
+    "كلمة المرور: abc",
+    "كلمةُ المرورِ هي سر",
+    "رقم البطاقة ينتهي بـ 1234",
+    "رمز التحقق 55",
+    "phone 050 123 4567"
+  ]
+}

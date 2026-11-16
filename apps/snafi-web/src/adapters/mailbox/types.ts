@@ -152,6 +152,8 @@ export interface MailboxAdapter {
   saveSettings(s: Settings): Promise<Settings>;
   savePushSubscription(k: PushKeys): Promise<void>;
   removePushSubscription(endpoint: string): Promise<void>;
+  /** Every phone's push address is deleted and push is switched off for the account; returns how many went. */
+  removeAllPushSubscriptions(): Promise<number>;
   /** Queues a push.test job for the worker (at most one waiting). */
   requestTestPush(): Promise<void>;
 }
