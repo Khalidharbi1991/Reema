@@ -1,14 +1,20 @@
 import type { WorkerStatus } from "@/adapters/mailbox/types";
+import { needsAttention } from "@/adapters/today/types";
 import { OfflineBanner, statusLines } from "@/components/PcStatus";
-import { TopBar } from "@/components/TopBar";
-import { getPreferences } from "@/core/server-preferences";
-import { mailboxFor, requireSession } from "@/core/session";
+import { ShellProvider } from "@/components/ShellState";
+import { AppTopBar } from "@/components/TopBar";
+import { unreadIds } from "@/core/inbox";
+import { mailboxFor } from "@/core/session";
+import { loadToday } from "@/core/today-data";
 import { messages } from "@/i18n/messages";
 import { signOut } from "./actions";
 
+/**
+ * The frame of every signed-in screen: the top bar (with the bell and the menu), then the
+ * PC-offline or preview banner, then the screen.
+ */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const session = await requireSession();
-  const { theme, lang } = await getPreferences();
+  const { session, theme, lang, now, today } = await loadToday();
   const t = messages(lang);
   let status: WorkerStatus | null = null;
   try {
@@ -16,25 +22,32 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   } catch {
     status = null; // unknown counts as offline; the queue still holds messages
   }
-  const now = new Date();
+  // The bell shows no badge when either list could not be read.
+  const unread = today.approvals && today.cards ? unreadIds(today.approvals, today.cards, now) : null;
+  const attention = [today.google, today.yahoo, today.todoist].some(needsAttention);
   return (
-    <div className="mx-auto flex min-h-dvh max-w-2xl flex-col">
-      {session.preview ? (
-        <p role="note" className="mx-5 mt-3 rounded-xl border border-edge px-4 py-2 text-xs text-muted" data-testid="preview-banner">
-          {t.previewBanner}
-        </p>
-      ) : (
-        <OfflineBanner status={status} now={now} t={t} />
-      )}
-      <TopBar
-        appName={t.appName}
-        theme={theme}
-        lang={lang}
-        labels={{ menu: t.menu, closeMenu: t.closeMenu, theme: t.theme, dark: t.dark, light: t.light, language: t.language, signOut: t.signOut, settings: t.settingsLink }}
-        signOutAction={session.preview ? undefined : signOut}
-        statusLines={session.preview ? [] : statusLines(status, now, t, lang)}
-      />
-      <main className="screen-in flex-1 px-5 pb-[max(env(safe-area-inset-bottom),1.5rem)]">{children}</main>
-    </div>
+    <ShellProvider>
+      <div className="shell">
+        <a href="#content" className="skip-link">{t.skipToContent}</a>
+        <AppTopBar
+          unreadIds={unread}
+          theme={theme}
+          lang={lang}
+          labels={{ menu: t.menu, closeMenu: t.closeMenu, theme: t.theme, dark: t.dark, light: t.light, language: t.language,
+            signOut: t.signOut, settings: t.settingsLink, needsAttention: t.settings.needsAttention }}
+          signOutAction={session.preview ? undefined : signOut}
+          statusLines={session.preview ? [] : statusLines(status, now, t, lang)}
+          settingsAttention={attention}
+        />
+        {session.preview ? (
+          <div className="gutter flex-none pb-2">
+            <p role="note" className="note" data-testid="preview-banner"><span className="wrap">{t.previewBanner}</span></p>
+          </div>
+        ) : (
+          <OfflineBanner status={status} now={now} t={t} />
+        )}
+        <main id="content" className="shell-main gutter screen-in">{children}</main>
+      </div>
+    </ShellProvider>
   );
 }

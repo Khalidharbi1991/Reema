@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApprovalCard } from "@/components/ApprovalCard";
 import { UndoButton } from "@/components/UndoButton";
 import { Menu } from "@/components/Menu";
-import { PrayerRing } from "@/components/PrayerRing";
 import { ChatView } from "@/app/(app)/chat/ChatView";
 import { TodayView } from "@/app/(app)/today/TodayView";
 import { PlaceholderTodaySource } from "@/adapters/today/placeholder";
@@ -23,34 +22,38 @@ const decide = vi.fn(async () => ({ ok: true }));
 const undo = vi.fn(async () => ({ ok: true }));
 const send = vi.fn(async () => ({ error: false, sentAt: 1 }));
 
+const NOW = new Date("2026-11-07T15:00:00Z");
 async function today(lang: "en" | "ar", withCard = true) {
-  const snapshot = await new PlaceholderTodaySource().getToday(lang, new Date("2026-11-07T15:00:00Z"));
-  return { ...snapshot, approvals: withCard ? [CARD] : [] };
+  const snapshot = await new PlaceholderTodaySource().getToday(lang, NOW);
+  return withCard ? { ...snapshot, approvals: [CARD] } : { ...snapshot, approvals: [], cards: [] };
 }
 
 describe("Today screen", () => {
-  it("shows the greeting, prayer ring, sample badges and the orb link (English)", async () => {
-    render(<TodayView lang="en" hour={19} today={await today("en")} decide={decide} />);
+  it("shows the greeting, one sample note and the orb link; an approval is Ahmad's message, with no buttons (English)", async () => {
+    render(<TodayView lang="en" hour={19} today={await today("en")} now={NOW} />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Good evening, Khalid");
-    expect(screen.getByRole("img", { name: /Next prayer Asr at 15:12, 62%/ })).toBeInTheDocument();
-    // the placeholder source marks event, emails, tasks and Ahmad's cards as samples; approvals are real since step 2
-    expect(screen.getAllByText("Sample")).toHaveLength(4);
+    // Sample data is said once for the page (per-card "Sample" badges are gone).
+    expect(screen.getByTestId("sample-note")).toHaveTextContent("Sample content");
     expect(screen.getByRole("link", { name: "Talk to Ahmad" })).toHaveAttribute("href", "/chat");
-    expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
+    // Khalid's Q1: Approve and Reject are only in the Inbox and Chat; Today's message opens the Inbox.
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
+    expect(screen.getByTestId("ahmad-message")).toHaveAttribute("href", "/inbox?open=c1");
+    expect(screen.getByTestId("ahmad-message")).toHaveTextContent("Waiting for your approval");
   });
 
   it("renders in Arabic", async () => {
-    render(<TodayView lang="ar" hour={8} today={await today("ar")} decide={decide} />);
+    render(<TodayView lang="ar" hour={8} today={await today("ar")} now={NOW} />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("صباح الخير، خالد");
     expect(screen.getByRole("link", { name: "تحدّث مع أحمد" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "موافقة" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "موافقة" })).toBeNull();
+    expect(screen.getByTestId("ahmad-message")).toHaveTextContent("بانتظار موافقتك");
   });
 
-  it("says when nothing waits for approval", async () => {
-    render(<TodayView lang="en" hour={9} today={await today("en", false)} decide={decide} />);
-    expect(screen.getByText("Nothing is waiting for your approval.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  it("says when Ahmad has nothing", async () => {
+    render(<TodayView lang="en" hour={9} today={await today("en", false)} now={NOW} />);
+    expect(screen.getByText("Nothing from Ahmad right now.")).toBeInTheDocument();
+    expect(screen.queryByTestId("ahmad-message")).toBeNull();
   });
 });
 
@@ -77,7 +80,7 @@ describe("approval cards", () => {
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Reject" })); });
     expect(failing).toHaveBeenCalledWith("c1", "rejected", "a".repeat(64));
     expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("didn't go through");
+    expect(screen.getByRole("alert")).toHaveTextContent("didn't go through");
   });
 
   it("show the final state with no buttons once decided", () => {
@@ -100,19 +103,6 @@ describe("Undo", () => {
     expect(screen.queryByRole("button")).toBeNull();
     rerender(<UndoButton action={{ ...entry, id: "a3", status: "undone" }} labels={labels} undo={undo} />);
     expect(screen.getByText("Undone")).toBeInTheDocument();
-  });
-});
-
-describe("prayer ring", () => {
-  it("clamps progress and fills the ring", () => {
-    const { rerender } = render(<PrayerRing name="Asr" time="15:12" progress={0.5} label="l" size={100} />);
-    const ring = screen.getByTestId("prayer-progress");
-    const c = Number(ring.getAttribute("stroke-dasharray"));
-    expect(Number(ring.getAttribute("stroke-dashoffset"))).toBeCloseTo(c / 2);
-    rerender(<PrayerRing name="Asr" time="15:12" progress={7} label="l" size={100} />);
-    expect(Number(screen.getByTestId("prayer-progress").getAttribute("stroke-dashoffset"))).toBeCloseTo(0);
-    rerender(<PrayerRing name="Asr" time="15:12" progress={Number.NaN} label="l" size={100} />);
-    expect(Number(screen.getByTestId("prayer-progress").getAttribute("stroke-dashoffset"))).toBeCloseTo(c);
   });
 });
 

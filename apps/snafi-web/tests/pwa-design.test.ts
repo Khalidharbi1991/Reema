@@ -57,10 +57,11 @@ describe("design tokens", () => {
     expect(css).toMatch(/:root\[lang="ar"\][^}]*"Amiri"[^}]*"IBM Plex Sans Arabic"/s);
   });
 
-  it("stops the orb, cards and skeletons for reduced motion", () => {
+  it("stops the orb and skeletons for reduced motion, and nothing animates on load or sideways", () => {
     const block = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce)"));
     expect(block).toContain(".orb[data-state] { animation: none;");
-    expect(block).toContain(".rise-in { opacity: 1; animation: none; }");
+    expect(css).not.toContain("rise-in");
+    expect(css).not.toContain("translateX");
     expect(block).toContain(".skeleton { animation: none; }");
   });
 });

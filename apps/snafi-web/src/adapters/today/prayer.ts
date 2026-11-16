@@ -70,6 +70,14 @@ export function nextPrayer(city: City, now: Date, lang: Lang = "en"): { key: Pra
   return { key, at, time: clock(at, city.timeZone, lang), progress };
 }
 
+/** The prayers still to come today and all of tomorrow's, soonest first (for the Now card). */
+export function upcomingPrayers(city: City, now: Date, lang: Lang = "en"): { key: PrayerKey; at: Date; time: string }[] {
+  const [y, m, d] = localDay(now, city.timeZone);
+  return [prayerTimesFor(city, y, m, d), prayerTimesFor(city, ...shiftDay(y, m, d, 1))]
+    .flatMap((day) => ORDER.map((key) => ({ key, at: day[key], time: clock(day[key], city.timeZone, lang) })))
+    .filter((p) => p.at > now);
+}
+
 /** Hijri date from the Umm al-Qura calendar, in Arabic or English. */
 export function hijriDate(now: Date, lang: "ar" | "en", timeZone: string): string {
   const locale = lang === "ar" ? "ar-SA-u-ca-islamic-umalqura-nu-latn" : "en-GB-u-ca-islamic-umalqura";

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useSyncExternalStore } from "react";
+import { AttentionIcon } from "@/components/Icons";
 import type { Messages } from "@/i18n/messages";
 import type { SignInState } from "./actions";
 
@@ -37,25 +38,29 @@ export function SignInForm({ t, action, serverSecure }: Props) {
     : error === "insecure" ? t.insecure
     : "";
 
-  const field = "min-h-12 w-full rounded-xl border border-edge bg-bg px-4 text-base text-ink placeholder:text-muted focus:border-gold focus:outline-none disabled:opacity-50";
+  // 16px text (no zoom on focus on an iPhone) and the global focus ring.
+  const field = "field w-full";
 
   return (
     <form action={formAction} className="space-y-4" noValidate>
       <fieldset disabled={!secure} className="space-y-4">
         <div>
-          <label htmlFor="email" className="mb-1.5 block text-sm text-muted">{t.email}</label>
+          <label htmlFor="email" className="t-small mb-1.5 block text-muted">{t.email}</label>
           <input id="email" name="email" type="email" autoComplete="username" inputMode="email" dir="ltr" required className={field} />
         </div>
         <div>
-          <label htmlFor="password" className="mb-1.5 block text-sm text-muted">{t.password}</label>
+          <label htmlFor="password" className="t-small mb-1.5 block text-muted">{t.password}</label>
           <input id="password" name="password" type="password" autoComplete="current-password" dir="ltr" required className={field} />
         </div>
       </fieldset>
-      <p role="alert" aria-live="assertive" className="min-h-5 text-sm text-gold-ink">{errorText}</p>
+      <p role="alert" aria-live="assertive" className="t-small with-icon min-h-5 text-danger">
+        {errorText && <AttentionIcon />}<span className="wrap">{errorText}</span>
+      </p>
       <button
         type="submit"
         disabled={pending || !secure}
-        className="min-h-12 w-full rounded-xl bg-gold text-base font-medium text-[#0E0E10] transition-opacity disabled:opacity-60"
+        aria-busy={pending}
+        className="btn btn-primary btn-tall w-full"
       >
         {pending ? t.submitting : t.submit}
       </button>

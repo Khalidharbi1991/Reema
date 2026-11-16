@@ -43,18 +43,22 @@ export async function decideApproval(
   }
   revalidatePath("/chat");
   revalidatePath("/today");
+  revalidatePath("/inbox");
   return { ok: true, status };
 }
 
-// ---------- step 5: cards, settings and push ----------
-export async function dismissCard(id: string): Promise<{ ok: boolean }> {
+// ---------- the Inbox, settings and push ----------
+/**
+ * Marks one of Khalid's own cards read (opened in the Inbox). Fails quietly: when the database
+ * has no mark_card_read yet, the card just stays unread and the Inbox keeps working.
+ */
+export async function markCardRead(id: string): Promise<{ ok: boolean }> {
   const session = await requireSession();
   try {
-    await mailboxFor(session).dismissCard(id);
+    await mailboxFor(session).markCardRead(String(id ?? ""));
   } catch {
     return { ok: false };
   }
-  revalidatePath("/today");
   return { ok: true };
 }
 

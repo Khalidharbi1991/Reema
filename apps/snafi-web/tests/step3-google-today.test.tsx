@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { createMemoryStore, MemoryMailboxAdapter } from "@/adapters/mailbox/memory";
 import { toTodayFeed, type TodayFeed } from "@/adapters/mailbox/types";
 import { LiveTodaySource, STALE_AFTER_MS, when } from "@/adapters/today/live";
+import { Connections } from "@/app/(app)/settings/Connections";
 import { TodayView } from "@/app/(app)/today/TodayView";
 import { ALICE, as, BOB, freshDb } from "./helpers/db";
 
@@ -21,7 +22,6 @@ const FEED: TodayFeed = {
   todoistStatus: "off",
   updatedAt: "2026-11-14T08:55:00Z",
 };
-const decide = vi.fn(async () => ({ ok: true }));
 
 describe("today_feed in the database", () => {
   let db: PGlite;
@@ -67,12 +67,13 @@ describe("the feed on the screen", () => {
     expect(feed.googleStatus).toBe("error");
   });
 
-  it("shows the real next event and important emails in Jeddah time", async () => {
+  it("shows the real event in Jeddah time, for the plan and the Now card; important email is no longer on Today", async () => {
     const today = await new LiveTodaySource(async () => [], async () => FEED).getToday("en", NOW);
-    expect(today.nextEvent).toEqual({ title: "Site visit with the architect", time: "4:30 PM", place: "New Home" });
-    expect(today.emails).toEqual([{ id: "m0", from: "Ahmed Ali", subject: "Drawings for review", time: "9:05 AM", account: "gmail" }]);
+    expect(today.events).toEqual([{ id: "e0", title: "Site visit with the architect", time: "4:30 PM", place: "New Home", allDay: false }]);
+    expect(today.now.find((item) => item.kind === "event")).toMatchObject({ title: "Site visit with the architect", time: "4:30 PM", place: "New Home" });
+    expect(JSON.stringify(today)).not.toContain("Drawings for review"); // AC-13: no Important email on Today
     expect(today.google).toBe("ok");
-    expect(today.samples).toMatchObject({ nextEvent: false, emails: false });
+    expect(today.sample).toBe(false);
   });
 
   it("says when the snapshot is old, missing or Google needs reconnecting", async () => {
@@ -90,17 +91,23 @@ describe("the feed on the screen", () => {
     expect(when("2026-11-14", "en", NOW, "Asia/Riyadh", true, "All day")).toBe("All day");
   });
 
-  it("renders the emails and the reconnect note, in English and Arabic", async () => {
+  it("renders the event in the plan and no email card or connection note on Today; the reconnect note is in Settings (AC-13, AC-19)", async () => {
     const live = await new LiveTodaySource(async () => [], async () => FEED).getToday("en", NOW);
-    const { unmount } = render(<TodayView lang="en" hour={12} today={live} decide={decide} />);
-    expect(screen.getByTestId("important-emails")).toHaveTextContent("Drawings for review");
-    expect(screen.getByText("Site visit with the architect")).toBeInTheDocument();
+    const { unmount } = render(<TodayView lang="en" hour={12} today={live} now={NOW} />);
+    expect(screen.queryByTestId("important-emails")).toBeNull();
+    expect(screen.queryByText("Drawings for review")).toBeNull();
+    expect(screen.getByTestId("plan-events")).toHaveTextContent("Site visit with the architect");
     expect(screen.queryByTestId("google-status")).toBeNull();
     unmount();
     const reconnect = await new LiveTodaySource(async () => [], async () => ({ ...FEED, googleStatus: "reconnect" as const,
       nextEvent: null, emails: [] })).getToday("ar", NOW);
-    render(<TodayView lang="ar" hour={12} today={reconnect} decide={decide} />);
+    const today = render(<TodayView lang="ar" hour={12} today={reconnect} now={NOW} />);
+    expect(screen.queryByTestId("google-status")).toBeNull();
+    expect(screen.getByTestId("plan-events")).toHaveTextContent("التقويم غير متاح الآن.");
+    today.unmount();
+    render(<Connections lang="ar" states={{ google: reconnect.google, yahoo: reconnect.yahoo, todoist: reconnect.todoist }} />);
     expect(screen.getByTestId("google-status")).toHaveTextContent("connect-google");
+    expect(screen.getByTestId("google-status")).toHaveAttribute("data-state", "reconnect");
   });
 
   it("each user sees only their own feed in the memory mailbox", async () => {

@@ -240,7 +240,7 @@ describe("push keys and settings in the app", () => {
     expect(toBase64Url("ab+/cd==")).toBe("ab-_cd");
   });
 
-  it("memory mailbox mirrors the rules: own cards, settings in range, one test job", async () => {
+  it("memory mailbox mirrors the rules: own cards, read once, settings in range, one test job", async () => {
     const store = createMemoryStore();
     const alice = new MemoryMailboxAdapter(store, ALICE);
     const bob = new MemoryMailboxAdapter(store, BOB);
@@ -251,8 +251,12 @@ describe("push keys and settings in the app", () => {
     store.cards.push({ id: "44444444-4444-4444-8444-444444444444", userId: ALICE, kind: "reminder", title: "Reminder",
       body: "Call", createdAt: "2026-11-14T09:00:00Z" });
     expect(await bob.cards()).toEqual([]);
-    await expect(bob.dismissCard("44444444-4444-4444-8444-444444444444")).rejects.toThrow();
-    await alice.dismissCard("44444444-4444-4444-8444-444444444444");
+    await bob.markCardRead("44444444-4444-4444-8444-444444444444"); // not Bob's card: nothing changes
+    expect((await alice.cards())[0].readAt).toBeNull();
+    await alice.markCardRead("44444444-4444-4444-8444-444444444444");
+    expect((await alice.cards())[0].readAt).not.toBeNull();
+    // A card dismissed before the Inbox existed stays hidden (AC-10).
+    store.cards[0].dismissed = true;
     expect(await alice.cards()).toEqual([]);
     await alice.requestTestPush();
     await alice.requestTestPush();
@@ -295,20 +299,22 @@ describe("Settings screen", () => {
   });
 });
 
-describe("Ahmad's cards on Today", () => {
-  it("are real, newest first, with a 12-hour time and Dismiss", async () => {
-    const source = new LiveTodaySource(async () => [], async () => null, async () => [
-      { id: "44444444-4444-4444-8444-444444444444", kind: "reminder", title: "Reminder", body: "Call the bank\nSet for 3:00 PM",
-        createdAt: "2026-11-14T12:00:00Z" },
-    ]);
-    const today = await source.getToday("en", new Date("2026-11-14T13:00:00Z"));
-    expect(today.samples.cards).toBe(false);
-    expect(today.cards).toEqual([{ id: "44444444-4444-4444-8444-444444444444", kind: "reminder", title: "Reminder",
-      body: "Call the bank\nSet for 3:00 PM", time: "3:00 PM" }]);
-    const dismiss = vi.fn(async () => ({ ok: true }));
-    render(<TodayView lang="en" hour={16} today={today} decide={async () => ({ ok: true })} dismiss={dismiss} />);
-    expect(screen.getByTestId("ahmad-card")).toHaveTextContent("Call the bank");
-    fireEvent.click(screen.getByTestId("dismiss-card"));
-    await waitFor(() => expect(dismiss).toHaveBeenCalledWith("44444444-4444-4444-8444-444444444444"));
+describe("Ahmad's cards", () => {
+  it("are real; Today shows one of them as Ahmad's message with a 12-hour time, without its body and with no Dismiss", async () => {
+    const card = { id: "44444444-4444-4444-8444-444444444444", kind: "reminder" as const, title: "Reminder",
+      body: "Call the bank\nSet for 3:00 PM", createdAt: "2026-11-14T12:00:00Z", readAt: null };
+    const source = new LiveTodaySource(async () => [], async () => null, async () => [card]);
+    const now = new Date("2026-11-14T13:00:00Z");
+    const today = await source.getToday("en", now);
+    expect(today.sample).toBe(false);
+    expect(today.cards).toEqual([card]);
+    render(<TodayView lang="en" hour={16} today={today} now={now} />);
+    const message = screen.getByTestId("ahmad-message");
+    expect(message).toHaveTextContent("Reminder");
+    expect(message).toHaveTextContent("3:00 PM");
+    expect(message).toHaveAttribute("href", "/inbox?open=44444444-4444-4444-8444-444444444444");
+    expect(message).not.toHaveTextContent("Call the bank");
+    expect(screen.queryByTestId("ahmad-card")).toBeNull();
+    expect(screen.queryByTestId("dismiss-card")).toBeNull(); // AC-10
   });
 });

@@ -59,6 +59,6 @@ describe("Arabic and English", () => {
     const arabic = /[؀-ۿ]/;
     expect(arabic.test(messages("ar").signIn.title)).toBe(true);
     expect(arabic.test(messages("ar").approve)).toBe(true);
-    expect(messages("ar").prayerRingLabel("العصر", "15:12", 62)).toContain("62");
+    expect(messages("ar").now.countdown(0, 42)).toBe("بعد 42 دقيقة");
   });
 });

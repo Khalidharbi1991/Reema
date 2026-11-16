@@ -1,21 +1,22 @@
 import { Skeleton } from "@/components/Card";
+import { getPreferences } from "@/core/server-preferences";
+import { messages } from "@/i18n/messages";
 
-/** Skeleton while Today loads; no spinners. */
-export default function TodayLoading() {
+/** Skeleton while Today loads, in the same places as the content; no spinners. */
+export default async function TodayLoading() {
+  const { lang } = await getPreferences();
   return (
-    <div className="mt-4" aria-busy="true">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex-1 space-y-2">
-          <Skeleton className="h-9 w-3/4" />
-          <Skeleton className="h-4 w-1/2" />
-          <Skeleton className="h-4 w-1/3" />
-        </div>
-        <Skeleton className="h-[76px] w-[76px] rounded-full" />
+    <div className="pt-4" aria-busy="true">
+      <span className="sr-only">{messages(lang).loading}</span>
+      <Skeleton className="h-8 w-3/5" />
+      <Skeleton className="mt-2 h-4 w-[45%]" />
+      <Skeleton className="mt-6 h-24 rounded-2xl" />
+      <div className="mt-8 space-y-3">
+        {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-5" />)}
       </div>
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        {[0, 1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-32 rounded-2xl" />
-        ))}
+      <div className="mt-8 space-y-2">
+        <Skeleton className="h-5 w-4/5" />
+        <Skeleton className="h-4 w-2/5" />
       </div>
     </div>
   );

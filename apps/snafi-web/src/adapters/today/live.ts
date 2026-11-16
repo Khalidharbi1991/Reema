@@ -1,10 +1,11 @@
 import type { AhmadCard, ApprovalCard, TodayFeed } from "@/adapters/mailbox/types";
 import { APP_SETTINGS } from "@/config/app";
 import { clock12 } from "@/core/clock";
+import { inboxCards, pendingApprovals } from "@/core/inbox";
 import type { Lang } from "@/i18n/messages";
 import { gregorianDate } from "./placeholder";
-import { hijriDate, nextPrayer } from "./prayer";
-import type { GoogleState, TodaySnapshot, TodaySource } from "./types";
+import { hijriDate, upcomingPrayers } from "./prayer";
+import type { GoogleState, NowItem, PlanEvent, TodaySnapshot, TodaySource } from "./types";
 
 /** A Google snapshot older than this is shown as out of date (the worker writes one every 10 minutes). */
 export const STALE_AFTER_MS = 30 * 60_000;
@@ -20,7 +21,8 @@ export function when(iso: string, lang: Lang, now: Date, timeZone: string, allDa
     const day = new Date(`${iso.slice(0, 10)}T12:00:00Z`);
     if (Number.isNaN(day.getTime())) return allDayLabel;
     const same = iso.slice(0, 10) === localDay(now, timeZone);
-    return same ? allDayLabel : `${new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "UTC" }).format(day)} · ${allDayLabel}`;
+    const weekday = new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "UTC" }).format(day);
+    return same ? allDayLabel : allDayLabel ? `${weekday}, ${allDayLabel}` : weekday;
   }
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
@@ -32,16 +34,17 @@ export function when(iso: string, lang: Lang, now: Date, timeZone: string, allDa
 const ALL_DAY = { en: "All day", ar: "طوال اليوم" } as const;
 const TODAY = { en: "Today", ar: "اليوم" } as const;
 const OVERDUE = { en: "Overdue", ar: "متأخرة" } as const;
+const COMMA = { en: ", ", ar: "، " } as const;
 
-/** A Todoist due date: "Today" or "6:30 PM" today, the day for another day, "Overdue · …" when late. */
+/** A Todoist due date: "Today" or "6:30 PM" today, the day for another day, "Overdue, …" when late. */
 export function taskDue(due: string, overdue: boolean, lang: Lang, now: Date, timeZone: string): string {
   let shown = "";
   if (/^\d{4}-\d{2}-\d{2}$/.test(due)) {
-    shown = due === localDay(now, timeZone) ? TODAY[lang] : when(due, lang, now, timeZone, true, "").replace(/ · $/, "");
+    shown = due === localDay(now, timeZone) ? TODAY[lang] : when(due, lang, now, timeZone, true, "");
   } else if (due) {
     shown = when(due, lang, now, timeZone); // the worker writes times with their offset
   }
-  return overdue ? (shown ? `${OVERDUE[lang]} · ${shown}` : OVERDUE[lang]) : shown;
+  return overdue ? (shown ? `${OVERDUE[lang]}${COMMA[lang]}${shown}` : OVERDUE[lang]) : shown;
 }
 
 function withStale(status: GoogleState, feed: TodayFeed | null, now: Date): GoogleState {
@@ -51,9 +54,37 @@ function withStale(status: GoogleState, feed: TodayFeed | null, now: Date): Goog
 }
 
 /**
- * Today: real prayer times and Hijri date for the configured city, real pending approvals
- * from the mailbox, and from the PC worker's snapshot the next event, important emails from
- * Gmail and Yahoo (steps 3 and 4) and today's Todoist tasks (step 4), and Ahmad's cards (step 5).
+ * The feed's event, if it is today and not over: for the plan, and (timed and not yet started)
+ * for the Now card. The worker's feed carries one event; the plan is built for a list.
+ */
+function todaysEvents(feed: TodayFeed | null, lang: Lang, now: Date, tz: string): { plan: PlanEvent[]; next: NowItem[] } {
+  const ev = feed?.nextEvent;
+  if (!ev) return { plan: [], next: [] };
+  if (ev.allDay) {
+    const today = ev.start.slice(0, 10) === localDay(now, tz);
+    return { plan: today ? [{ id: "e0", title: ev.title, place: ev.location, allDay: true, time: ALL_DAY[lang] }] : [], next: [] };
+  }
+  const start = new Date(ev.start);
+  if (Number.isNaN(start.getTime()) || localDay(start, tz) !== localDay(now, tz)) return { plan: [], next: [] };
+  const end = new Date(ev.end).getTime();
+  if ((Number.isNaN(end) ? start.getTime() : end) <= now.getTime()) return { plan: [], next: [] };
+  const time = clock12(start, lang, tz);
+  return {
+    plan: [{ id: "e0", title: ev.title, place: ev.location, allDay: false, time }],
+    next: start > now ? [{ kind: "event", title: ev.title, place: ev.location, at: start.toISOString(), time }] : [],
+  };
+}
+
+/** Soonest first; at the same instant the prayer comes first (it wins a tie on the Now card). */
+export function nowItems(items: NowItem[]): NowItem[] {
+  return [...items].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()
+    || Number(a.kind !== "prayer") - Number(b.kind !== "prayer"));
+}
+
+/**
+ * Today: real prayer times and Hijri date for the configured city, pending approvals and Ahmad's
+ * cards from the mailbox, and from the PC worker's snapshot today's event and Todoist tasks and
+ * the state of each connection (shown in Settings).
  */
 export class LiveTodaySource implements TodaySource {
   constructor(
@@ -65,33 +96,27 @@ export class LiveTodaySource implements TodaySource {
   async getToday(lang: Lang, now: Date): Promise<TodaySnapshot> {
     const city = APP_SETTINGS.city;
     const tz = city.timeZone;
-    const prayer = nextPrayer(city, now, lang);
     const [approvals, feed, cards] = await Promise.all([
-      this.pendingApprovals().catch(() => [] as ApprovalCard[]), // the rest of Today still shows if the mailbox is unreachable
+      this.pendingApprovals().catch(() => null), // the rest of Today still shows if the mailbox is unreachable
       this.feed().catch(() => null),
-      this.ahmadCards().catch(() => [] as AhmadCard[]),
+      this.ahmadCards().catch(() => null),
     ]);
-
-    const google = withStale(feed ? feed.googleStatus : "waiting", feed, now);
-    const yahoo = withStale(feed ? feed.yahooStatus : "waiting", feed, now);
-    const todoist = withStale(feed ? feed.todoistStatus : "waiting", feed, now);
-    const ev = feed?.nextEvent ?? null;
-    const stamp = (iso: string) => { const t = new Date(iso).getTime(); return Number.isNaN(t) ? 0 : t; };
-    const emails = [...(feed?.emails ?? [])].sort((a, b) => stamp(b.receivedAt) - stamp(a.receivedAt));
+    const events = todaysEvents(feed, lang, now, tz);
+    const prayers: NowItem[] = upcomingPrayers(city, now, lang)
+      .map((p) => ({ kind: "prayer", key: p.key, at: p.at.toISOString(), time: p.time }));
     return {
       gregorianDate: gregorianDate(lang, now),
       hijriDate: hijriDate(now, lang, tz),
-      nextPrayer: { key: prayer.key, time: prayer.time, progress: prayer.progress },
-      nextEvent: ev ? { title: ev.title, time: when(ev.start, lang, now, tz, ev.allDay, ALL_DAY[lang]), place: ev.location } : null,
-      emails: emails.map((m, i) => ({ id: `m${i}`, from: m.from, subject: m.subject, time: when(m.receivedAt, lang, now, tz), account: m.account })),
-      google,
-      yahoo,
-      todoist,
+      now: nowItems([...prayers, ...events.next]),
+      events: events.plan,
       tasks: (feed?.tasks ?? []).map((t, i) => ({ id: `t${i}`, title: t.content, due: taskDue(t.due, t.overdue, lang, now, tz),
         overdue: t.overdue, priority: t.priority })),
-      cards: cards.map((c) => ({ id: c.id, kind: c.kind, title: c.title, body: c.body, time: c.createdAt ? when(c.createdAt, lang, now, tz) : "" })),
-      approvals,
-      samples: { prayer: false, nextEvent: false, emails: false, tasks: false, cards: false },
+      google: withStale(feed ? feed.googleStatus : "waiting", feed, now),
+      yahoo: withStale(feed ? feed.yahooStatus : "waiting", feed, now),
+      todoist: withStale(feed ? feed.todoistStatus : "waiting", feed, now),
+      approvals: approvals && pendingApprovals(approvals, now),
+      cards: cards && inboxCards(cards, now),
+      sample: false,
     };
   }
 }

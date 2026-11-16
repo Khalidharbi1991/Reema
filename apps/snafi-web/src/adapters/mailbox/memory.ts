@@ -1,5 +1,6 @@
 import type { Lang } from "@/i18n/messages";
 import {
+  cardShown,
   checkId,
   checkMessageBody,
   checkPushKeys,
@@ -25,7 +26,7 @@ type Store = {
   actions: (ActionEntry & { userId: string })[];
   status: Record<string, WorkerStatus>;
   feeds: Record<string, TodayFeed>;
-  cards: (AhmadCard & { userId: string; dismissed?: boolean })[];
+  cards: (Omit<AhmadCard, "readAt"> & { readAt?: string | null; userId: string; dismissed?: boolean })[];
   settings: Record<string, Settings>;
   pushes: (PushKeys & { userId: string })[];
 };
@@ -127,19 +128,22 @@ export class MemoryMailboxAdapter implements MailboxAdapter {
     return this.store.feeds[this.me()] ?? null;
   }
 
-  // ---------- step 5 ----------
-  async cards(limit = 10) {
+  // ---------- step 5 and the Inbox ----------
+  async cards(limit = 10): Promise<AhmadCard[]> {
     const me = this.me();
+    const now = this.now();
     return this.store.cards.filter((c) => c.userId === me && !c.dismissed)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit)
-      .map(({ id, kind, title, body, createdAt }) => ({ id, kind, title, body, createdAt }));
+      .map(({ id, kind, title, body, createdAt, readAt }) => ({ id, kind, title, body, createdAt, readAt: readAt ?? null }))
+      .filter((c) => cardShown(c, now))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
   }
 
-  async dismissCard(id: string) {
+  /** Like mark_card_read: the first time only; another user's card changes nothing. */
+  async markCardRead(id: string) {
     const me = this.me();
-    const card = this.store.cards.find((c) => c.id === checkId(id) && c.userId === me && !c.dismissed);
-    if (!card) throw new MailboxError("no card with that id");
-    card.dismissed = true;
+    const cardId = checkId(id);
+    const card = this.store.cards.find((c) => c.id === cardId && c.userId === me);
+    if (card && !card.readAt) card.readAt = this.now().toISOString();
   }
 
   async settings() {
