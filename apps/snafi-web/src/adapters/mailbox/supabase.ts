@@ -202,6 +202,13 @@ export class SupabaseMailboxAdapter implements MailboxAdapter {
     if (error) throw new MailboxError(error.message);
   }
 
+  /** "Turn off on all phones" (SEC-153 follow-up, migration 0011): every address, and push off. */
+  async removeAllPushSubscriptions() {
+    const { data, error } = await (await this.client()).rpc("remove_all_push_subscriptions");
+    if (error) throw new MailboxError(error.message, schemaMissing(error));
+    return typeof data === "number" ? data : 0;
+  }
+
   async requestTestPush() {
     const { error } = await (await this.client()).rpc("request_test_push");
     if (error) throw new MailboxError(error.message);

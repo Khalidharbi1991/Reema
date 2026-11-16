@@ -29,10 +29,13 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from .backup import FORMAT, digest, signature_ok
+from .memory.guard import ok as memory_ok
 
 # Parents before children (foreign keys).
 ORDER = ("jobs", "approvals", "messages", "action_log", "notes", "reminders", "facts", "worker_status",
-         "notifications", "cards", "user_settings")
+         "notifications", "cards", "user_settings",
+         # Step 6 (backup schema 7). Older backups simply have none of these.
+         "family_members", "family_dates", "interview_state")
 JSON_COLUMNS = {"payload", "result", "args", "meta", "undo", "lanes", "card"}
 WAITING_NOTICES = {"new", "held", "delivering"}
 COLUMN = re.compile(r"^[a-z_][a-z0-9_]{0,62}$")
@@ -90,6 +93,9 @@ def neutralise(tables: Dict[str, List[Dict]], now: Optional[datetime] = None) ->
     restored_at = (now or datetime.now(timezone.utc)).isoformat()
     out["reminders"] = [({**r, "fired_at": restored_at} if not r.get("fired_at") and _past(r.get("due_at"), now) else r)
                         for r in tables.get("reminders", [])]
+    # Step 6: forget really deletes. A backup from before step 6 may still hold facts removed with Undo
+    # (deleted_at set) or text the no-secrets rule now refuses; neither comes back.
+    out["facts"] = [f for f in tables.get("facts", []) if not f.get("deleted_at") and memory_ok(f.get("body") or "")]
     return out
 
 

@@ -5,6 +5,24 @@ records its verification. Current rules and behavior live in
 [AGENTS.md](../../AGENTS.md). The [finite ledger](PENDING_LEDGER.md) records external
 requirements as they stood before the no-API migration below.
 
+## 2026-11-16 — Snafi step 6: Memory and family (not pushed)
+
+Migrations 0010 (memory and family) and 0011 ("Turn off on all phones"). The onboarding interview runs
+in chat, a few fixed questions at a time, started, stopped and resumed by words matched in code (no
+brain call); answers become facts and family entries through Level 2 actions with Undo. Family members
+and their key dates (Gregorian or Hijri, with an Umm al-Qura month table checked against Intl) get a
+reminder a week ahead and on the day; a week before a birthday one brain call suggests gift ideas.
+Facts are saved after a chat turn (three a message, six in the interview), never from outside content,
+and never with passwords, codes, or ID, card, account or phone numbers: the same rule runs in the
+worker, the app and the database (a CHECK on every memory row; a shared fixture is tested by both
+suites). The About me page shows everything with Edit and Forget; Forget deletes the row and blanks
+the action log's copy. Keyword search normalises Arabic; "I don't remember" is replaced when memory
+matches. Memory reaches the brain only as data. Each part is its own adapter. Backup schema 7 adds the
+new tables; cards (and so `cards.read_at` from 0009) stay out of backups by design (SEC-127). SEC-153
+follow-up: Settings' existing "Turn off on all phones" now deletes every phone's address in the
+database. Agent 16's review: `apps/snafi-web/docs/SECURITY_REVIEW_memory_family.md`. Tag
+`job-memory-20261116-start` marks main before it.
+
 ## 2026-11-14 — Snafi step 5: Khalid's decisions and 12-hour times on cards (not pushed)
 
 Khalid accepted SEC-120 (reminders added after reading outside content, like SEC-80 and SEC-105).

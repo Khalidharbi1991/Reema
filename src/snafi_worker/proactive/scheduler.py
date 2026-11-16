@@ -10,6 +10,11 @@ Every TICK seconds, each job runs once, short, and on its own (one failing never
              Inbox, Important, Primary; Yahoo: the Today rule and from someone Khalid emailed from Yahoo
              in the last 90 days). The first run for each account only learns what is already there.
   clear      once an hour, cards and the sent record older than 30 days are deleted (SEC-127)
+  family     step 6: each family key date a week before and on the day, from Khalid's brief time on.
+             A birthday a week away queues one background job (family.gift_ideas) for the engine's one
+             brain call for gift ideas; everything else goes out directly. Reminders never count to the cap.
+  invite     step 6: once, a card inviting Khalid to the onboarding interview (interview_state then
+             says "invited", so it never comes back, even after the card is cleared)
 Everything goes through Notifier.deliver, which enforces the manners (see notify.py). Texts are
 built here from fixed templates in English or Arabic (user_settings.lang), times 12-hour with
 AM/PM or ص/م. Only sender names and subjects of mail are used, never a body.
@@ -23,6 +28,11 @@ from typing import Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from ..clock import clock, day_clock, day_only
+from ..memory import family as family_dates
+from ..memory import interview
+from ..memory.guard import ok as memory_ok
+from ..memory.normalise import normalise
+from ..memory.store_book import StoreMemoryBook
 from ..today_feed import _emails, _tasks, sender_name
 from .notify import Notifier, _parse
 from .prayer import ORDER, prayer_times
@@ -32,6 +42,7 @@ TICK = 30
 MAIL_MINUTES = 10
 BRIEF_WINDOW = timedelta(hours=5)
 CLEAR_EVERY = timedelta(hours=1)
+FAMILY_EVERY = timedelta(minutes=10)
 WATCH_HOURS = 24
 WATCH_LIMIT = 10
 BRIEF_ITEMS = 5
@@ -70,10 +81,14 @@ def _cut(text: str, n: int) -> str:
 class Scheduler(threading.Thread):
     def __init__(self, notifier: Notifier, personal, stop: Optional[threading.Event] = None,
                  time_zone: str = "Asia/Riyadh", latitude: float = 21.4858, longitude: float = 39.1925,
-                 mail_minutes: float = MAIL_MINUTES):
+                 mail_minutes: float = MAIL_MINUTES, memory=None, gift_ideas: bool = True):
         super().__init__(name="scheduler", daemon=True)
         self.notifier, self.personal = notifier, personal
         self.store, self.owner_id = notifier.store, notifier.owner_id
+        self.memory = memory if memory is not None else StoreMemoryBook(store=self.store)
+        self.gift_ideas = gift_ideas
+        self.last_family: Optional[datetime] = None
+        self.invited = False
         self.stop = stop or threading.Event()
         self.tz = ZoneInfo(time_zone)
         self.latitude, self.longitude = latitude, longitude
@@ -86,7 +101,8 @@ class Scheduler(threading.Thread):
         now = now or datetime.now(timezone.utc)
         out: Dict[str, object] = {}
         for name, job in (("held", self.release_held), ("reminders", self.reminders), ("brief", self.brief),
-                          ("mail", self.mail_watch), ("clear", self.clear_old)):
+                          ("mail", self.mail_watch), ("clear", self.clear_old), ("family", self.family),
+                          ("invite", self.invite)):
             try:
                 out[name] = job(now)
             except Exception as exc:  # noqa: BLE001 (only the type is logged, never any text)
@@ -259,6 +275,88 @@ class Scheduler(threading.Thread):
             body = "\n".join(x for x in (_cut(m.subject, 300) or "—", received) if x)
             results.append(self.notifier.deliver("mail", key, title, body, counts_to_cap=True, now=now))
         return results
+
+    # ---------- step 6: family key dates ----------
+    def _after_brief_time(self, now: datetime) -> bool:
+        hour, minute = (int(x) for x in self.notifier.settings()["brief_time"].split(":"))
+        local = now.astimezone(self.tz)
+        return local >= local.replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+    def family(self, now: datetime) -> Optional[List[str]]:
+        if self.last_family is not None and now - self.last_family < FAMILY_EVERY:
+            return None
+        if not self._after_brief_time(now):
+            return []
+        self.last_family = now
+        today = now.astimezone(self.tz).date()
+        members = {m["id"]: m for m in self.memory.members(self.owner_id)}
+        out = []
+        for row in self.memory.dates(self.owner_id):
+            member = members.get(row.get("member_id"))
+            occurrence = family_dates.next_occurrence(row, today)
+            key = family_dates.stage_key(row, occurrence) if (member and occurrence) else None
+            if key is None or self.notifier.known(key):
+                continue
+            if occurrence.days_away == family_dates.WEEK and row.get("label") == "birthday" and self.gift_ideas:
+                # One background job for the gift ideas (one brain call); the marker makes it queue once.
+                if self.notifier.learn(f"gift-queued:{row['id']}:{occurrence.on.isoformat()}"):
+                    self.store.insert("jobs", {"user_id": self.owner_id, "kind": "family.gift_ideas", "lane": "background",
+                                               "payload": {"date_id": row["id"], "on": occurrence.on.isoformat()}})
+                    out.append("queued")
+                continue
+            title, body = self._family_text(row, member, occurrence)
+            out.append(self.notifier.deliver("reminder", key, title, body, counts_to_cap=False, now=now))
+        return out
+
+    def _family_text(self, row, member, occurrence):
+        lang = self._lang()
+        when = day_only(datetime(occurrence.on.year, occurrence.on.month, occurrence.on.day, 12, tzinfo=self.tz), lang)
+        return family_dates.reminder_text(row, member, occurrence, when, lang)
+
+    def family_week(self, date_id, on, now: Optional[datetime] = None) -> Optional[Dict]:
+        """For the gift-ideas job: the birthday a week away, still due and not yet sent; else None."""
+        rows = [r for r in self.memory.dates(self.owner_id) if r.get("id") == date_id]
+        if not rows:
+            return None  # forgotten since
+        row = rows[0]
+        member = next((m for m in self.memory.members(self.owner_id) if m["id"] == row.get("member_id")), None)
+        today = (now or datetime.now(timezone.utc)).astimezone(self.tz).date()
+        occurrence = family_dates.next_occurrence(row, today)
+        if member is None or occurrence is None or occurrence.on.isoformat() != on:
+            return None
+        key = f"family:{row['id']}:{on}:week"
+        if occurrence.days_away > family_dates.WEEK or self.notifier.known(key):
+            return None
+        title, body = self._family_text(row, member, occurrence)
+        age = family_dates.age_turning(row, occurrence)
+        name = normalise(member.get("name") or "")
+        facts = [f["body"] for f in self.memory.facts(self.owner_id)
+                 if f.get("section") == "family" and name and name in normalise(f.get("body") or "")
+                 and memory_ok(f.get("body") or "")][:10]  # SEC-204
+        data = "\n".join(x for x in (
+            f"relation: {member.get('relation')}", f"age turning: {age}" if age else "age: not known",
+            f"note: {member.get('note')}" if member.get("note") else "", *[f"fact: {f}" for f in facts]) if x)
+        return {"key": key, "title": title, "body": body, "lang": self._lang(), "gift_data": data}
+
+    def deliver_family_week(self, prepared: Dict, ideas: List[str], now: Optional[datetime] = None) -> str:
+        t = family_dates.T[prepared["lang"]]
+        gifts = (f"{t['gifts']}:\n" + "\n".join(f"• {i}" for i in ideas)) if ideas else t["no_gifts"]
+        return self.notifier.deliver("reminder", prepared["key"], prepared["title"], f"{prepared['body']}\n\n{gifts}",
+                                     counts_to_cap=False, now=now or datetime.now(timezone.utc))
+
+    # ---------- step 6: invite to the interview, once ----------
+    def invite(self, now: datetime) -> Optional[str]:
+        if self.invited:
+            return None
+        if self.memory.interview(self.owner_id) is not None:
+            self.invited = True
+            return None
+        lang = self._lang()
+        outcome = self.notifier.deliver("reminder", "interview-invite", interview.T[lang]["invite_title"],
+                                        interview.T[lang]["invite_body"], counts_to_cap=False, now=now)
+        self.memory.set_interview(self.owner_id, {"status": "invited", "step": 0, "lang": lang})
+        self.invited = True
+        return outcome
 
     # ---------- test push (a background job from Settings) ----------
     def test_push(self, job_id: str, now: Optional[datetime] = None) -> str:

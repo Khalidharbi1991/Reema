@@ -3,7 +3,9 @@ import { vapidPublicKey } from "@/config/env";
 import { mailboxFor } from "@/core/session";
 import { loadToday } from "@/core/today-data";
 import { messages } from "@/i18n/messages";
-import { removePushSubscription, requestTestPush, savePushSubscription, saveSettings } from "../actions";
+import {
+  removeAllPushSubscriptions, removePushSubscription, requestTestPush, savePushSubscription, saveSettings,
+} from "../actions";
 import { Connections } from "./Connections";
 import { SettingsForm } from "./SettingsForm";
 
@@ -32,6 +34,7 @@ export default async function SettingsPage() {
         save={saveSettings}
         subscribe={savePushSubscription}
         unsubscribe={removePushSubscription}
+        unsubscribeAll={removeAllPushSubscriptions}
         test={requestTestPush}
       />
     </div>

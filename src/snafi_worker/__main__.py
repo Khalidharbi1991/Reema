@@ -23,7 +23,7 @@ from .backup import BackupScheduler, run_backup
 from .config import ConfigError, Secrets, Settings, worker_data_dir
 from .engine import Engine
 from .runner import Heartbeat, Lane, run_job
-from .services import CALLS_FILE, PAUSE_FILE, build, build_personal, guarded_brain
+from .services import CALLS_FILE, PAUSE_FILE, build, build_memory, build_personal, guarded_brain
 from .today_feed import TodayFeed
 
 UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
@@ -48,7 +48,7 @@ def owner(secrets: Secrets) -> str:
     return value
 
 
-def build_scheduler(store, personal, settings, secrets, owner_id: str):
+def build_scheduler(store, personal, settings, secrets, owner_id: str, memory=None):
     """Step 5: the proactive scheduler. Without the push key and contact (set-secrets), cards still appear
     on Today, silently; the worker never stops for it."""
     from .proactive.notify import Notifier
@@ -67,7 +67,7 @@ def build_scheduler(store, personal, settings, secrets, owner_id: str):
     notifier = Notifier(store, owner_id, sender, settings.time_zone, settings.latitude, settings.longitude,
                         settings.quiet_minutes)
     return Scheduler(notifier, personal, None, settings.time_zone, settings.latitude, settings.longitude,
-                     settings.mail_watch_minutes)
+                     settings.mail_watch_minutes, memory=memory, gift_ideas=settings.gift_ideas)
 
 
 def main(argv=None) -> int:
@@ -92,6 +92,7 @@ def main(argv=None) -> int:
         store, brain = build("store", settings, secrets), guarded_brain(settings, secrets)
         # Google: a missing connection does not stop the worker; connect-google is picked up within minutes.
         personal = build_personal(settings, secrets, reload=Secrets.load)
+        memory, memory_search = build_memory(settings, secrets, store)
     except ConfigError as exc:
         print(f"Snafi worker not started: {exc}", file=sys.stderr)
         return 2
@@ -99,11 +100,12 @@ def main(argv=None) -> int:
         print(f"Snafi worker {VERSION}: brain={settings.brain_provider} store={settings.store_provider} "
               f"mail={settings.mail_provider} yahoo={settings.yahoo_provider} calendar={settings.calendar_provider} "
               f"files={settings.files_provider} tasks={settings.tasks_provider} "
+              f"memory={settings.memory_provider}/{settings.memory_search_provider} "
               f"secrets present={secrets.names()} backups={settings.backup_folder}")
         return 0
     setup_logging()
-    engine = Engine(store, brain, settings.time_zone, personal)
-    scheduler = build_scheduler(store, personal, settings, secrets, owner_id)
+    engine = Engine(store, brain, settings.time_zone, personal, memory, memory_search, settings.gift_ideas)
+    scheduler = build_scheduler(store, personal, settings, secrets, owner_id, memory)
     engine.scheduler = scheduler
     if args.backup_now:
         outcome = run_backup(store, settings.backup_folder, owner_id, settings.worker_id, settings.time_zone,

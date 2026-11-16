@@ -415,10 +415,14 @@ describe("server to client: only plain data and server actions cross (Agent 14's
     for (const [file, names] of [
       ["src/app/(app)/inbox/page.tsx", ["decideApproval", "markCardRead"]],
       ["src/app/(app)/chat/page.tsx", ["decideApproval", "sendMessage", "undoAction"]],
-      ["src/app/(app)/settings/page.tsx", ["removePushSubscription", "requestTestPush", "savePushSubscription", "saveSettings"]],
+      ["src/app/(app)/settings/page.tsx", ["removeAllPushSubscriptions", "removePushSubscription", "requestTestPush",
+        "savePushSubscription", "saveSettings"]],
       ["src/app/(app)/layout.tsx", ["signOut"]],
+      ["src/app/(app)/about/page.tsx", ["forgetDate", "forgetFact", "forgetMember", "saveDate", "saveFact", "saveMember",
+        "startInterview"]],
     ] as const) {
-      const imported = /import \{([^}]*)\} from "\.\.?\/actions";/.exec(read(file))?.[1].split(",").map((s) => s.trim()).sort();
+      const imported = /import \{([^}]*)\} from "\.\.?\/actions";/.exec(read(file))?.[1].split(",").map((s) => s.trim())
+        .filter(Boolean).sort();
       expect(imported, file).toEqual([...names].sort());
     }
   });

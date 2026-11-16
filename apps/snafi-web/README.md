@@ -17,6 +17,14 @@ Snafi is Khalid's personal assistant app and part of REEMA. The plan is
   each, newest first, each labelled Gmail or Yahoo) and up to ten Todoist tasks due today
   or overdue (migration 0007), with a note for each source that needs connecting. Yahoo
   and Todoist actions run on the PC. Ahmad's cards (reminders, the morning brief, important mail) come from the PC's scheduler (step 5); Settings turns phone notifications on (see `docs/snafi/PUSH_SETUP.md`).
+- **Step 6, Memory and family:** the menu's **About me** page (`/about`) shows everything Ahmad
+  knows, grouped Me, Family, Preferences and Routine, with Edit and Forget on every item (Forget
+  asks first and deletes), family members with their birthdays and key dates (Gregorian or Hijri),
+  and **Interview me again**, which starts Ahmad's interview in Chat. Text with passwords, codes, or
+  ID, card, account or phone numbers is refused (here, on the PC and in the database). Settings'
+  **Turn off on all phones** now deletes every phone's push address and switches push off.
+  **Database:** run `supabase/migrations/0010_memory_family.sql`, then `0011_push_off_all.sql`, once
+  each (see `supabase/README.md`).
 
 - **UI job (Inbox, simpler Today, Chat scroll, mobile fit, calmer look):** plan in
   `docs/PRD_ui_inbox.md`, design in `docs/UI.md`.
@@ -107,11 +115,11 @@ app refuses a secret / service_role key.
 
 | Path | What |
 | --- | --- |
-| `src/adapters/` | Every outside service behind its own interface: `auth/`, `mailbox/`, `today/` (prayer times in `today/prayer.ts`), `supabase/`. `adapters/index.ts` maps the configured choice to a class. Only this folder may import Supabase (a test enforces it). |
-| `src/config/` | `env.ts` (the only place env vars are read), `services.ts` (which adapter backs each service: `SNAFI_AUTH_ADAPTER`, `SNAFI_MAILBOX_ADAPTER`, `SNAFI_TODAY_ADAPTER`), `app.ts` (time zone and the prayer-times city, Jeddah) |
+| `src/adapters/` | Every outside service behind its own interface: `auth/`, `mailbox/`, `memory/` (step 6: the About me page), `today/` (prayer times in `today/prayer.ts`), `supabase/`. `adapters/index.ts` maps the configured choice to a class. Only this folder may import Supabase (a test enforces it). |
+| `src/config/` | `env.ts` (the only place env vars are read), `services.ts` (which adapter backs each service: `SNAFI_AUTH_ADAPTER`, `SNAFI_MAILBOX_ADAPTER`, `SNAFI_TODAY_ADAPTER`, `SNAFI_THROTTLE_ADAPTER`, `SNAFI_MEMORY_ADAPTER`), `app.ts` (time zone and the prayer-times city, Jeddah) |
 | `src/core/` | Preferences (theme, language), session guard, haptics |
 | `src/i18n/` | English and Arabic text; Arabic switches the page to right-to-left |
-| `src/app/` | Screens: `sign-in`, `(app)/today`, `(app)/inbox`, `(app)/chat`, `(app)/settings` |
+| `src/app/` | Screens: `sign-in`, `(app)/today`, `(app)/inbox`, `(app)/chat`, `(app)/settings`, `(app)/about` (About me) |
 | `src/proxy.ts` | Sends signed-out visitors to `/sign-in` and refreshes the session |
 | `supabase/migrations/` | SQL for the mailbox tables and their row-level security |
 | `public/` | Manifest, service worker, offline page, icons (`scripts/make_icons.py` redraws them) |

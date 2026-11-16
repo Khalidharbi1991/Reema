@@ -9,7 +9,7 @@ import { AttentionIcon } from "./Icons";
 
 type Labels = {
   menu: string; closeMenu: string; theme: string; dark: string; light: string;
-  language: string; signOut: string; settings?: string;
+  language: string; signOut: string; settings?: string; about?: string;
   /** Hidden text for the mark on Settings when a connection needs attention. */
   needsAttention?: string;
 };
@@ -121,6 +121,12 @@ export function Menu({ labels, theme: initialTheme, lang, signOutAction, statusL
               العربية
             </button>
           </div>
+          {signOutAction && labels.about && (
+            <Link href="/about" onClick={() => setOpen(false)} data-testid="menu-about"
+              className="btn btn-secondary mt-5 w-full">
+              {labels.about}
+            </Link>
+          )}
           {signOutAction && labels.settings && (
             <Link href="/settings" onClick={() => setOpen(false)} data-testid="menu-settings"
               className="btn btn-secondary mt-5 w-full gap-2">

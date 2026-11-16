@@ -81,6 +81,16 @@ def _proactive(data: dict) -> Dict[str, object]:
     return out
 
 
+def _memory(data: dict) -> Dict[str, object]:
+    section = dict(data.get("memory") or {})
+    gift = section.pop("gift_ideas", True)
+    if not isinstance(gift, bool):
+        raise ValueError("memory.gift_ideas must be true or false")
+    return {"memory_provider": str(section.pop("provider", None) or "store"),
+            "memory_search_provider": str(section.pop("search", None) or "keyword"),
+            "memory_options": section, "gift_ideas": gift}
+
+
 @dataclass(frozen=True)
 class LaneSettings:
     poll_seconds: float
@@ -117,6 +127,12 @@ class Settings:
     quiet_minutes: int = 20
     latitude: float = 21.4858
     longitude: float = 39.1925
+    # Step 6: memory (where it lives) and its search, each its own adapter; gift_ideas: one brain call
+    # a week before each birthday.
+    memory_provider: str = "store"
+    memory_options: Dict[str, object] = field(default_factory=dict)
+    memory_search_provider: str = "keyword"
+    gift_ideas: bool = True
 
     @classmethod
     def load(cls, path: Optional[Path] = None, overrides: Optional[dict] = None) -> "Settings":
@@ -151,6 +167,7 @@ class Settings:
                 **_service(data, "yahoo"),
                 **_service(data, "tasks"),
                 **_proactive(data),
+                **_memory(data),
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise ConfigError(f"worker.yaml is incomplete or invalid: {exc}") from None

@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Protocol, Tuple
 
 TOOL_NAME = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 MAX_REPLY = 4000
-MAX_ACTIONS = 5
+MAX_ACTIONS = 8  # step 6: an interview answer may name several family members and their dates
 
 
 class BrainError(Exception):

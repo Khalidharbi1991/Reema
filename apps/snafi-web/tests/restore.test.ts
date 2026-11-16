@@ -29,7 +29,10 @@ s.insert("messages", {"user_id": owner, "conversation_id": "33333333-3333-4333-8
 s.insert("action_log", {"user_id": owner, "conversation_id": "33333333-3333-4333-8333-333333333333", "job_id": job["id"], "tool": "add_note", "level": 2, "summary": "Saved a note", "status": "done", "undoable": True, "undo": {"table": "notes", "id": "x"}})
 s.insert("notes", {"user_id": owner, "body": "drawings"})
 s.insert("reminders", {"user_id": owner, "body": "renew", "due_at": "2026-11-10T09:00:00+03:00"})
-s.insert("facts", {"user_id": owner, "body": "prefers Arabic"})
+s.insert("facts", {"user_id": owner, "body": "prefers Arabic", "section": "preferences", "source": "interview"})
+m = s.insert("family_members", {"user_id": owner, "name": "سارة", "relation": "wife", "note": "Loves white roses"})
+s.insert("family_dates", {"user_id": owner, "member_id": m["id"], "label": "birthday", "calendar": "hijri", "year": 1412, "month": 9, "day": 30})
+s.upsert("interview_state", {"user_id": owner, "status": "done", "step": 6, "lang": "ar"}, "user_id")
 s.upsert("worker_status", {"user_id": owner, "worker_id": "pc", "lanes": {"chat": {"alive": True}}}, "user_id")
 out = backup.run_backup(s, folder, owner, "pc", "Asia/Riyadh", 30, signing_key="k" * 64)
 assert out["ok"], out
@@ -54,10 +57,18 @@ describe("backup and restore", () => {
       select 'notes', count(*)::int from public.notes union all
       select 'reminders', count(*)::int from public.reminders union all
       select 'facts', count(*)::int from public.facts union all
-      select 'worker_status', count(*)::int from public.worker_status`);
+      select 'worker_status', count(*)::int from public.worker_status union all
+      select 'family_members', count(*)::int from public.family_members union all
+      select 'family_dates', count(*)::int from public.family_dates union all
+      select 'interview_state', count(*)::int from public.interview_state`);
     expect(Object.fromEntries(counts.rows.map((r) => [r.t, r.n]))).toEqual({
       jobs: 1, approvals: 1, messages: 2, action_log: 1, notes: 1, reminders: 1, facts: 1, worker_status: 1,
+      family_members: 1, family_dates: 1, interview_state: 1,
     });
+    // Step 6: memory comes back whole, in both calendars and in Arabic.
+    const date = await db.query("select d.calendar, d.year, d.month, d.day, m.name from public.family_dates d join public.family_members m on m.id = d.member_id");
+    expect(date.rows[0]).toEqual({ calendar: "hijri", year: 1412, month: 9, day: 30, name: "سارة" });
+    expect((await db.query("select section, source from public.facts")).rows[0]).toEqual({ section: "preferences", source: "interview" });
     const msg = await db.query<{ body: string }>("select body from public.messages where role = 'user'");
     expect(msg.rows[0].body).toBe("It's مرحبا");
     const card = await db.query<{ meta: { kind: string } }>("select meta from public.messages where approval_id is not null");

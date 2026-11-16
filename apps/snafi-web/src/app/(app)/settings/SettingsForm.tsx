@@ -21,6 +21,11 @@ type Props = {
   save: (s: { pushEnabled: boolean; briefTime: string; dailyCap: number }) => Result;
   subscribe: (k: { endpoint: string; p256dh: string; auth: string }) => Result;
   unsubscribe: (endpoint: string) => Result;
+  /**
+   * "Turn off on all phones" (migration 0011): every phone's address deleted and push switched off, in the
+   * database. `missing` = 0011 not run yet: the form then only switches the account setting off.
+   */
+  unsubscribeAll?: () => Promise<{ ok: boolean; missing?: boolean }>;
   test: () => Result;
   /** The browser's push objects; tests pass fakes. */
   env?: () => PushEnv | null;
@@ -48,7 +53,9 @@ function pushSupported(): boolean {
  * that waits (the permission prompt, the service worker) can never leave Save on "Saving…"; every step
  * has a time limit; and every outcome is shown right under the button that was tapped.
  */
-export function SettingsForm({ initial, lang, t, publicKey, save, subscribe, unsubscribe, test, env = browserEnv }: Props) {
+export function SettingsForm({
+  initial, lang, t, publicKey, save, subscribe, unsubscribe, unsubscribeAll, test, env = browserEnv,
+}: Props) {
   const start = splitHHMM(initial.briefTime);
   const [push, setPush] = useState(initial.pushEnabled);
   // SEC-140: what Khalid last asked for (set the moment On or Off starts), so a Save tapped meanwhile
@@ -154,17 +161,32 @@ export function SettingsForm({ initial, lang, t, publicKey, save, subscribe, uns
     setNote({ where: "push", text: removed ? t.offThisDone : t.offThisNone, error: false });
   });
 
-  /** "Turn off on all phones": only after the confirm step. Switches the account setting off. */
+  /**
+   * "Turn off on all phones": only after the confirm step. SEC-153 follow-up (Khalid, Nov 16, 2026): the
+   * database deletes every phone's push address and switches the account setting off (0011); this phone's
+   * own browser subscription is cancelled too. Before 0011 is run, only the account setting is switched off.
+   */
   const turnOffAll = () => job("push", async () => {
     setConfirmAll(false);
     wanted.current = false;
     try {
       await disablePush(unsubscribe, env());
     } catch {
-      // The account switch below still stops every push to every phone.
+      // The database step below still stops every push to every phone.
     }
     setDevice(false);
-    const ok = await saveValues(false);
+    let ok = false;
+    let fallback = !unsubscribeAll;
+    if (unsubscribeAll) {
+      try {
+        const all = await within(unsubscribeAll(), SAVE_LIMIT, "server");
+        ok = all.ok;
+        fallback = !all.ok && all.missing === true;
+      } catch {
+        ok = false;
+      }
+    }
+    if (fallback) ok = await saveValues(false);
     if (ok) setPush(false);
     else wanted.current = push;  // SEC-168: a later Save keeps what the account really has
     setNote({ where: "push", text: ok ? t.offAllDone : t.saveFailed, error: !ok });

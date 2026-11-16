@@ -10,7 +10,7 @@ import { Menu } from "./Menu";
 import { Orb } from "./Orb";
 import { useShell } from "./ShellState";
 
-export type Screen = "today" | "inbox" | "chat" | "settings" | "sign-in";
+export type Screen = "today" | "inbox" | "chat" | "settings" | "about" | "sign-in";
 
 type Props = {
   screen: Screen;
@@ -26,7 +26,8 @@ type Props = {
 export function TopBar({ screen, unreadIds = null, ...menu }: Props) {
   const t = messages(menu.lang);
   const { thinking } = useShell();
-  const title = screen === "inbox" ? t.inbox.title : screen === "chat" ? t.chatTitle : screen === "settings" ? t.settings.title : "";
+  const title = screen === "inbox" ? t.inbox.title : screen === "chat" ? t.chatTitle : screen === "settings" ? t.settings.title
+    : screen === "about" ? t.about.title : "";
   return (
     <header className="topbar gutter" data-screen-bar={screen}>
       <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -50,7 +51,7 @@ export function TopBar({ screen, unreadIds = null, ...menu }: Props) {
   );
 }
 
-const SCREENS: Record<string, Screen> = { "/inbox": "inbox", "/chat": "chat", "/settings": "settings" };
+const SCREENS: Record<string, Screen> = { "/inbox": "inbox", "/chat": "chat", "/settings": "settings", "/about": "about" };
 
 /** The signed-in screens' bar: it reads the address to know which screen it is on. */
 export function AppTopBar(props: Omit<Props, "screen">) {

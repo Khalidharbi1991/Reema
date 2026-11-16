@@ -11,6 +11,7 @@ from typing import Dict, Optional
 from zoneinfo import ZoneInfo
 
 from .clock import day_clock
+from .memory.tools import MEMORY_TOOLS
 from .personal_tools import PERSONAL_TOOLS
 from .tool_types import (LIST_ITEM_MAX, ArgSpec, NeverError, Tool, ToolArgError, ToolResult,  # noqa: F401
                          args_hash, clean_args)
@@ -95,8 +96,6 @@ LIMIT: ArgSpec = {"limit": (int, 20, False)}
 TOOLS: Dict[str, Tool] = {t.name: t for t in [
     Tool("add_note", 2, {"body": (str, 4000, True)}, _adder("notes", "Saved a note", "حفظت ملاحظة"), _soft_delete,
          lambda a: {"en": f"Save a note: {_short(a['body'])}", "ar": f"حفظ ملاحظة: {_short(a['body'])}"}),
-    Tool("add_fact", 2, BODY, _adder("facts", "Saved a fact about you", "حفظت معلومة عنك"), _soft_delete,
-         lambda a: {"en": f"Remember: {_short(a['body'])}", "ar": f"تذكّر: {_short(a['body'])}"}),
     Tool("add_reminder", 2, {**BODY, "due": (str, 40, False)}, _add_reminder, _soft_delete,
          lambda a: {"en": f"Reminder: {_short(a['body'])}", "ar": f"تذكير: {_short(a['body'])}"}, _check_due),
     Tool("list_notes", 1, LIMIT, _lister("notes", "Your notes", "ملاحظاتك", "You have no notes yet.", "لا توجد ملاحظات بعد.")),
@@ -124,3 +123,5 @@ NEVER_WORDS = ("pay", "money", "transfer", "purchase", "password", "security", "
 # Step 3: Gmail, Calendar and Drive (personal_tools.py), each level fixed there.
 
 TOOLS.update({t.name: t for t in PERSONAL_TOOLS})
+# Step 6: memory and family (memory/tools.py); add_fact now lives there, grouped and checked for secrets.
+TOOLS.update({t.name: t for t in MEMORY_TOOLS})
