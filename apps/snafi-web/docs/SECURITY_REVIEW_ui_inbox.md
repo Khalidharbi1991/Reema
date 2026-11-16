@@ -141,3 +141,255 @@ Nov 16, 2026 · branch `feat/snafi-ui-inbox`, compared with tag `before-snafi-ui
   writes. The bidi and zero-width point in SEC-179 still stands.
 - Still open for Khalid: SEC-172, 174 to 182 and the Info items. The REEMA Python suite passes
   (1422 tests) with the guard change.
+
+---
+
+# Re-review of the fixes (Agent 16, second round)
+
+Nov 16, 2026 · branch `feat/snafi-ui-inbox`, after commits `93ff70e` (Agent 14's five fixes and the
+test seam), `2f1a671` (Ahmad's follow-up), `5e773e8` (Agent 15's report) and `f5d5840` (the
+measurements and screenshots) · reviewer: Agent 16 (`reema-agent16-security`). This section is
+appended; nothing above it was changed.
+
+**What I read this round**
+- `apps/snafi-web/.reema/security_diff_ui_fixes.patch`, all 1,465 lines, in five parts.
+- Current files, read directly: `src/app/(app)/inbox/InboxView.tsx` (whole), `src/config/env.ts`
+  lines 1 to 136, `supabase/migrations/0009_inbox_read.sql` (whole),
+  `supabase/migrations/0008_proactive.sql` lines 180 to 246,
+  `.claude/hooks/dev_guard.py` (whole, 578 lines), `tests/test_design_skills_guard.py` (whole),
+  `.claude/agents/reema-agent17-ui.md` (whole), `AGENTS.md` lines 30 to 109 (the non-negotiable
+  rules, including the new design-skills bullet), `apps/snafi-web/docs/MEASUREMENTS_ui_inbox.md`
+  (whole), and all seven files in `apps/snafi-web/docs/screenshots/` as images.
+- The rest of `src/adapters/mailbox/supabase.ts`, `types.ts`, `actions.ts`, `inbox/page.tsx`,
+  `vitest.config.ts`, `scripts/dev-preview.mjs` and the changed tests as the patch shows them.
+
+**I ran nothing again.** No tests, build, browser, hash tool, git or network call. I did not read
+`node_modules/`, `.env.local`, `.next/`, the live database or the worker. I did not re-measure
+anything in the measurements document; I read it as a report. This is not a certification.
+
+## 1. The app fix diff
+
+**SEC-172 — closed.** `MISSING_SCHEMA_CODES` is a fixed list (`42703`, `42883`, `PGRST204`,
+`PGRST202`) matched on the error's `code` field only; `schemaMissing()` needs a non-empty `code`,
+so an error with no code (a fetch failure) propagates. The second (old) query's own error still
+throws, with `schemaMissing` false. `markCardRead` carries the flag on the `MailboxError`, the
+server action turns it into `{ ok: false, reported }`, and `InboxView` shows one `role="alert"`
+line.
+- *Can an attacker-influenced error pick the silent or fallback path?* I found no way. The only
+  values that reach the database on these two calls are the limit (a server constant) and the
+  cutoff built from the server's own clock, plus a UUID that `checkId` has already validated; none
+  of them steers an error code. A crafted PostgREST error would require control of the database or
+  of the response between Vercel and Supabase, which is already outside the trust boundary. The
+  one honest caveat is over-breadth rather than attack: `42883` and `PGRST202` are
+  *function*-missing codes that a `select` cannot raise, and `PGRST204` is PostgREST's
+  "column not found in **schema cache**", which can also appear from a stale cache after 0009 is
+  live. In that case the Inbox would again go quietly to the all-unread view. That is the
+  behaviour the PRD asked for before 0009; it should go away with the fallback once 0009 is live
+  (the code comment and the earlier SEC-172 fix both say so).
+- *Does the alert leak detail?* No. It renders the fixed string `t.decideFailed` ("That didn't go
+  through. Try again."); no code, message, id or card text. The error object never leaves the
+  server.
+- *Can the badge and the unread dot be driven to disagree with the database?* On the first failure,
+  no: `unsettle(id)` and the removal from `readNow` put the dot and the badge back, and both then
+  agree with the row. But the `asked` ref still holds the id, so **opening the same card a second
+  time sets `readNow` again in `toggle` with no call and no alert**: the dot disappears while the
+  badge keeps counting the card and the database still has `read_at` null; a reload shows it
+  unread. That is exactly the second half of SEC-183, which Agent 14 did not change, so SEC-183
+  stays open. Separately, a rejected promise (the action unreachable, a sign-out redirect) maps to
+  `reported: false`, so a real outage of the action is still silent — conservative and
+  deliberate, but worth knowing.
+
+**SEC-174 — closed for what it named.** `isId()` is the same `UUID` regular expression `checkId`
+uses, and `checkId` now calls it, so for its existing callers the behaviour is unchanged (the same
+test, the same `toLowerCase()` on the way out). `inbox/page.tsx` passes `open` on only when
+`isId(open)` is true, lower-cased. An array (`?open=a&open=b`) fails `typeof === "string"` and is
+dropped, and `tests/ui-inbox-server.test.tsx` covers the repeated parameter, a 5,000-character
+value, a path, a script tag, an id with text appended, and nothing at all. Nothing else reads
+`open`: in the two files I read it is produced only by Today's link and consumed only as the
+`InboxView` prop (I did not read the proxy or other routes for a second reader). What remains is
+the design point, not a defect: a GET still marks a card read once the page mounts (AC-18), with
+the same attacker preconditions as before (he must already know a random UUID of Khalid's own
+card). Recorded as accepted by Khalid.
+
+**SEC-175 — closed, with a deployment condition (SEC-196).** The added line
+`revoke execute on function public.dismiss_card(uuid) from public, anon, authenticated;` is
+correct and complete for the app: it removes both 0008's explicit grant to `authenticated` and any
+execute that `PUBLIC` still carried, it names the exact signature, and it sits inside the same
+transaction. It cannot affect `mark_card_read` (a different function, granted two lines above),
+and it does not name `service_role`, so whatever grant that role received when the function was
+created (Supabase's default privileges) is untouched and the comment "Khalid can still run it by
+hand through the service role" holds. The PGlite test now asserts both `authenticated` and `anon`
+are refused, and `step5-proactive.test.tsx` was changed from "no card" to "permission denied" and
+also asserts `dismissed_at` stays null. *Not checked:* whether the worker itself ever calls
+`dismiss_card` (the worker was not named this round); if it does, it does so as the service role
+and is unaffected. **Re-running 0009 is safe but useless:** `alter table public.cards add column
+read_at timestamptz` has no `if not exists`, so on a database that already has 0009 the statement
+errors and the whole transaction rolls back — nothing is applied, including the new revoke. The
+right instruction to Khalid is in SEC-196 below.
+
+**SEC-177 — closed.** `scripts/dev-preview.mjs` now resolves `next/dist/bin/next` with
+`createRequire(import.meta.url).resolve(...)` and spawns `process.execPath` with an argument
+array, no `npx`, no `shell: true`, and exits 1 with a plain message when Next is not installed, so
+it can no longer fetch anything from a registry. The arguments stay fixed and the host stays
+`127.0.0.1`. The comment is now accurate ("Next still loads every other value in .env.local"). On
+the blanking: the five empty strings now go straight from Node to the child with no `cmd.exe` or
+`npx.cmd` in between, and `readSupabaseConfig` treats `""` as unset (`?.trim()` then `!url &&
+!publishableKey` → null), so `isPreviewMode()` is true. I still cannot prove that Next's own
+`.env` loader leaves a defined-but-empty variable alone, because I may not read `node_modules/`;
+the visible control is the "Preview mode" banner, which appears in all seven committed
+screenshots. Two tests in `ui-acceptance.test.tsx` pin the no-npx, no-shell form.
+
+**The test seam — acceptable, with a note (SEC-197).** The `server-only` alias is declared only in
+`vitest.config.ts` under `resolve.alias`; it is not in `next.config.ts`, `tsconfig.json` or any
+build script, and the stub file lives under `tests/helpers/`, so it cannot reach a production build
+or be imported by application code. It does, however, apply to every test file, so the suite can no
+longer catch a client component that wrongly imports a server module — `next build` and the
+"server to client" source checks in `ui-acceptance.test.tsx` are the only remaining controls for
+that. Recorded as SEC-197 (Info), not a defect.
+
+**Earlier gaps the new tests close.** `ui-inbox-server.test.tsx` now runs the real adapter against
+a stand-in client for the fallback codes, three non-schema failures, the cutoff and the mark-read
+paths, and the page's `?open=` check; `rls-inbox.test.ts` covers the revoke. So three of SEC-191's
+five gaps are closed (SEC-172, SEC-174, and the dismiss grant); the mail-card data gap (SEC-173),
+the placeholder-in-production gap (SEC-176) and the two-stacked-approvals gap (SEC-178) are still
+untested.
+
+## 2. The guard, AGENTS.md and Agent 17 (SEC-170, SEC-171)
+
+**SEC-170 — closed as a finding; the residue is SEC-194 and SEC-195.** What changed is real and
+in the right order of strength:
+1. **The skills hold no code at all, and that is now tested.** `test_the_skill_folder_holds_only_text`
+   refuses any suffix outside `.md`, `.txt` and no-suffix and refuses a `scripts/` folder;
+   `test_every_file_matches_the_hash_in_source_md` pins every file to the SHA-256 in `SOURCE.md`
+   beside a 40-character commit and fails if the folder and the list differ;
+   `test_no_hidden_characters_in_the_skill_text` covers control, bidi and zero-width characters.
+   This is the control that actually matters, because it removes the thing to run.
+2. **AGENTS.md carries the rule** (lines 93 to 102) as a non-negotiable bullet, which every
+   session reads, not only Agent 17 — this was the heart of SEC-170 and it is answered.
+3. **The guard adds a backstop.** `DESIGN_SKILL_PROGRAMS` / `DESIGN_SKILL_RUNNERS` /
+   `DESIGN_SKILL_SCRIPT` are checked in `_check` before the shell and git branches, so the block
+   also applies inside `sh -c`, `bash -c`, `eval`, `powershell -Command` and `cmd /c` (the
+   wrapper recursion reaches it), and `tests/test_design_skills_guard.py` covers 15 command forms
+   including `& .claude\skills\impeccable\scripts\impeccable.cmd doctor` and
+   `Start-Process npx -ArgumentList 'impeccable','live'`, plus 6 forms that must still be allowed.
+   I traced the PowerShell forms through `_segments` and `_name` by hand and they do reach the
+   block.
+4. **Agent 17** has no shell, writes one file, is told never to read a key or secret file and
+   never to run the skills.
+
+*Is the guard the right place at all?* As a backstop, yes, and it is cheap. But it cannot be the
+control: it blocks names, and the risk it is aimed at ("download and run unreviewed code as
+Khalid") has other doors that this guard does not close — `git clone`, `git fetch` and ordinary
+package installs are all allowed by policy, and a session can write a script of its own and run it
+under any name. So the honest reading is: the *finding* is closed because the skills carry no code,
+the hashes are pinned and the rule is where everyone reads it; the *guard rule* is a narrowing, and
+two concrete ways around it are below.
+
+**SEC-171 — closed, with one leftover sentence.** The agent file now says, in order: the Snafi
+project folder is `apps/snafi-web/`, it may read that folder's `src/` and `docs/`, it writes
+`docs/UI.md` and nothing else, it never reads `.env`, `.env.local` or any key or secret file, and
+it never runs the skills. That removes the write-anywhere reading and names the secret file, which
+is what SEC-171 asked for. Leftover, not worth its own row: line 24 still ends "Never read or
+write ... REEMA's own code", and Snafi and `.claude/skills/` are REEMA's own code, so the carve-out
+in lines 14 to 17 and line 22 is what resolves it. One clause ("except the Snafi paths named
+above") would end the overlap. `.reema/`, `.next/` and `node_modules/` are not named, but "write
+one file only" plus "read that folder's src/ and docs/" covers them in practice. I did not read
+`.claude/settings.json`, so I still cannot say what it denies Agent 17 by path.
+
+## 3. The measurements and the screenshots
+
+I read `MEASUREMENTS_ui_inbox.md` and opened all seven JPEGs. **Every one shows sample data only.**
+The visible content is "Sample: ..." titles, `sample.person@example.com`, `example.com` links, the
+two Arabic "نموذج" lines, `send_test_message` as the tool, generic tasks, and the 200-character
+test word and long test URL. No real mailbox, sender, contact, event, place, address, phone,
+token, key, URL of Khalid's own, Supabase project reference or session value appears, and the
+"Preview mode: Supabase is not configured" banner is on every shot, which is the evidence that the
+preview really ran without the real project. The only personal item is Khalid's first name in the
+greeting ("Good afternoon, Khalid" / "مساء الخير، خالد") and the Jeddah date, which are already
+throughout the repository.
+
+**Committing them is acceptable**, with two notes recorded as SEC-198: these files leave the PC
+when Khalid pushes main (the repository should be private, which I cannot verify from here), and I
+cannot read JPEG metadata, so camera/tool EXIF or an embedded file path has not been checked —
+a one-line `exiftool`/`magick identify` check by Ahmad would settle it. The document itself is
+careful about its limits (one Chromium engine, not Safari, no real phone), and the two cosmetic
+items it raises are not security matters.
+
+## New findings this round
+
+| ID | Severity | File:line | What an attacker (or a failure) could do | Fix | Status |
+| --- | --- | --- | --- | --- | --- |
+| SEC-194 | Low | `.claude/hooks/dev_guard.py:121-124,311-317`; `tests/test_design_skills_guard.py:66-85` | **A version or a `--package` option walks past the design-skill block.** The runner branch compares `_name(word)` with `{"impeccable", "taste-skill"}`, and `_name()` strips a path and an `.exe/.cmd/.bat/.com/.ps1` suffix but not an npm version specifier. So `npx impeccable` is blocked while **`npx impeccable@latest`, `npx impeccable@1.2.3` and `npm install impeccable@latest` are not** (`_name("impeccable@latest")` is `"impeccable@latest"`). The same for `npx --package=impeccable -c "impeccable context"`: words starting with `-` are skipped by the filter, and the quoted command stays one token (`"impeccable context"`), so neither half matches. `node impeccable.js` also passes (`.js` is not stripped). Each of these is the exact action the rule exists to stop: an unpinned download that then runs as Khalid, with the Snafi keys readable to it (SEC-51). It needs a session that decides to "make the launcher work", not an outside attacker. | In the runner branch, compare the package word with its version cut off (`piece.split("@")[0]` for a non-scoped name, the part after the second `@` for `@scope/name@version`) and strip a `.js`/`.mjs`/`.cjs` suffix as well; include the values of `--package`/`-p`/`--yes`-style options instead of skipping every `-` word, and re-check the text after `npx -c` / `npm exec --` as a nested command. Add the four forms above to `test_design_skills_guard.py`. | Open |
+| SEC-195 | Info | `.claude/hooks/dev_guard.py:121-124,311-317` | **The block is by name and by one path shape, so a copy, a rename or a fetch of the launcher is not caught — the guard is a narrowing, not a wall.** `DESIGN_SKILL_SCRIPT` matches only `.../skills/<impeccable|taste-skill|frontend-design>/scripts/...` or a file named `gate.mjs`. A launcher fetched or written under another name and another path (`node tools/ui-check.mjs`, `python scripts/polish.py`) is not matched at all; `bash ./impeccable` after a `cd` into the folder is not matched either (the first word is `bash`, and the relative path has no `/skills/`); and nothing blocks `git clone`, `git fetch` or an ordinary `npm install` of some other package, so the upstream launcher can still be brought onto the PC by a session that wants it. This is the documented limit of a backstop that runs as Khalid, not a defect introduced by this change; the controls that hold are the markdown-only install with pinned hashes (tested) and the AGENTS.md rule. | None required. If Khalid wants it tighter, the stronger step is still option (a) of SEC-170 (move the two folders out of `.claude/skills/`), and the stronger general control is reviewing what a session installs, which AGENTS.md already says the approved package list, not the hook, provides. | Recorded |
+| SEC-196 | Low | `supabase/migrations/0009_inbox_read.sql:13,37-42`; `apps/snafi-web/README.md` (the deploy note, not re-read this round) | **The `dismiss_card` revoke was appended to a migration that may already have been applied, and re-running the file cannot deliver it.** `alter table public.cards add column read_at timestamptz` has no `if not exists`, so on a database that already ran the earlier 0009 the file fails at line 13 and the whole transaction rolls back: the revoke is silently not applied and `authenticated` keeps the right to hide any card for good — the SEC-175 fix would be absent in production while the repository and the tests say it is there. Nothing is damaged by the failed run (it rolls back), so the risk is a false sense that the fix is live. | Tell Khalid in plain words: if 0009 has **not** been run on the live project, run the file as it now stands, once. If it **has** already been run, do not re-run the file; run only the one line `revoke execute on function public.dismiss_card(uuid) from public, anon, authenticated;` in the SQL Editor. Either way, check afterwards with `select has_function_privilege('authenticated', 'public.dismiss_card(uuid)', 'execute');` and expect `false`. Put the same two sentences in the README's deploy note, and give later migrations their own file number rather than editing a shipped one. | Open |
+| SEC-197 | Info | `vitest.config.ts:5-12`; `tests/helpers/server-only.ts` | **The `server-only` stub is test-only, but it applies to every test, so the suite can no longer catch a server/client boundary mistake.** The alias lives in `resolve.alias` in `vitest.config.ts` alone — not in `next.config.ts`, `tsconfig.json` or any build step — and the stub is an empty `export {}` under `tests/`, so it cannot reach the build or production code; Next's real marker still throws in a client bundle. The cost is that a client component which wrongly imports a server module (and with it the adapter layer and anything it reads) now loads happily under Vitest, so only `next build` and the source checks in `ui-acceptance.test.tsx` would catch it. | Keep the "server to client" source checks; keep `npm run build` in every test report (Agent 15 ran it this round). Optionally limit the alias to the files that need it, or add one test that asserts no file with `"use client"` imports `@/adapters/index`, `@/core/today-data` or `@/adapters/mailbox/supabase`. | Recorded |
+| SEC-198 | Info | `apps/snafi-web/docs/screenshots/*.jpg` (7 files); `apps/snafi-web/docs/MEASUREMENTS_ui_inbox.md` | **Checked: the seven screenshots carry sample data only; two things I could not check.** I opened every file. Content: "Sample: ..." titles, `sample.person@example.com`, `example.com` links, the two Arabic "نموذج" messages, the test long word and long URL, `send_test_message` as the tool, and the "Preview mode: Supabase is not configured" banner in all seven. No real sender, contact, subject, event, place, address, phone number, key, token, session value or Supabase project reference. The only personal items are Khalid's first name in the greeting and the Jeddah date, both already throughout the repository. **Not checked:** the files' JPEG metadata (I cannot read binary EXIF), and whether the GitHub repository these will reach when Khalid pushes main is private. | Ahmad, in a shell: check the EXIF of the seven files (`magick identify -verbose` or `exiftool`) and strip it if anything names a machine, a user folder or a tool version. Khalid: confirm the repository is private before the next push. | Recorded |
+
+## Where every earlier finding stands after this round
+
+**Now closed (re-reviewed by me):**
+- **SEC-170** (was Medium) — skills are markdown only and hash-pinned by test, the rule is in
+  AGENTS.md for every session, the guard blocks the named forms, Agent 17 is tightened. Residue:
+  SEC-194 (Low), SEC-195 (Info).
+- **SEC-171** (was Low) — write scope, read scope and the secrets ban are now explicit; one
+  leftover sentence noted above, no new row.
+- **SEC-172** (was Low) — narrow code list, every other error propagates, the alert says nothing
+  about the error, and the behaviour is now run for real in a test. Remove the fallback once 0009
+  is live.
+- **SEC-174** (was Low) — `?open=` is validated on the server with the same UUID pattern and
+  well tested; the GET-marks-read design stays, accepted under AC-18.
+- **SEC-175** (was Low) — the revoke is correct and tested; its delivery is tracked as SEC-196.
+- **SEC-177** (was Low) — no `npx`, no shell, fails closed, comment corrected, two tests pin it.
+- **SEC-192** (was Info) — Agent 15 read the installed Next 16.4.5 boundary: it passes both
+  `reset` and `retry`, `retry` is the right one for a data-load failure, and a test now fails if
+  the name disappears. I did not read `node_modules/` myself; I am accepting Agent 15's quoted
+  source and the test.
+- **SEC-193** (was Info) — drift and hidden characters are now proven by test against the
+  recorded hashes. One limit stays recorded, not a finding: the test proves the folder matches
+  `SOURCE.md`, not that `SOURCE.md` matches the upstream commit (no network here), and the
+  hidden-character test reads `*.md` only, not the `.txt`/`LICENSE` files (the hashes cover
+  those for drift).
+
+**Still open, unchanged in severity:**
+- **SEC-173** Low — Agent 14 changed no code; Ahmad's reading of `proactive/scheduler.py` (which
+  I did not read) says a mail card's body is only the subject plus a "Received" line, so what
+  reaches the browser beyond the screen is one time line. Real exposure is now very small; for
+  Khalid to close or to fix with the one-line server-side trim.
+- **SEC-176** Low (placeholder Today allowed in production), **SEC-178** Low (an approval can move
+  under the finger — the browser measurements did not test two stacked approvals), **SEC-179** Low
+  (bidi and zero-width characters, with SEC-26), **SEC-180** Low (wording), **SEC-181** Low
+  (newest-100 window), **SEC-182** Low (whole chat rows, `select *`).
+- **SEC-183** Info — half addressed: a real failure is now reported once. The re-open path still
+  clears the unread dot with no call, so the dot, the badge and the row can disagree.
+- **SEC-191** Info — three of five gaps closed by the new tests; the mail-card data, the
+  placeholder-in-production and the two-stacked-approvals tests are still missing.
+- **SEC-22**, **SEC-26** — unchanged, as recorded above.
+
+**New this round:** SEC-194 (Low), SEC-196 (Low), SEC-195, SEC-197, SEC-198 (Info).
+
+**Open counts after this round:** Critical 0, High 0, Medium 0, Low 9 (SEC-173, 176, 178, 179,
+180, 181, 182, 194, 196), Info 3 open (SEC-183, SEC-191, and the SEC-193 upstream limit) plus the
+recorded rows.
+
+## What I did not review this round
+
+- The worker (`src/snafi_worker/`): `proactive/scheduler.py` for the mail-card format, the backup
+  and restore of `cards`, and whether anything there calls `dismiss_card`. Not named; I took
+  Ahmad's reading as a statement, not as a check of mine.
+- `.claude/settings.json` and its tests, `.claude/launch.json` (unchanged), and whether the hook
+  is actually wired to every tool call — I read the hook's code, I did not run it.
+- `node_modules/`, `.env.local`, `.next/`, the lock file, the built output, and therefore Next's
+  own `.env` loading and the error-boundary source.
+- The live Supabase database and the Vercel settings: whether 0009 has already been applied, and
+  what `SNAFI_TODAY_ADAPTER` is set to there (SEC-176).
+- Any measurement of my own: no browser, no screen reader, no device. The measurements document
+  and the test report are read as reports; I did not verify a single number in them, and I did not
+  run the test suite.
+- JPEG metadata in the screenshots, and whether the GitHub remote is private.
+- `docs/UI.md` after line 772, migrations 0001 to 0007, the proxy, the cookie policy and the
+  sign-in path (unchanged, not re-read), and whether `security_diff_ui_fixes.patch` matches the
+  branch.
+
+**Blocks merge: no** (open Critical 0, open High 0). The Low and Info items above are Khalid's to
+decide, with SEC-196 the one that needs a decision *before* the next deploy. Khalid decides; this
+re-review is not a certification.

@@ -19,8 +19,10 @@ Words used: "inline-start" is left in English and right in Arabic; "inline-end" 
 Khalid has not answered these; Ahmad chose the option closest to Khalid's own words and reports
 each one to him with the screenshots. Khalid can change any of them.
 
-1. **Order on Today follows Khalid's list:** greeting, Now card, today's plan, Ahmad's message.
-   Wherever this document puts Ahmad's message above the plan, use Khalid's order instead.
+1. **Order on Today: greeting, Now card, Ahmad's message, today's plan.** Ahmad first chose
+   Khalid's own order (plan above the message) on Nov 15. On Nov 16, after seeing the 390 px
+   screenshots, **Khalid reversed it**: a waiting approval fell below the first screen, which is
+   the reason Agent 17 gave in the first place. This document's own order therefore stands.
 2. **Now card at zero:** moves on at once, as AC-15 says. No "now" hold.
 3. **Plan when a source is not connected:** the one neutral line ("Calendar isn't available right
    now." / "Tasks aren't available right now.") is kept, with no fix text; the fix lives in

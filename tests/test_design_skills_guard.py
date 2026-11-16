@@ -79,6 +79,16 @@ def test_no_hidden_characters_in_the_skill_text(skill):
     (r"npx typeui.sh pull premium && npx impeccable init", False),
     (r"& .claude\skills\impeccable\scripts\impeccable.cmd doctor", True),
     (r"Start-Process npx -ArgumentList 'impeccable','live'", True),
+    # SEC-194 (Agent 16, second round): a version specifier, an option value or a .js name
+    # must not walk around the block.
+    (r"npx impeccable@latest", False),
+    (r"npx impeccable@1.2.3 detect src/", False),
+    (r"npm install impeccable@latest", False),
+    (r"npx --package=impeccable -c 'impeccable context'", False),
+    (r"npx -p impeccable impeccable live", False),
+    (r"node impeccable.js", False),
+    (r"npm exec -- impeccable@latest audit", False),
+    (r"bunx taste-skill@2.5.1", False),
 ])
 def test_guard_blocks_running_the_design_skills(command, powershell):
     assert "SEC-170" in (_guard().reason(command, powershell=powershell) or "")

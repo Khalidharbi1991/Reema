@@ -69,7 +69,9 @@ Inbox, Chat, Settings.
 ### Story 2 — Today: "I see only what matters now."
 
 - AC-12 Given Today, then it shows only: the greeting line with the Gregorian and Hijri dates, the
-  Now card, today's plan, Ahmad's message, and the orb button to Chat.
+  Now card, Ahmad's message, today's plan, and the orb button to Chat, in that order. (Khalid set
+  this order on Nov 16, 2026, after the screenshots: the message goes above the plan so a waiting
+  approval is on the first screen.)
 - AC-13 Given Today, then none of these appear: connection notes, the Important email card, the
   list of Ahmad's cards, any `test` card, approval cards with Approve/Reject, test-push results.
 - AC-14 Given the next prayer and the next calendar event today, then the Now card shows whichever
