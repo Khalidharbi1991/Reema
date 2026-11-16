@@ -121,7 +121,7 @@ describe("Today source (placeholder)", () => {
     const now = new Date("2026-11-07T12:00:00Z");
     const en = await src.getToday("en", now);
     const ar = await src.getToday("ar", now);
-    expect(Object.values(en.samples).every(Boolean)).toBe(true);
+    expect([en.sample, ar.sample]).toEqual([true, true]);
     expect(en.gregorianDate).toContain("2026");
     expect(ar.gregorianDate).toMatch(/[؀-ۿ]/);
     expect(en.tasks.every((t) => t.title.startsWith("Sample"))).toBe(true);

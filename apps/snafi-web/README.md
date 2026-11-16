@@ -1,4 +1,4 @@
-# Snafi web (steps 1 to 4)
+# Snafi web (steps 1 to 5, and the Inbox)
 
 Snafi is Khalid's personal assistant app and part of REEMA. The plan is
 `docs/snafi/PRD.md`.
@@ -17,6 +17,31 @@ Snafi is Khalid's personal assistant app and part of REEMA. The plan is
   each, newest first, each labelled Gmail or Yahoo) and up to ten Todoist tasks due today
   or overdue (migration 0007), with a note for each source that needs connecting. Yahoo
   and Todoist actions run on the PC. Ahmad's cards (reminders, the morning brief, important mail) come from the PC's scheduler (step 5); Settings turns phone notifications on (see `docs/snafi/PUSH_SETUP.md`).
+
+- **UI job (Inbox, simpler Today, Chat scroll, mobile fit, calmer look):** plan in
+  `docs/PRD_ui_inbox.md`, design in `docs/UI.md`.
+  - **Bell and Inbox.** Every signed-in screen has a bell in the top bar with an unread badge
+    (nothing at 0, the number to 9, "9+" from 10). It counts pending approvals and unread cards;
+    `test` cards never count. `/inbox` lists pending approvals first (always open, with the exact
+    arguments, Approve and Reject), then Ahmad's cards newest first. A card opens in place and is
+    marked read the first time it is opened; only opening the list marks nothing. Mail rows show
+    the sender and subject only. Read cards are hidden 7 days after they were read; unread cards
+    and pending approvals never clear. There is no Dismiss any more.
+  - **Today** now shows only: the greeting with the Gregorian and Hijri dates, the Now card (the
+    next prayer or today's next event, whichever is first, the prayer on a tie, with a countdown
+    that ticks once a minute and moves on at zero), today's plan (up to 5 events and 3 tasks, then
+    "+N more"), Ahmad's single message (an approval first, then the newest unread reminder, then
+    today's unread brief; it opens the Inbox at that item) and the orb. The Important email card,
+    the card list, approval buttons and the connection notes are gone from Today; the Google,
+    Yahoo and Todoist connection notes are in **Settings**, under Connections.
+  - **Chat** opens at the latest message, follows new items while you are at the bottom, and
+    shows a "jump to latest" button when you have scrolled up.
+  - **Database:** run `supabase/migrations/0009_inbox_read.sql` once in the Supabase SQL Editor,
+    after 0008. It adds `cards.read_at` and `mark_card_read`. Until it is run, the Inbox still
+    works: every card shows as unread and opening one does not stick. The app and this migration
+    should go live together.
+  - **Preview mode** (no keys) now shows sample content (an approval, cards, a chat) so the
+    screens can be looked at; all of it is invented and labelled "Sample".
 
 The web app never calls a model; the worker on the PC does. No deploy.
 
@@ -86,7 +111,7 @@ app refuses a secret / service_role key.
 | `src/config/` | `env.ts` (the only place env vars are read), `services.ts` (which adapter backs each service: `SNAFI_AUTH_ADAPTER`, `SNAFI_MAILBOX_ADAPTER`, `SNAFI_TODAY_ADAPTER`), `app.ts` (time zone and the prayer-times city, Jeddah) |
 | `src/core/` | Preferences (theme, language), session guard, haptics |
 | `src/i18n/` | English and Arabic text; Arabic switches the page to right-to-left |
-| `src/app/` | Screens: `sign-in`, `(app)/today`, `(app)/chat` |
+| `src/app/` | Screens: `sign-in`, `(app)/today`, `(app)/inbox`, `(app)/chat`, `(app)/settings` |
 | `src/proxy.ts` | Sends signed-out visitors to `/sign-in` and refreshes the session |
 | `supabase/migrations/` | SQL for the mailbox tables and their row-level security |
 | `public/` | Manifest, service worker, offline page, icons (`scripts/make_icons.py` redraws them) |
@@ -99,6 +124,10 @@ npm run typecheck
 npm run lint
 npm run build
 ```
+
+`tests/ui-*.test.tsx` cover the UI job by acceptance criterion. `tests/ui-overflow.test.tsx`
+checks structural guards only: jsdom has no layout, so real overflow at 360 and 390 px is
+measured in a browser, separately. `tests/rls-inbox.test.ts` checks `mark_card_read`.
 
 `tests/rls.test.ts` and `tests/rls-step2.test.ts` run the real migrations in PGlite
 (Postgres in-process) and check that users see only their own rows, that anonymous

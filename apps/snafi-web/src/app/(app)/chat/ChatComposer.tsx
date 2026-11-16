@@ -1,18 +1,20 @@
 "use client";
 
-import { startTransition, useActionState, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { ChatState } from "../actions";
 
 type Props = {
   send: (prev: ChatState, form: FormData) => Promise<ChatState>;
-  labels: { placeholder: string; send: string; attach: string; failed: string };
+  labels: { placeholder: string; send: string; failed: string };
   note: string;
+  /** The "jump to latest" button, placed 12px above the composer (after the list, before the text field). */
+  jump?: ReactNode;
 };
 
 const noSubscribe = () => () => {};
 
-/** Text only in step 2; attachments arrive with Drive in step 3. */
-export function ChatComposer({ send, labels, note }: Props) {
+/** Text only; attachments (and their button) arrive with a later step. */
+export function ChatComposer({ send, labels, note, jump }: Props) {
   const [state, action, pending] = useActionState(send, { error: false, sentAt: 0 });
   const form = useRef<HTMLFormElement>(null);
   // SEC-73: Send stays off until the page has loaded, so a native submit can never
@@ -33,13 +35,11 @@ export function ChatComposer({ send, labels, note }: Props) {
       if (!ready) return;
       const data = new FormData(e.currentTarget);
       startTransition(() => action(data));
-    }} className="sticky bottom-0 bg-bg pt-2 pb-[max(env(safe-area-inset-bottom),1rem)]">
-      <div className="flex items-end gap-2 rounded-2xl border border-edge bg-card p-2">
-        <button type="button" disabled aria-label={labels.attach}
-          className="flex h-10 w-10 items-center justify-center rounded-full text-lg text-muted disabled:opacity-40">
-          <span aria-hidden="true">＋</span>
-        </button>
+    }} className="relative min-w-0 flex-none bg-bg pt-2 pb-[max(env(safe-area-inset-bottom),12px)]">
+      {jump}
+      <div className="composer-surface">
         <label htmlFor="chat-input" className="sr-only">{labels.placeholder}</label>
+        {/* 16px text: an iPhone zooms the page when a smaller field gets focus. */}
         <textarea id="chat-input" name="body" rows={1} required maxLength={8000} dir="auto"
           placeholder={labels.placeholder}
           onInput={() => setDismissed(state.sentAt)}
@@ -49,13 +49,12 @@ export function ChatComposer({ send, labels, note }: Props) {
               form.current?.requestSubmit();
             }
           }}
-          className="max-h-32 min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm text-ink placeholder:text-muted focus:outline-none" />
-        <button type="submit" disabled={pending || !ready}
-          className="min-h-10 rounded-xl bg-gold px-4 text-sm font-medium text-[#0E0E10] disabled:opacity-50">
+          className="composer-input" />
+        <button type="submit" disabled={pending || !ready} aria-busy={pending} className="btn btn-primary flex-none">
           {labels.send}
         </button>
       </div>
-      <p role="status" aria-live="polite" className="mt-2 min-h-4 text-center text-xs text-muted">
+      <p role="status" aria-live="polite" className={`t-caption wrap mt-1 min-h-5 text-center ${failed ? "text-danger" : "text-muted"}`}>
         {failed ? labels.failed : note}
       </p>
     </form>

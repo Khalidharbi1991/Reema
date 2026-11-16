@@ -14,16 +14,16 @@ type Props = {
 export function UndoButton({ action, labels, undo }: Props) {
   const [pending, start] = useTransition();
   const [asked, setAsked] = useState(action.undoRequested);
-  if (action.status === "undone") return <span className="text-xs text-muted">{labels.undone}</span>;
+  if (action.status === "undone") return <span className="t-caption text-muted">{labels.undone}</span>;
   if (!action.undoable || action.status !== "done") return null;
-  if (asked) return <span className="text-xs text-muted">{labels.undoing}</span>;
+  if (asked) return <span className="t-caption text-muted">{labels.undoing}</span>;
   return (
     <button type="button" disabled={pending}
       onClick={() => {
         tapFeedback();
         start(async () => setAsked((await undo(action.id)).ok));
       }}
-      className="min-h-9 rounded-full border border-edge px-3 text-xs text-gold-ink disabled:opacity-60">
+      className="t-small min-h-11 rounded-full border border-edge-strong px-4 text-gold-ink disabled:opacity-45">
       {labels.undo}
     </button>
   );

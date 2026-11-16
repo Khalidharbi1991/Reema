@@ -75,7 +75,17 @@ export type TodayFeed = {
 
 /** Step 5: a card from Ahmad (reminder, morning brief, important mail, test). Written by the PC only. */
 export type CardKind = "reminder" | "brief" | "mail" | "test";
-export type AhmadCard = { id: string; kind: CardKind; title: string; body: string; createdAt: string };
+/** readAt: when Khalid first opened it in the Inbox (null = unread). */
+export type AhmadCard = { id: string; kind: CardKind; title: string; body: string; createdAt: string; readAt: string | null };
+/** A read card stays in the Inbox this long, then the app hides it (unread cards never clear). */
+export const READ_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Unread of any age, or read less than 7 days ago. */
+export function cardShown(card: Pick<AhmadCard, "readAt">, now: Date): boolean {
+  if (!card.readAt) return true;
+  const read = new Date(card.readAt).getTime();
+  return Number.isNaN(read) || now.getTime() - read < READ_KEEP_MS;
+}
 
 /** Step 5: Khalid's settings. briefTime is "HH:MM" (24-hour) as stored; the screen shows it with AM/PM. */
 export type Settings = { pushEnabled: boolean; briefTime: string; dailyCap: number; lang: Lang };
@@ -107,10 +117,11 @@ export function checkPushKeys(k: PushKeys): PushKeys {
 }
 
 const CARD_KINDS: readonly CardKind[] = ["reminder", "brief", "mail", "test"];
-export function toCard(r: { id?: unknown; kind?: unknown; title?: unknown; body?: unknown; created_at?: unknown }): AhmadCard {
+export function toCard(r: { id?: unknown; kind?: unknown; title?: unknown; body?: unknown; created_at?: unknown; read_at?: unknown }): AhmadCard {
   return {
     id: text(r.id, 40), kind: CARD_KINDS.includes(r.kind as CardKind) ? (r.kind as CardKind) : "test",
     title: text(r.title, 200), body: text(r.body, 3000), createdAt: text(r.created_at, 40),
+    readAt: text(r.read_at, 40) || null,
   };
 }
 
@@ -133,9 +144,10 @@ export interface MailboxAdapter {
   workerStatus(): Promise<WorkerStatus | null>;
   /** The worker's latest Google snapshot for Today, or null before the first one. */
   todayFeed(): Promise<TodayFeed | null>;
-  /** Step 5: Ahmad's cards not yet dismissed, newest first. */
+  /** Ahmad's cards for the Inbox, newest first: never dismissed ones; unread, or read less than 7 days ago. */
   cards(limit?: number): Promise<AhmadCard[]>;
-  dismissCard(id: string): Promise<void>;
+  /** Sets the card's read time once, for the signed-in user's own card only. */
+  markCardRead(id: string): Promise<void>;
   settings(): Promise<Settings>;
   saveSettings(s: Settings): Promise<Settings>;
   savePushSubscription(k: PushKeys): Promise<void>;
@@ -183,9 +195,23 @@ export function toTodayFeed(row: {
   };
 }
 
-export class MailboxError extends Error {}
+/**
+ * `schemaMissing` marks the one failure the app is allowed to pass over in silence: the
+ * database does not have that column or function yet (migration not run). Every other
+ * failure is a real one and is reported (SEC-172).
+ */
+export class MailboxError extends Error {
+  constructor(message: string, readonly schemaMissing = false) {
+    super(message);
+  }
+}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** True only for a value shaped like one of our ids; used before an id from the address bar is trusted. */
+export function isId(id: unknown): id is string {
+  return typeof id === "string" && UUID.test(id);
+}
 
 export function checkMessageBody(body: string): string {
   const trimmed = body.trim();
@@ -195,7 +221,7 @@ export function checkMessageBody(body: string): string {
 }
 
 export function checkId(id: string): string {
-  if (!UUID.test(id)) throw new MailboxError("invalid id");
+  if (!isId(id)) throw new MailboxError("invalid id");
   return id.toLowerCase();
 }
 

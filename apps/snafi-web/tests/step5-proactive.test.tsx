@@ -100,7 +100,11 @@ describe("migration 0008", () => {
     expect(await count(ALICE)).toBe(4);
   });
 
-  it("never stores the same notification twice, and lets only the owner dismiss a card", async () => {
+  // Until the Inbox job this test also checked dismiss_card: the owner could dismiss her own card
+  // once, and Bob was refused on hers ("no card"). Migration 0009 takes that right back from the
+  // app (SEC-175), so what is checked now is that the app can no longer call it at all; the
+  // function and the rows it wrote stay (see rls-inbox.test.ts).
+  it("never stores the same notification twice, and no longer lets the app dismiss a card", async () => {
     const insert = "insert into public.notifications (user_id, kind, dedupe_key) values ($1, 'reminder', 'reminder:1')";
     await as(db, "service_role", null, insert, [ALICE]);
     await expect(as(db, "service_role", null, insert, [ALICE])).rejects.toThrow(/duplicate key/);
@@ -108,9 +112,10 @@ describe("migration 0008", () => {
       "insert into public.cards (user_id, kind, title, body) values ($1, 'reminder', 'Reminder', 'Call the bank') returning id", [ALICE]);
     const id = card.rows[0].id;
     expect((await as(db, "authenticated", BOB, "select * from public.cards")).rows).toEqual([]);
-    await expect(as(db, "authenticated", BOB, "select public.dismiss_card($1)", [id])).rejects.toThrow(/no card/);
-    await as(db, "authenticated", ALICE, "select public.dismiss_card($1)", [id]);
-    await expect(as(db, "authenticated", ALICE, "select public.dismiss_card($1)", [id])).rejects.toThrow(/no card/);
+    await expect(as(db, "authenticated", BOB, "select public.dismiss_card($1)", [id])).rejects.toThrow(/permission denied/);
+    await expect(as(db, "authenticated", ALICE, "select public.dismiss_card($1)", [id])).rejects.toThrow(/permission denied/);
+    expect((await as<{ dismissed_at: string | null }>(db, "service_role", null,
+      "select dismissed_at from public.cards where id = $1", [id])).rows[0].dismissed_at).toBeNull();
   });
 
   it("queues at most one test push, and the app still cannot queue jobs of its own", async () => {
@@ -240,7 +245,7 @@ describe("push keys and settings in the app", () => {
     expect(toBase64Url("ab+/cd==")).toBe("ab-_cd");
   });
 
-  it("memory mailbox mirrors the rules: own cards, settings in range, one test job", async () => {
+  it("memory mailbox mirrors the rules: own cards, read once, settings in range, one test job", async () => {
     const store = createMemoryStore();
     const alice = new MemoryMailboxAdapter(store, ALICE);
     const bob = new MemoryMailboxAdapter(store, BOB);
@@ -251,8 +256,12 @@ describe("push keys and settings in the app", () => {
     store.cards.push({ id: "44444444-4444-4444-8444-444444444444", userId: ALICE, kind: "reminder", title: "Reminder",
       body: "Call", createdAt: "2026-11-14T09:00:00Z" });
     expect(await bob.cards()).toEqual([]);
-    await expect(bob.dismissCard("44444444-4444-4444-8444-444444444444")).rejects.toThrow();
-    await alice.dismissCard("44444444-4444-4444-8444-444444444444");
+    await bob.markCardRead("44444444-4444-4444-8444-444444444444"); // not Bob's card: nothing changes
+    expect((await alice.cards())[0].readAt).toBeNull();
+    await alice.markCardRead("44444444-4444-4444-8444-444444444444");
+    expect((await alice.cards())[0].readAt).not.toBeNull();
+    // A card dismissed before the Inbox existed stays hidden (AC-10).
+    store.cards[0].dismissed = true;
     expect(await alice.cards()).toEqual([]);
     await alice.requestTestPush();
     await alice.requestTestPush();
@@ -295,20 +304,22 @@ describe("Settings screen", () => {
   });
 });
 
-describe("Ahmad's cards on Today", () => {
-  it("are real, newest first, with a 12-hour time and Dismiss", async () => {
-    const source = new LiveTodaySource(async () => [], async () => null, async () => [
-      { id: "44444444-4444-4444-8444-444444444444", kind: "reminder", title: "Reminder", body: "Call the bank\nSet for 3:00 PM",
-        createdAt: "2026-11-14T12:00:00Z" },
-    ]);
-    const today = await source.getToday("en", new Date("2026-11-14T13:00:00Z"));
-    expect(today.samples.cards).toBe(false);
-    expect(today.cards).toEqual([{ id: "44444444-4444-4444-8444-444444444444", kind: "reminder", title: "Reminder",
-      body: "Call the bank\nSet for 3:00 PM", time: "3:00 PM" }]);
-    const dismiss = vi.fn(async () => ({ ok: true }));
-    render(<TodayView lang="en" hour={16} today={today} decide={async () => ({ ok: true })} dismiss={dismiss} />);
-    expect(screen.getByTestId("ahmad-card")).toHaveTextContent("Call the bank");
-    fireEvent.click(screen.getByTestId("dismiss-card"));
-    await waitFor(() => expect(dismiss).toHaveBeenCalledWith("44444444-4444-4444-8444-444444444444"));
+describe("Ahmad's cards", () => {
+  it("are real; Today shows one of them as Ahmad's message with a 12-hour time, without its body and with no Dismiss", async () => {
+    const card = { id: "44444444-4444-4444-8444-444444444444", kind: "reminder" as const, title: "Reminder",
+      body: "Call the bank\nSet for 3:00 PM", createdAt: "2026-11-14T12:00:00Z", readAt: null };
+    const source = new LiveTodaySource(async () => [], async () => null, async () => [card]);
+    const now = new Date("2026-11-14T13:00:00Z");
+    const today = await source.getToday("en", now);
+    expect(today.sample).toBe(false);
+    expect(today.cards).toEqual([card]);
+    render(<TodayView lang="en" hour={16} today={today} now={now} />);
+    const message = screen.getByTestId("ahmad-message");
+    expect(message).toHaveTextContent("Reminder");
+    expect(message).toHaveTextContent("3:00 PM");
+    expect(message).toHaveAttribute("href", "/inbox?open=44444444-4444-4444-8444-444444444444");
+    expect(message).not.toHaveTextContent("Call the bank");
+    expect(screen.queryByTestId("ahmad-card")).toBeNull();
+    expect(screen.queryByTestId("dismiss-card")).toBeNull(); // AC-10
   });
 });

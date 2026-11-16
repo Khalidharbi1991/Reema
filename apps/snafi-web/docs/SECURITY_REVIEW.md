@@ -1,4 +1,10 @@
-> **Newest: Off for this phone only, and "Turn off on all phones" (SEC-153, Khalid's decision), Nov 15, 2026.** In
+> **Newest: Inbox with a bell, simpler Today, Chat scroll, mobile fit and the calmer look, Nov 16, 2026.** In
+> [SECURITY_REVIEW_ui_inbox.md](SECURITY_REVIEW_ui_inbox.md) (SEC-170 to SEC-193). Open Critical 0, **open High 0**;
+> SEC-170 (the design skills' own text tells the reader to run their launcher) fixed after it: the guard now blocks
+> running them, AGENTS.md carries the rule and `tests/test_design_skills_guard.py` checks the folders, the pinned
+> SHA-256 of every file and the block. The other findings are Medium and below, for Khalid to decide.
+>
+> **Off for this phone only, and "Turn off on all phones" (SEC-153, Khalid's decision), Nov 15, 2026.** In
 > [SECURITY_REVIEW_off_this_phone.md](SECURITY_REVIEW_off_this_phone.md) (SEC-161 to SEC-169; SEC-153, 154 and 158
 > closed). Open Critical 0, **open High 0**; SEC-163, 164, 166 (wording) and 168 fixed after it.
 >

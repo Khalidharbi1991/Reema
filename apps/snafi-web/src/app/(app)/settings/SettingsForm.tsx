@@ -6,6 +6,7 @@ import { joinHHMM, splitHHMM } from "@/core/clock";
 import {
   browserEnv, deviceSubscribed, disablePush, enablePush, PushStepError, within, type PushEnv, type PushStep,
 } from "@/core/push-client";
+import { AttentionIcon } from "@/components/Icons";
 import type { Lang, Messages } from "@/i18n/messages";
 
 export { toBase64Url } from "@/core/push-client";
@@ -179,59 +180,62 @@ export function SettingsForm({ initial, lang, t, publicKey, save, subscribe, uns
     setNote({ where: "push", text: ok ? t.testSent : t.testFailed, error: !ok });
   });
 
-  const option = (active: boolean) =>
-    `min-h-11 flex-1 rounded-xl border px-3 text-sm transition-colors ${active ? "border-gold bg-gold/15 text-gold-ink" : "border-edge text-ink"}`;
-  const field = "min-h-11 rounded-xl border border-edge bg-card px-3 text-sm text-ink";
+  // Options show "selected" from aria-pressed; fields are 16px so an iPhone does not zoom on focus.
+  const option = "option";
+  const field = "field";
+  const heading = "t-heading mt-8 mb-3";
+  const help = "t-small wrap text-muted";
   const shown = (where: "push" | "save") => note && note.where === where && (
     <p role={note.error ? "alert" : "status"} data-testid={`settings-note-${where}`}
-      className={`mt-3 rounded-xl border px-3 py-2 text-sm ${note.error ? "border-gold/60 text-gold-ink" : "border-edge text-muted"}`}>
-      {note.text}
+      className={`note mt-3 ${note.error ? "note-danger" : ""}`}>
+      {note.error && <AttentionIcon />}
+      <span className="wrap">{note.text}</span>
     </p>
   );
 
   return (
-    <div className="mt-6 space-y-6" data-testid="settings-form">
-      <section className="rounded-2xl border border-edge bg-card p-4">
-        <h2 className="text-lg">{t.pushTitle}</h2>
-        <div className="mt-3 flex gap-2" role="group" aria-label={t.pushTitle}>
-          <button type="button" className={option(thisPhoneOn)} aria-pressed={thisPhoneOn} disabled={busy.push} onClick={turnOn}>
+    <div data-testid="settings-form">
+      <section>
+        <h2 className={heading}>{t.pushTitle}</h2>
+        <div className="flex gap-2" role="group" aria-label={t.pushTitle}>
+          <button type="button" className={option} aria-pressed={thisPhoneOn} disabled={busy.push} onClick={turnOn}>
             {busy.push && !thisPhoneOn ? t.working : t.pushOn}
           </button>
-          <button type="button" className={option(!thisPhoneOn)} aria-pressed={!thisPhoneOn} disabled={busy.push} onClick={turnOff}>
+          <button type="button" className={option} aria-pressed={!thisPhoneOn} disabled={busy.push} onClick={turnOff}>
             {busy.push && thisPhoneOn ? t.working : t.pushOff}
           </button>
         </div>
         {shown("push")}
         {push && device === false && !note && (
           <p role="status" data-testid="push-other-phone"
-            className="mt-3 rounded-xl border border-gold/60 px-3 py-2 text-sm text-gold-ink">{t.pushOtherPhone}</p>
+            className="note note-attention mt-3"><AttentionIcon /><span className="wrap">{t.pushOtherPhone}</span></p>
         )}
-        <p className="mt-3 text-xs text-muted">{t.pushHelp}</p>
-        {!publicKey && <p className="mt-2 text-xs text-gold-ink" data-testid="push-not-set-up">{t.pushNotSetUp}</p>}
-        {publicKey && !supported && <p className="mt-2 text-xs text-gold-ink">{t.pushUnsupported}</p>}
+        <p className={`${help} mt-3`}>{t.pushHelp}</p>
+        {!publicKey && <p className="t-small wrap mt-2 text-gold-ink" data-testid="push-not-set-up">{t.pushNotSetUp}</p>}
+        {publicKey && !supported && <p className="t-small wrap mt-2 text-gold-ink">{t.pushUnsupported}</p>}
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" onClick={onTest} disabled={busy.test || busy.push || !push}
-            className="min-h-11 rounded-xl border border-edge px-4 text-sm disabled:opacity-50">
+            className="btn btn-secondary">
             {busy.test ? t.working : t.test}
           </button>
           {push && !confirmAll && (
             <button type="button" onClick={() => { setNote(null); setConfirmAll(true); }} disabled={busy.push}
-              data-testid="off-all" className="min-h-11 rounded-xl border border-edge px-4 text-sm text-muted disabled:opacity-50">
+              data-testid="off-all" className="btn btn-secondary">
               {t.offAll}
             </button>
           )}
         </div>
         {confirmAll && (
           <div role="alertdialog" aria-label={t.offAll} data-testid="off-all-confirm"
-            className="mt-3 rounded-xl border border-gold/60 px-3 py-3 text-sm">
-            <p className="text-gold-ink">{t.offAllConfirm}</p>
+            className="mt-3 min-w-0 rounded-xl border border-gold-ink px-3 py-3">
+            <p className="t-small wrap text-gold-ink">{t.offAllConfirm}</p>
             <div className="mt-3 flex gap-2">
               <button type="button" onClick={turnOffAll} disabled={busy.push}
-                className="min-h-11 flex-1 rounded-xl border border-gold bg-gold/15 px-3 text-sm text-gold-ink disabled:opacity-50">
+                className="btn btn-secondary flex-1 border-gold-ink text-gold-ink">
                 {t.offAllYes}
               </button>
               <button type="button" onClick={() => setConfirmAll(false)} disabled={busy.push}
-                className="min-h-11 flex-1 rounded-xl border border-edge px-3 text-sm">
+                className="btn btn-secondary flex-1">
                 {t.cancel}
               </button>
             </div>
@@ -239,18 +243,18 @@ export function SettingsForm({ initial, lang, t, publicKey, save, subscribe, uns
         )}
       </section>
 
-      <section className="rounded-2xl border border-edge bg-card p-4">
-        <h2 className="text-lg">{t.briefTitle}</h2>
-        <p className="mt-1 text-xs text-muted">{t.briefHelp}</p>
+      <section>
+        <h2 className={heading}>{t.briefTitle}</h2>
+        <p className={help}>{t.briefHelp}</p>
         <div className="mt-3 flex flex-wrap items-end gap-2" dir="ltr" lang={lang}>
-          <label className="flex flex-col text-xs text-muted" htmlFor={ids.hour}>
+          <label className="t-small flex flex-col text-muted" htmlFor={ids.hour}>
             {t.hour}
             <select id={ids.hour} className={field} value={hour12} onChange={(e) => setHour12(Number(e.target.value))}>
               {HOURS.map((h) => <option key={h} value={h}>{h}</option>)}
             </select>
           </label>
           <span className="pb-3">:</span>
-          <label className="flex flex-col text-xs text-muted" htmlFor={ids.minute}>
+          <label className="t-small flex flex-col text-muted" htmlFor={ids.minute}>
             {t.minute}
             <select id={ids.minute} className={field} value={minute} onChange={(e) => setMinute(Number(e.target.value))}>
               {(MINUTES.includes(minute) ? MINUTES : [...MINUTES, minute].sort((a, b) => a - b)).map((m) => (
@@ -258,24 +262,24 @@ export function SettingsForm({ initial, lang, t, publicKey, save, subscribe, uns
               ))}
             </select>
           </label>
-          <div className="flex gap-2" role="group" aria-label={`${t.am} / ${t.pm}`}>
-            <button type="button" className={option(!pm)} aria-pressed={!pm} onClick={() => setPm(false)}>{t.am}</button>
-            <button type="button" className={option(pm)} aria-pressed={pm} onClick={() => setPm(true)}>{t.pm}</button>
+          <div className="flex min-w-32 flex-1 gap-2" role="group" aria-label={`${t.am} / ${t.pm}`}>
+            <button type="button" className={option} aria-pressed={!pm} onClick={() => setPm(false)}>{t.am}</button>
+            <button type="button" className={option} aria-pressed={pm} onClick={() => setPm(true)}>{t.pm}</button>
           </div>
         </div>
       </section>
 
-      <section className="rounded-2xl border border-edge bg-card p-4">
-        <label className="text-lg" htmlFor={ids.cap}>{t.capTitle}</label>
+      <section>
+        <label className="t-heading mt-8 block" htmlFor={ids.cap}>{t.capTitle}</label>
         <input id={ids.cap} type="number" inputMode="numeric" min={CAP_MIN} max={CAP_MAX} step={1} value={cap}
           onChange={(e) => setCap(e.target.value)} aria-invalid={!capOk}
           className={`${field} mt-3 block w-28`} dir="ltr" />
-        <p className="mt-2 text-xs text-muted">{t.capHelp}</p>
+        <p className={`${help} mt-2`}>{t.capHelp}</p>
       </section>
 
-      <div>
-        <button type="button" onClick={onSave} disabled={busy.save || !capOk}
-          className="min-h-11 w-full rounded-xl bg-gold px-4 text-sm font-medium text-[#0E0E10] disabled:opacity-50">
+      <div className="mt-8">
+        <button type="button" onClick={onSave} disabled={busy.save || !capOk} aria-busy={busy.save}
+          className="btn btn-primary w-full">
           {busy.save ? t.saving : t.save}
         </button>
         {shown("save")}

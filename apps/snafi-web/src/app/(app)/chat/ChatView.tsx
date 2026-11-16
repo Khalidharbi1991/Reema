@@ -1,8 +1,12 @@
-import Link from "next/link";
+"use client";
+
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ActionEntry, ApprovalCard as Card, MailboxMessage } from "@/adapters/mailbox/types";
 import { ApprovalCard } from "@/components/ApprovalCard";
-import { Orb } from "@/components/Orb";
+import { ArrowDownIcon } from "@/components/Icons";
+import { useShell } from "@/components/ShellState";
 import { UndoButton } from "@/components/UndoButton";
+import { isAtBottom, onNewItem, prefersReducedMotion, scrollBehavior, scrollToEnd } from "@/core/chat-scroll";
 import { messages as dict, type Lang } from "@/i18n/messages";
 import { ChatComposer } from "./ChatComposer";
 
@@ -17,61 +21,128 @@ type Props = {
   send: Parameters<typeof ChatComposer>[0]["send"];
 };
 
-/** The chat with Ahmad: messages, approval cards with Approve / Reject, and Undo on logged actions. */
+/**
+ * The chat with Ahmad: messages, approval cards with Approve / Reject, and Undo on logged actions.
+ * The message list is the only thing that scrolls. It opens at the latest message and follows new
+ * items while Khalid is at the bottom; when he has scrolled up, it stays where he is and shows a
+ * "jump to latest" button (AC-20 to AC-24).
+ */
 export function ChatView({ lang, messages, cards, actions, preview, decide, undo, send }: Props) {
   const t = dict(lang);
-  const waiting = messages.length > 0 && messages[messages.length - 1].role === "user";
-  const cardLabels = { approve: t.approve, reject: t.reject, status: t.cardStatus, failed: t.decideFailed, exactly: t.exactly, expires: t.expires };
+  const last = messages[messages.length - 1];
+  const waiting = !!last && last.role === "user";
+  const mine = waiting;
+  /** Changes whenever a new item is at the end: a message, an approval card or the thinking bubble. */
+  const lastKey = `${last?.id ?? ""}:${waiting}`;
+
+  const list = useRef<HTMLDivElement>(null);
+  const content = useRef<HTMLOListElement>(null);
+  const pinned = useRef(true);
+  const seen = useRef(lastKey);
+  const [away, setAway] = useState(false);
+  /** The last item when Khalid scrolled away: anything newer from Ahmad shows the "new" mark. */
+  const [awayKey, setAwayKey] = useState(lastKey);
+  const fresh = away && lastKey !== awayKey && !mine;
+
+  const { setThinking } = useShell();
+  useEffect(() => {
+    setThinking(waiting);
+    return () => setThinking(false);
+  }, [waiting, setThinking]);
+
+  // Chat opens at the latest message, before the first paint, with no animation.
+  useLayoutEffect(() => {
+    if (list.current) list.current.scrollTop = list.current.scrollHeight;
+  }, []);
+
+  // A new item: follow it when at the bottom or when it is Khalid's own; otherwise hold still.
+  // The 3-second refresh brings the same last item, so it never moves the list.
+  useEffect(() => {
+    if (seen.current === lastKey) return;
+    seen.current = lastKey;
+    const el = list.current;
+    if (el && onNewItem({ atBottom: pinned.current, mine }) === "scroll") {
+      pinned.current = true;
+      scrollToEnd(el, scrollBehavior(prefersReducedMotion()));
+    }
+  }, [lastKey, mine]);
+
+  // At the bottom, stay there when the content grows (a font loads, a long reply wraps).
+  useEffect(() => {
+    const el = list.current;
+    if (!el || !content.current || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      if (pinned.current) el.scrollTop = el.scrollHeight;
+    });
+    observer.observe(content.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const onScroll = () => {
+    const el = list.current;
+    if (!el) return;
+    const bottom = isAtBottom(el);
+    if (!bottom && pinned.current) setAwayKey(lastKey);
+    pinned.current = bottom;
+    setAway(!bottom);
+  };
+
+  const jump = () => {
+    const el = list.current;
+    if (!el) return;
+    pinned.current = true; // auto-scroll is on again
+    setAway(false);
+    scrollToEnd(el, scrollBehavior(prefersReducedMotion()));
+    el.focus({ preventScroll: true }); // not the text field: the keyboard must not open
+  };
+
   return (
-    <div className="flex min-h-[calc(100dvh-6rem)] flex-col">
-      <div className="flex items-center gap-3 py-3">
-        <Link href="/today" aria-label={t.back} className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-muted">
-          <span aria-hidden="true" className="rtl:rotate-180">←</span>
-        </Link>
-        <Orb label={t.chatTitle} size={36} state={waiting ? "thinking" : "idle"} />
-        <div className="flex-1">
-          <h1 className="text-xl leading-none">{t.chatTitle}</h1>
-          <p className="text-xs text-muted">{waiting ? t.thinking : t.chatSubtitle}</p>
-        </div>
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-screen="chat">
+      <div ref={list} role="log" aria-label={t.chatTitle} tabIndex={-1} onScroll={onScroll} className="chat-list py-4" data-testid="chat-list">
+        {messages.length === 0 && <p className="t-small text-center text-muted">{t.chat.empty}</p>}
+        <ol ref={content} className="space-y-4">
+          {messages.map((m) => {
+            const own = m.role === "user";
+            const card = m.approvalId ? cards[m.approvalId] : undefined;
+            const logged = (m.meta.actions ?? []).map((id) => actions[id]).filter(Boolean);
+            return (
+              <li key={m.id} className={`flex min-w-0 flex-col ${own ? "items-end" : "items-start"}`}>
+                {card ? (
+                  <div className="w-full min-w-0"><ApprovalCard card={card} decide={decide} lang={lang} /></div>
+                ) : (
+                  <div lang={m.lang} dir={m.lang === "ar" ? "rtl" : "ltr"} data-slot="chat-message"
+                    className={`bubble ${own ? "bubble-mine" : "bubble-ahmad"}`}>
+                    {m.body}
+                  </div>
+                )}
+                {logged.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {logged.map((a) => (
+                      <UndoButton key={a.id} action={a} undo={undo}
+                        labels={{ undo: t.undo, undoing: t.undoing, undone: t.undone }} />
+                    ))}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+          {waiting && (
+            <li className="flex justify-start">
+              <div className="skeleton h-11 w-40 rounded-2xl"><span className="sr-only">{t.thinking}</span></div>
+            </li>
+          )}
+        </ol>
       </div>
 
-      <ol className="flex-1 space-y-4 py-4" aria-label={t.chatTitle} aria-live="polite">
-        {messages.map((m, i) => {
-          const mine = m.role === "user";
-          const card = m.approvalId ? cards[m.approvalId] : undefined;
-          const logged = (m.meta.actions ?? []).map((id) => actions[id]).filter(Boolean);
-          return (
-            <li key={m.id} className={`rise-in flex flex-col ${mine ? "items-end" : "items-start"}`}
-              style={{ ["--i" as string]: Math.min(i, 6) }}>
-              {card ? (
-                <div className="w-full max-w-[85%]"><ApprovalCard card={card} labels={cardLabels} decide={decide} lang={lang} /></div>
-              ) : (
-                <div lang={m.lang} dir={m.lang === "ar" ? "rtl" : "ltr"}
-                  className={`max-w-[85%] whitespace-pre-line rounded-2xl px-4 py-3 text-sm ${
-                    mine ? "rounded-se-md bg-gold/15" : "rounded-ss-md border border-edge bg-card"}`}>
-                  {m.body}
-                </div>
-              )}
-              {logged.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {logged.map((a) => (
-                    <UndoButton key={a.id} action={a} undo={undo}
-                      labels={{ undo: t.undo, undoing: t.undoing, undone: t.undone }} />
-                  ))}
-                </div>
-              )}
-            </li>
-          );
-        })}
-        {waiting && (
-          <li className="flex justify-start" aria-label={t.thinking}>
-            <div className="skeleton h-10 w-40 rounded-2xl" />
-          </li>
-        )}
-      </ol>
-
-      <ChatComposer send={send} labels={{ placeholder: t.messagePlaceholder, send: t.send, attach: t.attach, failed: t.sendFailed }}
-        note={preview ? t.chatPreview : ""} />
+      <ChatComposer send={send} labels={{ placeholder: t.messagePlaceholder, send: t.send, failed: t.sendFailed }}
+        note={preview ? t.chatPreview : ""}
+        jump={away && (
+          <button type="button" onClick={jump} aria-label={fresh ? t.chat.jumpNew : t.chat.jump} data-testid="jump-latest"
+            data-new={fresh ? "true" : undefined} className="icon-btn jump">
+            <ArrowDownIcon />
+            {fresh && <span className="jump-new" aria-hidden="true" />}
+          </button>
+        )} />
     </div>
   );
 }

@@ -5,7 +5,8 @@ import { effectiveStatus, type ApprovalCard as Card, type ApprovalStatus } from 
 import { APP_SETTINGS } from "@/config/app";
 import { dayMonthClock } from "@/core/clock";
 import { tapFeedback } from "@/core/haptics";
-import type { Lang } from "@/i18n/messages";
+import { messages, type Lang } from "@/i18n/messages";
+import { AttentionIcon } from "./Icons";
 
 type Labels = {
   approve: string;
@@ -14,13 +15,17 @@ type Labels = {
   failed: string;
   exactly: string;
   expires: (time: string) => string;
+  action?: string;
 };
 type Props = {
   card: Card;
-  labels: Labels;
+  /** Defaults to the app's own words in `lang`. */
+  labels?: Labels;
   decide: (id: string, decision: "approved" | "rejected", argsHash: string) => Promise<{ ok: boolean; status?: string }>;
   now?: Date;
   lang?: Lang;
+  /** Inbox only: "Asked 4:05 PM". */
+  asked?: string;
 };
 
 function show(value: unknown): string {
@@ -30,9 +35,13 @@ function show(value: unknown): string {
 /**
  * Approve / Reject as plain buttons, never swipes, with light tap feedback. The card shows
  * the exact action and every argument in full (SEC-13), and Approve carries their hash, so
- * the database approves only what was shown. Nothing runs until Approve.
+ * the database approves only what was shown. Nothing runs until Approve. The same item is
+ * used in the Inbox (always open) and in Chat.
  */
-export function ApprovalCard({ card, labels, decide, now = new Date(), lang = "en" }: Props) {
+export function ApprovalCard({ card, labels, decide, now = new Date(), lang = "en", asked }: Props) {
+  const t = messages(lang);
+  const l: Labels = labels ?? { approve: t.approve, reject: t.reject, status: t.cardStatus, failed: t.decideFailed,
+    exactly: t.exactly, expires: t.expires, action: t.approval.action };
   const [pending, start] = useTransition();
   const [failed, setFailed] = useState(false);
   const [local, setLocal] = useState<ApprovalStatus | null>(null);
@@ -50,38 +59,40 @@ export function ApprovalCard({ card, labels, decide, now = new Date(), lang = "e
   };
 
   return (
-    <div className="rounded-2xl border border-gold/40 bg-card p-4" data-testid="approval-card">
-      <p className="text-sm">{card.summary}</p>
-      <div className="mt-3 rounded-xl border border-edge px-3 py-2" data-testid="approval-args">
-        <p className="text-[11px] uppercase tracking-[0.12em] text-muted">{labels.exactly}</p>
-        <dl className="mt-1 space-y-1 text-xs" dir="auto">
-          <div className="flex gap-2"><dt className="text-muted">action</dt><dd className="font-mono break-all">{card.tool}</dd></div>
-          {Object.entries(card.args).map(([key, value]) => (
-            <div key={key} className="flex gap-2">
-              <dt className="shrink-0 text-muted">{key}</dt>
-              <dd className="whitespace-pre-wrap break-words">{show(value)}</dd>
-            </div>
-          ))}
+    <div className="surface" data-testid="approval-card" aria-busy={pending}>
+      <p className="t-body wrap" dir="auto" data-slot="approval-summary">{card.summary}</p>
+      {asked && <p className="t-caption nums mt-1 text-muted">{asked}</p>}
+      <hr className="hairline my-3" />
+      <div data-testid="approval-args">
+        <p className="t-small text-muted">{l.exactly}</p>
+        <dl className="mt-2 grid gap-x-3 gap-y-1" style={{ gridTemplateColumns: "fit-content(40%) minmax(0, 1fr)" }}>
+          <dt className="t-small wrap text-muted">{l.action ?? t.approval.action}</dt>
+          <dd className="t-body wrap" dir="auto" data-slot="approval-arg">{card.tool}</dd>
+          {Object.entries(card.args).flatMap(([key, value]) => [
+            <dt key={`k-${key}`} className="t-small wrap text-muted" dir="ltr">{key}</dt>,
+            <dd key={`v-${key}`} className="t-body wrap whitespace-pre-wrap" dir="auto" data-slot="approval-arg">{show(value)}</dd>,
+          ])}
         </dl>
       </div>
+      <hr className="hairline my-3" />
       {status === "pending" ? (
         <>
-          <div className="mt-3 flex gap-3">
-            <button type="button" disabled={pending} onClick={() => choose("approved")}
-              className="min-h-11 flex-1 rounded-xl bg-gold px-4 text-sm font-medium text-[#0E0E10] disabled:opacity-60">
-              {labels.approve}
+          <div className="flex gap-3">
+            <button type="button" disabled={pending} onClick={() => choose("approved")} className="btn btn-primary btn-tall flex-1">
+              {l.approve}
             </button>
-            <button type="button" disabled={pending} onClick={() => choose("rejected")}
-              className="min-h-11 flex-1 rounded-xl border border-edge px-4 text-sm text-ink disabled:opacity-60">
-              {labels.reject}
+            <button type="button" disabled={pending} onClick={() => choose("rejected")} className="btn btn-secondary btn-tall flex-1">
+              {l.reject}
             </button>
           </div>
-          <p className="mt-2 text-[11px] text-muted" dir="ltr">{labels.expires(expiry)}</p>
+          <p className="t-caption wrap mt-2 text-muted"><bdi>{l.expires(expiry)}</bdi></p>
         </>
       ) : (
-        <p className="mt-2 text-xs text-gold-ink" data-status={status}>{labels.status[status]}</p>
+        <p className="t-small text-muted" data-status={status}>{l.status[status]}</p>
       )}
-      <p role="status" aria-live="polite" className="mt-1 min-h-4 text-xs text-muted">{failed ? labels.failed : ""}</p>
+      {failed && (
+        <p role="alert" className="t-small with-icon mt-2 text-danger"><AttentionIcon /><span className="wrap">{l.failed}</span></p>
+      )}
     </div>
   );
 }

@@ -60,20 +60,24 @@ describe("live Today", () => {
     const card = { id: "a", conversationId: "c", tool: "send_test_message", args: {}, argsHash: "", summary: "Test send",
       status: "pending" as const, createdAt: "", expiresAt: "2999-01-01T00:00:00Z" };
     const today = await new LiveTodaySource(async () => [card]).getToday("en", new Date("2026-11-09T11:00:00Z"));
-    // Step 5: Ahmad's cards are real too now; nothing on the live Today is a sample.
-    expect(today.samples).toEqual({ prayer: false, nextEvent: false, emails: false, tasks: false, cards: false });
+    // Nothing on the live Today is a sample.
+    expect(today.sample).toBe(false);
     expect(today.google).toBe("waiting"); // no Google snapshot from the PC yet
     expect([today.yahoo, today.todoist]).toEqual(["waiting", "waiting"]);
     expect(today.tasks).toEqual([]);
-    expect(today.nextEvent).toBeNull();
-    expect(today.nextPrayer).toMatchObject({ key: "asr", time: "3:19 PM" });
+    expect(today.events).toEqual([]);
+    // The Now card's first item is the next prayer; the rest lets it move on without a reload.
+    expect(today.now[0]).toMatchObject({ kind: "prayer", key: "asr", time: "3:19 PM" });
+    expect(today.now.length).toBeGreaterThan(5);
     expect(today.hijriDate).toBe("29 Jumada I 1448 AH");
     expect(today.approvals).toEqual([card]);
   });
 
   it("still shows when the mailbox is unreachable", async () => {
     const today = await new LiveTodaySource(async () => { throw new Error("down"); }).getToday("ar", new Date());
-    expect(today.approvals).toEqual([]);
+    // null = "could not be read": the bell then shows no badge, and the rest of Today still shows.
+    expect(today.approvals).toBeNull();
+    expect(today.now.length).toBeGreaterThan(0);
   });
 });
 
@@ -92,7 +96,7 @@ describe("PC online / offline", () => {
   });
 
   it("shows the last backup's time and result in the menu", () => {
-    expect(statusLines(status(1_000), now, messages("en"), "en")).toEqual(["PC online", "Last backup 9 Nov, 3:30 AM ✓"]);
+    expect(statusLines(status(1_000), now, messages("en"), "en")).toEqual(["PC online", "Last backup 9 Nov, 3:30 AM"]);
     expect(statusLines(status(99_000, false), now, messages("en"), "en")[1]).toMatch(/^Last backup failed/);
     expect(statusLines(null, now, messages("ar"), "ar")).toEqual([messages("ar").pcOffline, messages("ar").noBackup]);
   });

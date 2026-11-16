@@ -1,146 +1,120 @@
-import { ApprovalCard } from "@/components/ApprovalCard";
-import { Card, PlaceholderBadge } from "@/components/Card";
-import { DismissButton } from "@/components/DismissButton";
-import { Orb } from "@/components/Orb";
-import { PrayerRing } from "@/components/PrayerRing";
-import { greetingFor } from "@/core/preferences";
+import Link from "next/link";
 import type { TodaySnapshot } from "@/adapters/today/types";
+import { ChevronForwardIcon, TaskCircleIcon } from "@/components/Icons";
+import { NowCard } from "@/components/NowCard";
+import { Orb } from "@/components/Orb";
+import { APP_SETTINGS } from "@/config/app";
+import { chooseAhmadMessage, inboxTime } from "@/core/inbox";
+import { greetingFor } from "@/core/preferences";
 import { messages, type Lang } from "@/i18n/messages";
 
-type Props = {
-  lang: Lang;
-  hour: number;
-  today: TodaySnapshot;
-  decide: (id: string, decision: "approved" | "rejected", argsHash: string) => Promise<{ ok: boolean; status?: string }>;
-  /** Step 5: hide one of Ahmad's cards. */
-  dismiss?: (id: string) => Promise<{ ok: boolean }>;
-};
+type Props = { lang: Lang; hour: number; today: TodaySnapshot; now: Date };
 
-/** The Today screen. Pure view: all data comes in through props. */
-export function TodayView({ lang, hour, today, decide, dismiss }: Props) {
+/** The plan shows at most this many events and tasks, then "+N more". */
+export const PLAN_EVENTS = 5;
+export const PLAN_TASKS = 3;
+
+/**
+ * The Today screen: the greeting with both dates, the Now card, Ahmad's one message, today's plan
+ * and the orb. Nothing else (AC-12, AC-13). Ahmad's message comes before the plan so a waiting
+ * approval is on the first screen. Pure view: all data comes in through props.
+ */
+export function TodayView({ lang, hour, today, now }: Props) {
   const t = messages(lang);
-  const sample = <PlaceholderBadge label={t.placeholder} />;
-  const anySample = Object.values(today.samples).some(Boolean);
-  const prayerName = t.prayers[today.nextPrayer.key];
-  const pct = Math.round(today.nextPrayer.progress * 100);
+  const comma = lang === "ar" ? "، " : ", ";
+  const tz = APP_SETTINGS.timeZone;
+  const events = today.events.slice(0, PLAN_EVENTS);
+  const moreEvents = today.events.length - events.length;
+  const tasks = today.tasks.slice(0, PLAN_TASKS);
+  const moreTasks = today.tasks.length - tasks.length;
+  const message = chooseAhmadMessage(today.approvals ?? [], today.cards ?? [], now, tz);
+  const second = !message ? "" : message.kind === "approval"
+    ? (message.more > 0 ? t.ahmad.waitingMore(message.more) : t.ahmad.waiting)
+    : `${t.inbox.kind[message.kind]} ${inboxTime(message.createdAt, lang, now, tz)}`;
+  const quiet = "t-small text-muted";
 
   return (
-    <div className="pb-28">
-      <section className="rise-in mt-4 flex items-center justify-between gap-4" style={{ ["--i" as string]: 0 }}>
-        <div className="min-w-0">
-          <h1 className="text-[2.1rem] leading-tight">
-            {t.greeting[greetingFor(hour)]}{lang === "ar" ? "، " : ", "}<span className="text-gold-ink">{t.ownerName}</span>
-          </h1>
-          <p className="mt-1 text-sm text-muted">{today.gregorianDate}</p>
-          <p className="text-sm text-muted">{today.hijriDate}</p>
-        </div>
-        <PrayerRing
-          name={prayerName}
-          time={today.nextPrayer.time}
-          progress={today.nextPrayer.progress}
-          label={t.prayerRingLabel(prayerName, today.nextPrayer.time, pct)}
-        />
+    // orb-clear (globals.css) keeps the last line of the plan clear of the orb and its glow.
+    <div className="orb-clear pt-4" data-screen="today">
+      <h1 className="t-title wrap">{t.greeting[greetingFor(hour)]}{comma}{t.ownerName}</h1>
+      <p className={`${quiet} mt-1`} data-testid="today-dates">
+        <span>{today.gregorianDate}</span><span className="sr-only">, </span>
+        <span className="date-rule" aria-hidden="true" />
+        <span>{today.hijriDate}</span>
+      </p>
+      {today.sample && <p className={`${quiet} mt-1`} data-testid="sample-note">{t.placeholderNote}</p>}
+
+      <NowCard lang={lang} items={today.now} serverNow={now.toISOString()} />
+
+      <section aria-labelledby="ahmad-title" data-testid="ahmad">
+        <h2 id="ahmad-title" className="t-heading mt-8 mb-3">{t.ahmadCards}</h2>
+        {message ? (
+          <Link href={`/inbox?open=${encodeURIComponent(message.id)}`} data-testid="ahmad-message" data-kind={message.kind}
+            aria-label={`${message.title}. ${second}. ${t.ahmad.openInInbox}`}
+            className="row-press -mx-2 grid min-h-11 items-center gap-x-2 px-2 py-2" style={{ gridTemplateColumns: "minmax(0, 1fr) auto" }}>
+            <span className="min-w-0">
+              <span className="t-body wrap clamp-2" data-slot="message-title"><bdi>{message.title}</bdi></span>
+              {message.kind === "approval" ? (
+                <span className="t-small block text-gold-ink">{second}</span>
+              ) : (
+                <span className={`${quiet} flex gap-2`}>
+                  <span>{t.inbox.kind[message.kind]}</span>
+                  <span className="nums"><bdi>{inboxTime(message.createdAt, lang, now, tz)}</bdi></span>
+                </span>
+              )}
+            </span>
+            <ChevronForwardIcon className="flex-none text-muted" />
+          </Link>
+        ) : (
+          <p className={quiet} data-testid="ahmad-empty">{t.noCards}</p>
+        )}
       </section>
 
-      {anySample && <p className="rise-in mt-3 text-xs text-muted" style={{ ["--i" as string]: 1 }}>{t.placeholderNote}</p>}
-
-      {(["google", "yahoo", "todoist"] as const).filter((source) => today[source] !== "ok").map((source) => (
-        <p key={source} role="status" data-testid={`${source}-status`} data-state={today[source]}
-          className="rise-in mt-3 rounded-xl border border-gold/40 px-3 py-2 text-xs text-gold-ink" style={{ ["--i" as string]: 1 }}>
-          {t[source][today[source]]}
-        </p>
-      ))}
-
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        <Card title={t.nextEvent} index={1} badge={today.samples.nextEvent ? sample : null}>
-          {today.nextEvent ? (
-            <>
-              <p className="text-base" dir="auto">{today.nextEvent.title}</p>
-              <p className="mt-1 text-sm text-muted">
-                <span dir="ltr" className="tabular-nums">{today.nextEvent.time}</span>
-                {today.nextEvent.place && <> · <span dir="auto">{today.nextEvent.place}</span></>}
-              </p>
-            </>
-          ) : (
-            <p className="text-sm text-muted">{today.google === "ok" ? t.noEvents : "—"}</p>
+      <section aria-labelledby="plan-title" data-testid="plan">
+        <h2 id="plan-title" className="t-heading mt-8 mb-3">{t.plan.title}</h2>
+        <ul aria-label={t.plan.events} data-testid="plan-events">
+          {events.map((event) => (
+            <li key={event.id} className="plan-row">
+              <span className={`${quiet} nums pt-0.5`}><bdi>{event.allDay ? t.plan.allDay : event.time}</bdi></span>
+              <span className="t-body wrap clamp-2" data-slot="event-title"><bdi>{event.title}</bdi></span>
+            </li>
+          ))}
+          {moreEvents > 0 && (
+            <li className="plan-row"><span /><span className={quiet} aria-label={t.plan.moreEventsLabel(moreEvents)}>{t.plan.more(moreEvents)}</span></li>
           )}
-        </Card>
-
-        <Card title={t.importantEmail} index={2} badge={today.samples.emails ? sample : null}>
-          {today.emails.length === 0 ? (
-            <p className="text-sm text-muted">{today.google === "ok" || today.yahoo === "ok" ? t.noImportantEmail : "—"}</p>
-          ) : (
-            <ul className="space-y-3" data-testid="important-emails">
-              {today.emails.map((m) => (
-                <li key={m.id} className="flex items-start gap-3" data-account={m.account ?? "gmail"}>
-                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-gold" aria-hidden="true" />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium" dir="auto">{m.from}</span>
-                      {!today.samples.emails && (
-                        <span data-testid="email-account" dir="ltr"
-                          className="shrink-0 rounded-full border border-gold/40 px-1.5 text-[10px] leading-4 text-gold-ink">
-                          {t.accountLabel[m.account ?? "gmail"]}
-                        </span>
-                      )}
-                    </span>
-                    <span className="block truncate text-sm text-muted" dir="auto">{m.subject}</span>
-                  </span>
-                  <span dir="ltr" className="shrink-0 text-xs tabular-nums text-muted">{m.time}</span>
-                </li>
-              ))}
-            </ul>
+          {events.length === 0 && (
+            <li className="plan-row"><span /><span className={quiet}>{today.google === "ok" ? t.plan.noEvents : t.plan.eventsUnavailable}</span></li>
           )}
-        </Card>
-
-        <Card title={t.topTasks} index={3} badge={today.samples.tasks ? sample : null}>
-          {today.tasks.length === 0 ? (
-            <p className="text-sm text-muted">{today.todoist === "ok" ? t.noTasks : "—"}</p>
-          ) : (
-            <ul className="space-y-3" data-testid="top-tasks">
-              {today.tasks.map((task) => (
-                <li key={task.id} className="flex items-start gap-3" data-overdue={task.overdue ? "true" : undefined}>
-                  <span className={`mt-2 h-1.5 w-1.5 shrink-0 rounded-full ${task.priority === 1 ? "bg-gold-ink" : "bg-gold"}`} aria-hidden="true" />
-                  <span className="min-w-0 flex-1 text-sm" dir="auto">{task.title}</span>
-                  <span className={`shrink-0 text-xs ${task.overdue ? "text-gold-ink" : "text-muted"}`}>{task.due}</span>
-                </li>
-              ))}
-            </ul>
+        </ul>
+        <hr className="hairline my-3" />
+        <ul aria-label={t.plan.tasks} data-testid="plan-tasks">
+          {tasks.map((task) => {
+            // An overdue task says so in words, not by colour alone.
+            const due = task.overdue && !task.due.includes(t.plan.overdue)
+              ? (task.due ? `${t.plan.overdue}${comma}${task.due}` : t.plan.overdue) : task.due;
+            return (
+              <li key={task.id} className="plan-row" data-overdue={task.overdue ? "true" : undefined}>
+                <span className="pt-1 text-muted"><TaskCircleIcon /></span>
+                <span className="min-w-0">
+                  <span className="t-body wrap clamp-2" data-slot="task-title"><bdi>{task.title}</bdi></span>
+                  {/* The due line sits under its task's own text, never at the far edge of the column (Arabic at 360/390). */}
+                  {due && (
+                    <span className={`t-caption wrap block text-start ${task.overdue ? "font-medium text-gold-ink" : "text-muted"}`}><bdi>{due}</bdi></span>
+                  )}
+                </span>
+              </li>
+            );
+          })}
+          {moreTasks > 0 && (
+            <li className="plan-row"><span /><span className={quiet} aria-label={t.plan.moreTasksLabel(moreTasks)}>{t.plan.more(moreTasks)}</span></li>
           )}
-        </Card>
-
-        {today.cards.map((card, i) => (
-          <Card key={card.id} title={t.ahmadCards} index={4 + i} badge={today.samples.cards ? sample : null}>
-            <div data-testid="ahmad-card" data-kind={card.kind ?? "test"}>
-              <div className="flex items-start justify-between gap-3">
-                <p className="text-sm font-medium" dir="auto">{card.title}</p>
-                {card.time && <span dir="ltr" className="shrink-0 text-xs tabular-nums text-muted">{card.time}</span>}
-              </div>
-              <p className="mt-1 whitespace-pre-line text-sm text-muted" dir="auto">{card.body}</p>
-              {dismiss && !today.samples.cards && (
-                <div className="mt-2 flex justify-end"><DismissButton id={card.id} label={t.dismiss} dismiss={dismiss} /></div>
-              )}
-            </div>
-          </Card>
-        ))}
-
-        <Card title={t.approvals} index={5 + today.cards.length}>
-          {today.approvals.length === 0 ? (
-            <p className="text-sm text-muted">{t.approvalsEmpty}</p>
-          ) : (
-            <ul className="space-y-3">
-              {today.approvals.map((card) => (
-                <li key={card.id}>
-                  <ApprovalCard card={card} decide={decide} lang={lang}
-                    labels={{ approve: t.approve, reject: t.reject, status: t.cardStatus, failed: t.decideFailed, exactly: t.exactly, expires: t.expires }} />
-                </li>
-              ))}
-            </ul>
+          {tasks.length === 0 && (
+            <li className="plan-row"><span /><span className={quiet}>{today.todoist === "ok" ? t.plan.noTasks : t.plan.tasksUnavailable}</span></li>
           )}
-        </Card>
-      </div>
+        </ul>
+      </section>
 
-      <div className="fixed inset-x-0 bottom-0 z-40 flex justify-center pb-[max(env(safe-area-inset-bottom),1.25rem)]">
+      <div className="orb-dock">
         <Orb href="/chat" label={t.openChat} />
       </div>
     </div>

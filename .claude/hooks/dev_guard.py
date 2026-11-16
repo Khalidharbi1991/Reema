@@ -114,6 +114,14 @@ BLENDER_VALUES = {
 }
 ODA_VERSIONS = {"ACAD9", "ACAD10", "ACAD12", "ACAD13", "ACAD14", "ACAD2000", "ACAD2004", "ACAD2007",
                 "ACAD2010", "ACAD2013", "ACAD2018"}
+# SEC-170: the design skills in .claude/skills/ (frontend-design, impeccable) are installed as
+# markdown only, with no scripts. Their own text still tells the reader to run a launcher, a
+# detector, a hook, "doctor", "foundations" or `npx impeccable`, which would download and run
+# unreviewed code as Khalid. No session runs them; reading the markdown stays allowed.
+DESIGN_SKILL_PROGRAMS = {"impeccable", "taste-skill"}
+DESIGN_SKILL_RUNNERS = {"npx", "bunx", "pnpx", "node", "bun", "deno", "npm", "pnpm", "yarn"} | LAUNCHERS
+DESIGN_SKILL_SCRIPT = re.compile(r"[\\/]skills[\\/](impeccable|taste-skill|frontend-design)[\\/]scripts[\\/]"
+                                 r"|(^|[\\/])gate\.mjs$", re.I)
 BLOCKED_WORDS = re.compile(r"\b(" + "|".join(sorted(SINGLE)) + r")\b|\bgit\s+push\b|\bremote\s+(add|set-url)\b"
                            r"|\b(npm|yarn|pnpm|uv|poetry|cargo)\s+publish\b|\btwine\s+upload\b")
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
@@ -143,6 +151,18 @@ def _split_heredocs(command):
 def _name(word):
     """Command name from a / or \\ path, lower case and without .exe/.cmd/.bat/.com/.ps1 (Windows ignores both)."""
     return re.sub(r"\.(exe|cmd|bat|com|ps1)$", "", re.split(r"[\\/]", word)[-1].lower())
+
+
+def _design_name(word):
+    """A word reduced to a program name for the design-skill check (SEC-194): quotes, path, an
+    option's name, the file extension and an npm `@version` all stripped, so `npx impeccable@latest`,
+    `npm install impeccable@2`, `npx --package=impeccable ...` and `node impeccable.js` are all seen."""
+    word = word.strip("'\"").strip()
+    if "=" in word and word.startswith("-"):
+        word = word.split("=", 1)[1]
+    word = re.split(r"[\\/]", word)[-1].lower()
+    word = re.sub(r"\.(exe|cmd|bat|com|ps1|js|mjs|cjs|sh)$", "", word)
+    return re.sub(r"@[^@]*$", "", word) if "@" in word[1:] else word
 
 
 def _segments(command, powershell=False):
@@ -300,6 +320,13 @@ def _check(words, depth, powershell=False):
         return f"Blender, FreeCAD and ODA File Converter run only from Agent 22 ({AGENT22})"
     if name in SINGLE:
         return f"`{name}` is blocked (network, remote access or elevated rights)"
+    if (_design_name(words[i]) in DESIGN_SKILL_PROGRAMS
+            or (name in DESIGN_SKILL_RUNNERS
+                and any(_design_name(piece) in DESIGN_SKILL_PROGRAMS for word in rest
+                        for piece in re.split(r"[,;'\"\s]+", word) if piece))
+            or any(DESIGN_SKILL_SCRIPT.search(word) for word in words[i:])):
+        return ("the design skills are markdown only: their launcher, detector, hooks, live mode and "
+                "`npx impeccable` are never run (SEC-170). Reading their markdown is allowed.")
     if name in PS_SHELLS:
         return _after_options(rest, depth)
     if name in SHELLS or name == "eval":

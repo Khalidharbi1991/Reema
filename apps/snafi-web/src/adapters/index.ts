@@ -11,6 +11,7 @@ import type { AuthAdapter } from "./auth/types";
 import { createMemoryStore, MemoryMailboxAdapter } from "./mailbox/memory";
 import { SupabaseMailboxAdapter } from "./mailbox/supabase";
 import type { MailboxAdapter } from "./mailbox/types";
+import { sampleApprovals, sampleCards, sampleFeed, sampleMessages } from "./sample";
 import { MemoryThrottleAdapter } from "./throttle/memory";
 import { SupabaseThrottleAdapter } from "./throttle/supabase";
 import type { ThrottleAdapter } from "./throttle/types";
@@ -21,6 +22,14 @@ import type { TodaySource } from "./today/types";
 /** Preview mode's owner and conversation (dev server without keys only). */
 export const PREVIEW_USER = "00000000-0000-4000-8000-000000000000";
 const previewStore = createMemoryStore();
+/** Preview mode shows sample content, so Today, the Inbox and Chat can be looked at without Supabase. */
+function seedPreview(now = new Date()) {
+  previewStore.approvals.push(...sampleApprovals(PREVIEW_USER, now).map((a) => ({ ...a, userId: PREVIEW_USER })));
+  previewStore.cards.push(...sampleCards(now).map((c) => ({ ...c, userId: PREVIEW_USER })));
+  previewStore.feeds[PREVIEW_USER] = sampleFeed(now);
+  previewStore.messages.push(...sampleMessages(PREVIEW_USER, PREVIEW_USER, now));
+}
+if (isPreviewMode()) seedPreview();
 const memoryThrottle = new MemoryThrottleAdapter();
 
 const AUTH: Record<string, () => AuthAdapter> = {
@@ -31,7 +40,7 @@ const MAILBOX: Record<string, (userId: string | null) => MailboxAdapter> = {
   memory: (userId) => new MemoryMailboxAdapter(previewStore, userId ?? PREVIEW_USER),
 };
 const TODAY: Record<string, (mailbox: MailboxAdapter) => TodaySource> = {
-  live: (mailbox) => new LiveTodaySource(() => mailbox.pendingApprovals(5), () => mailbox.todayFeed(), () => mailbox.cards(10)),
+  live: (mailbox) => new LiveTodaySource(() => mailbox.pendingApprovals(50), () => mailbox.todayFeed(), () => mailbox.cards(100)),
   placeholder: () => new PlaceholderTodaySource(),
 };
 

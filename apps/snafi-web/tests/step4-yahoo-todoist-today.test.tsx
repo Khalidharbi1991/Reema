@@ -1,9 +1,10 @@
 /** Snafi step 4: Yahoo emails next to Gmail's and today's Todoist tasks on the Today screen. */
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import type { PGlite } from "@electric-sql/pglite";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { toTodayFeed, type TodayFeed } from "@/adapters/mailbox/types";
 import { LiveTodaySource, taskDue } from "@/adapters/today/live";
+import { Connections } from "@/app/(app)/settings/Connections";
 import { TodayView } from "@/app/(app)/today/TodayView";
 import { ALICE, as, BOB, freshDb } from "./helpers/db";
 
@@ -26,7 +27,6 @@ const FEED: TodayFeed = {
   todoistStatus: "ok",
   updatedAt: "2026-11-14T08:55:00Z",
 };
-const decide = vi.fn(async () => ({ ok: true }));
 
 describe("today_feed after migration 0007", () => {
   let db: PGlite;
@@ -86,13 +86,12 @@ describe("the step 4 feed on the screen", () => {
     expect([feed.yahooStatus, feed.todoistStatus]).toEqual(["off", "off"]);
   });
 
-  it("shows both inboxes newest first, each with its account, and real tasks", async () => {
+  it("shows real tasks; important email from either inbox is no longer part of Today (AC-13)", async () => {
     const today = await new LiveTodaySource(async () => [], async () => FEED).getToday("en", NOW);
-    expect(today.emails.map((m) => [m.account, m.subject, m.time])).toEqual([
-      ["yahoo", "Statement ready", "10:40 AM"], ["gmail", "Drawings for review", "9:05 AM"]]);
+    expect(JSON.stringify(today)).not.toMatch(/Statement ready|Drawings for review/);
     expect(today.tasks.map((t) => [t.title, t.due])).toEqual([
-      ["Renew car registration", "Overdue · Thu"], ["Call the contractor", "6:30 PM"], ["Water the plants", "Today"]]);
-    expect(today.samples).toMatchObject({ emails: false, tasks: false });
+      ["Renew car registration", "Overdue, Thu"], ["Call the contractor", "6:30 PM"], ["Water the plants", "Today"]]);
+    expect(today.sample).toBe(false);
     expect([today.yahoo, today.todoist]).toEqual(["ok", "ok"]);
   });
 
@@ -102,21 +101,24 @@ describe("the step 4 feed on the screen", () => {
     expect(taskDue("", false, "en", NOW, "Asia/Riyadh")).toBe("");
   });
 
-  it("renders the account labels, the tasks and each source's note, in English and Arabic", async () => {
+  it("renders the tasks in the plan with no source note on Today; each source's note is in Settings (AC-13, AC-19)", async () => {
     const live = await new LiveTodaySource(async () => [], async () => FEED).getToday("en", NOW);
-    const { unmount } = render(<TodayView lang="en" hour={12} today={live} decide={decide} />);
-    const emails = screen.getByTestId("important-emails");
-    expect(within(emails).getAllByTestId("email-account").map((b) => b.textContent)).toEqual(["Yahoo", "Gmail"]);
-    expect(screen.getByTestId("top-tasks")).toHaveTextContent("Renew car registration");
-    expect(screen.getByTestId("top-tasks").querySelector("[data-overdue='true']")).toHaveTextContent("Overdue");
+    const { unmount } = render(<TodayView lang="en" hour={12} today={live} now={NOW} />);
+    expect(screen.queryByTestId("important-emails")).toBeNull();
+    expect(screen.getByTestId("plan-tasks")).toHaveTextContent("Renew car registration");
+    expect(screen.getByTestId("plan-tasks").querySelector("[data-overdue='true']")).toHaveTextContent("Overdue");
     expect(screen.queryByTestId("yahoo-status")).toBeNull();
     expect(screen.queryByTestId("todoist-status")).toBeNull();
     unmount();
     const down = await new LiveTodaySource(async () => [], async () => ({ ...FEED, yahooStatus: "reconnect" as const,
       todoistStatus: "not_connected" as const, tasks: [] })).getToday("ar", NOW);
-    render(<TodayView lang="ar" hour={12} today={down} decide={decide} />);
+    const today = render(<TodayView lang="ar" hour={12} today={down} now={NOW} />);
+    expect(screen.queryByTestId("yahoo-status")).toBeNull();
+    expect(screen.queryByTestId("todoist-status")).toBeNull();
+    expect(screen.getByTestId("plan-tasks")).toHaveTextContent("المهام غير متاحة الآن.");
+    today.unmount();
+    render(<Connections lang="ar" states={{ google: down.google, yahoo: down.yahoo, todoist: down.todoist }} />);
     expect(screen.getByTestId("yahoo-status")).toHaveTextContent("set-secrets");
     expect(screen.getByTestId("todoist-status")).toHaveTextContent("Todoist");
-    expect(screen.queryByTestId("top-tasks")).toBeNull();
   });
 });
