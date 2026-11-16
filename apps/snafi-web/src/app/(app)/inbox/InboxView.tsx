@@ -23,7 +23,8 @@ type Props = {
   /** From `/inbox?open=<id>`: the item to open on arrival. An id not in the list is ignored. */
   open?: string;
   decide: Decide;
-  markRead: (id: string) => Promise<{ ok: boolean }>;
+  /** `reported` means a real failure (not simply a database without mark_card_read yet). */
+  markRead: (id: string) => Promise<{ ok: boolean; reported?: boolean }>;
 };
 
 const without = (set: ReadonlySet<string>, id: string) => {
@@ -48,6 +49,8 @@ export function InboxView({ lang, now, approvals, cards, open, decide, markRead 
   /** Cards read on this screen, before the server says so. */
   const [readNow, setReadNow] = useState<ReadonlySet<string>>(() => new Set(arrival ? [arrival] : []));
   const [decided, setDecided] = useState<Record<string, { card: Approval; decision: "approved" | "rejected" }>>({});
+  /** A real mark-read failure, said once; the cards stay unread and readable. */
+  const [readFailed, setReadFailed] = useState(false);
   /** mark-read is asked once per card on this screen, whatever the answer. */
   const asked = useRef(new Set<string>());
 
@@ -55,11 +58,13 @@ export function InboxView({ lang, now, approvals, cards, open, decide, markRead 
     if (asked.current.has(id)) return;
     asked.current.add(id);
     settle(id);
-    markRead(id).then((r) => r.ok, () => false).then((ok) => {
-      if (ok) return;
-      // Silent: the unread mark and the badge count come back; the row stays open and readable.
+    markRead(id).then((r) => r, () => ({ ok: false, reported: false })).then((r) => {
+      if (r.ok) return;
+      // The unread mark and the badge count come back; the row stays open and readable. Silent
+      // when the database simply has no mark_card_read yet; a real failure is said once (SEC-172).
       unsettle(id);
       setReadNow((s) => without(s, id));
+      if (r.reported) setReadFailed(true);
     });
   }, [markRead, settle, unsettle]);
 
@@ -150,6 +155,7 @@ export function InboxView({ lang, now, approvals, cards, open, decide, markRead 
         <section aria-label={t.inbox.notifications} data-testid="inbox-cards">
           {(waiting.length > 0 || cards === null) && <h2 className="t-heading mt-8 mb-1">{t.inbox.notifications}</h2>}
           {cards === null && <div className="mt-3">{failure}</div>}
+          {readFailed && <p role="alert" className="t-small mt-3 text-muted" data-testid="inbox-read-failed">{t.decideFailed}</p>}
           <ul className="divide-y divide-edge">
             {list.map((card) => {
               const isOpen = opened.has(card.id);

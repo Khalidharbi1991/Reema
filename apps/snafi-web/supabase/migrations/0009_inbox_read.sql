@@ -3,8 +3,8 @@
 --   cards.read_at   when Khalid first opened the card (null = unread); the app hides a card
 --                   7 days after it was read. Rows are not deleted here.
 --   mark_card_read  the app's only way to set it, for its own cards, once.
--- dismiss_card (0008) stays in place but the app no longer calls it; cards dismissed before
--- this job (dismissed_at set) stay hidden.
+-- dismiss_card (0008) stays in place but the app no longer calls it and no longer may: its
+-- execute right is taken back below; cards dismissed before this job (dismissed_at set) stay hidden.
 -- The app (role "authenticated") still cannot insert, delete or update cards directly.
 -- Run once in the Supabase SQL Editor after 0008_proactive.sql.
 
@@ -33,5 +33,12 @@ $$;
 
 revoke all on function public.mark_card_read(uuid) from public, anon;
 grant execute on function public.mark_card_read(uuid) to authenticated;
+
+-- ---------- take back the dismiss_card right ----------
+-- Nothing in the app calls dismiss_card any more (it marks a card read instead), and a dismissed
+-- card cannot be brought back from any screen, so the app keeps no right to hide a card for good.
+-- The function itself stays, so rows dismissed before this job keep their meaning and Khalid can
+-- still run it by hand through the service role.
+revoke execute on function public.dismiss_card(uuid) from public, anon, authenticated;
 
 commit;

@@ -225,6 +225,17 @@ describe("mark-read fails quietly (the live database has no mark_card_read yet)"
     expect(badge()).toBe("4");
   });
 
+  it("SEC-172: says so once when mark-read fails for a real reason, and still keeps the row open", async () => {
+    const failing = vi.fn(async () => ({ ok: false, reported: true }));
+    render(<Screen markRead={failing} />);
+    await act(async () => { fireEvent.click(rowButton(id(1))); });
+    expect(screen.getByTestId("inbox-read-failed")).toHaveTextContent("That didn't go through. Try again.");
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(screen.getByText("Body of 1")).toBeInTheDocument();
+    expect(row(id(1))).toHaveAttribute("data-unread", "true");
+    expect(badge()).toBe("4");
+  });
+
   it("a row from before migration 0009 (no read_at) is an unread card", () => {
     expect(toCard({ id: id(1), kind: "reminder", title: "t", body: "b", created_at: "2026-11-15T10:00:00Z" }).readAt).toBeNull();
   });

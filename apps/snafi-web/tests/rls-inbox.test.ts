@@ -83,7 +83,12 @@ describe("AC-11: mark_card_read (migration 0009)", () => {
     const can = async (role: string) => (await db.query<{ ok: boolean }>(
       "select has_function_privilege($1, 'public.mark_card_read(uuid)', 'execute') as ok", [role])).rows[0].ok;
     expect([await can("authenticated"), await can("anon")]).toEqual([true, false]);
-    // dismiss_card stays in place (the app no longer calls it).
+    // SEC-175: dismiss_card stays in place, so cards dismissed before this job keep their meaning
+    // and the owner can still run it through the service role, but the app's right to it is gone
+    // (0008 granted it to authenticated; nothing calls it now, and a dismissal cannot be undone).
     expect((await db.query("select 1 from pg_proc where proname = 'dismiss_card'")).rows).toHaveLength(1);
+    const canDismiss = async (role: string) => (await db.query<{ ok: boolean }>(
+      "select has_function_privilege($1, 'public.dismiss_card(uuid)', 'execute') as ok", [role])).rows[0].ok;
+    expect([await canDismiss("authenticated"), await canDismiss("anon")]).toEqual([false, false]);
   });
 });

@@ -32,6 +32,15 @@ type ActionRow = {
   id: string; summary: string; level: number; status: ActionEntry["status"]; undoable: boolean; undo_requested_at: string | null;
 };
 
+/**
+ * "That column or function is not there": Postgres undefined_column and undefined_function, and
+ * PostgREST's own codes when its schema cache has no such column or function. Nothing else counts
+ * as a missing migration (SEC-172).
+ */
+const MISSING_SCHEMA_CODES: readonly string[] = ["42703", "42883", "PGRST204", "PGRST202"];
+const schemaMissing = (error: { code?: string | null } | null | undefined): boolean =>
+  !!error?.code && MISSING_SCHEMA_CODES.includes(error.code);
+
 const toMessage = (r: MessageRow): MailboxMessage => ({
   id: r.id, userId: r.user_id, conversationId: r.conversation_id, role: r.role, body: r.body, lang: r.lang,
   jobId: r.job_id, approvalId: r.approval_id, meta: r.meta ?? {}, createdAt: r.created_at,
@@ -134,7 +143,9 @@ export class SupabaseMailboxAdapter implements MailboxAdapter {
   // ---------- step 5 and the Inbox ----------
   /**
    * Not dismissed, and unread or read less than 7 days ago. Before migration 0009 is run the
-   * read_at column does not exist: the old query is used then, and every card shows as unread.
+   * read_at column does not exist: only then is the old query used, and every card shows as
+   * unread. Any other error is passed on, so the screen says it could not load instead of
+   * quietly showing read and cleared cards as new (SEC-172).
    */
   async cards(limit = 10) {
     const client = await this.client();
@@ -143,16 +154,20 @@ export class SupabaseMailboxAdapter implements MailboxAdapter {
       .is("dismissed_at", null).or(`read_at.is.null,read_at.gt.${cutoff}`)
       .order("created_at", { ascending: false }).limit(limit);
     if (!withRead.error) return (withRead.data ?? []).map(toAhmadCard);
+    if (!schemaMissing(withRead.error)) throw new MailboxError(withRead.error.message);
     const { data, error } = await client.from("cards").select("id, kind, title, body, created_at")
       .is("dismissed_at", null).order("created_at", { ascending: false }).limit(limit);
     if (error) throw new MailboxError(error.message);
     return (data ?? []).map(toAhmadCard);
   }
 
-  /** Throws when the database has no mark_card_read yet; the caller keeps the card unread and says nothing. */
+  /**
+   * Throws either way; the card stays unread. The error says `schemaMissing` only when the
+   * database has no mark_card_read yet, and only then does the caller stay silent (SEC-172).
+   */
   async markCardRead(id: string) {
     const { error } = await (await this.client()).rpc("mark_card_read", { p_id: checkId(id) });
-    if (error) throw new MailboxError(error.message);
+    if (error) throw new MailboxError(error.message, schemaMissing(error));
   }
 
   async settings(): Promise<Settings> {

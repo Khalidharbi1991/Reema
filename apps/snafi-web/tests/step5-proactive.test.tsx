@@ -100,7 +100,11 @@ describe("migration 0008", () => {
     expect(await count(ALICE)).toBe(4);
   });
 
-  it("never stores the same notification twice, and lets only the owner dismiss a card", async () => {
+  // Until the Inbox job this test also checked dismiss_card: the owner could dismiss her own card
+  // once, and Bob was refused on hers ("no card"). Migration 0009 takes that right back from the
+  // app (SEC-175), so what is checked now is that the app can no longer call it at all; the
+  // function and the rows it wrote stay (see rls-inbox.test.ts).
+  it("never stores the same notification twice, and no longer lets the app dismiss a card", async () => {
     const insert = "insert into public.notifications (user_id, kind, dedupe_key) values ($1, 'reminder', 'reminder:1')";
     await as(db, "service_role", null, insert, [ALICE]);
     await expect(as(db, "service_role", null, insert, [ALICE])).rejects.toThrow(/duplicate key/);
@@ -108,9 +112,10 @@ describe("migration 0008", () => {
       "insert into public.cards (user_id, kind, title, body) values ($1, 'reminder', 'Reminder', 'Call the bank') returning id", [ALICE]);
     const id = card.rows[0].id;
     expect((await as(db, "authenticated", BOB, "select * from public.cards")).rows).toEqual([]);
-    await expect(as(db, "authenticated", BOB, "select public.dismiss_card($1)", [id])).rejects.toThrow(/no card/);
-    await as(db, "authenticated", ALICE, "select public.dismiss_card($1)", [id]);
-    await expect(as(db, "authenticated", ALICE, "select public.dismiss_card($1)", [id])).rejects.toThrow(/no card/);
+    await expect(as(db, "authenticated", BOB, "select public.dismiss_card($1)", [id])).rejects.toThrow(/permission denied/);
+    await expect(as(db, "authenticated", ALICE, "select public.dismiss_card($1)", [id])).rejects.toThrow(/permission denied/);
+    expect((await as<{ dismissed_at: string | null }>(db, "service_role", null,
+      "select dismissed_at from public.cards where id = $1", [id])).rows[0].dismissed_at).toBeNull();
   });
 
   it("queues at most one test push, and the app still cannot queue jobs of its own", async () => {

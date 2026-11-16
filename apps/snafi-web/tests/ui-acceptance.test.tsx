@@ -445,44 +445,30 @@ describe("AC-6: the 7-day window is 7 days", () => {
 
 // ---------------------------------------------------------------------------------------------
 /**
- * The server half of AC-6 and AC-11 and of PRD risk 7, read from the source. The real mailbox
- * (`src/adapters/mailbox/supabase.ts`) and the server actions cannot be loaded by a test: they
- * import Next's `server-only`, which only Next's bundler resolves, so the suite cannot build them
- * and no behaviour test of them is possible without a `server-only` alias in vitest.config.ts
- * (Agent 15 did not change that file). These checks therefore read the code, which is weaker than
- * running it: they catch a silent change, not a wrong result. The database half of AC-11 is run
- * for real in rls-inbox.test.ts, and the screen half in ui-inbox.test.tsx.
+ * The server half of AC-6 and AC-11 and of PRD risk 7 is now run for real in
+ * ui-inbox-server.test.tsx (the Supabase mailbox against a stand-in client, and the page's check
+ * of `?open=`), after `server-only` was aliased to a stub in vitest.config.ts. The source-text
+ * checks that stood here, which could only catch a silent change and not a wrong result, are gone
+ * with it. The database half of AC-11 is run in rls-inbox.test.ts, the screen half in
+ * ui-inbox.test.tsx. What stays here is the one rule no behaviour test can see.
  */
-describe("the card query, its fallback (SEC-172) and mark-read, read from the source", () => {
-  const mailbox = read("src/adapters/mailbox/supabase.ts");
-  const actions = read("src/app/(app)/actions.ts");
-
-  it("AC-6: the first query asks for read_at, hides dismissed cards and keeps unread or read inside 7 days", () => {
-    expect(mailbox).toContain('const cutoff = new Date(Date.now() - READ_KEEP_MS).toISOString();');
-    expect(mailbox).toContain('.select("id, kind, title, body, created_at, read_at")');
-    expect(mailbox).toContain('.is("dismissed_at", null).or(`read_at.is.null,read_at.gt.${cutoff}`)');
-    expect(mailbox).toContain('.order("created_at", { ascending: false })');
-  });
-
-  it("the old query is used only after the first one fails, and a second failure is not swallowed", () => {
-    const body = /async cards\([^)]*\) \{([\s\S]*?)\n  \}/.exec(mailbox)![1];
-    expect(body).toContain("if (!withRead.error) return"); // the fallback is behind an error, not the default
-    expect(body).toContain('.select("id, kind, title, body, created_at")');
-    expect(body).toContain("if (error) throw new MailboxError(error.message);");
-    // SEC-172, recorded as it stands: the retry does not look at the message, so any error (not
-    // only a missing read_at column) makes every card come back unread. Agent 16's finding.
-    expect(body).not.toMatch(/withRead\.error\.(message|code)/);
-  });
-
-  it("AC-11: mark-read goes only through the database function, with a checked id", () => {
+describe("AC-11: the app never writes to cards itself", () => {
+  it("mark-read is the only way the mailbox changes a card", () => {
+    const mailbox = read("src/adapters/mailbox/supabase.ts");
     expect(mailbox).toContain('rpc("mark_card_read", { p_id: checkId(id) })');
     expect(mailbox).not.toMatch(/from\("cards"\)[\s\S]{0,80}\.(update|insert|delete)\(/);
   });
+});
 
-  it("PRD risk 7: the server action answers ok: false instead of throwing", () => {
-    const body = /export async function markCardRead\([\s\S]*?\n\}/.exec(actions)![0];
-    expect(body).toContain("try {");
-    expect(body).toContain("return { ok: false };");
-    expect(body).toContain("markCardRead(String(id ?? \"\"))");
+/** SEC-177: the preview script may not fetch anything or go through a shell. Read, not run: it starts a server. */
+describe("AC-30: dev:preview runs the Next already installed here", () => {
+  const script = read("scripts/dev-preview.mjs");
+  it("uses no npx and no shell, and starts node with the resolved Next binary", () => {
+    expect(script).not.toMatch(/npx|shell: true/);
+    expect(script).toContain('createRequire(import.meta.url).resolve("next/dist/bin/next")');
+    expect(script).toContain('spawn(process.execPath, [next, "dev", "--hostname", "127.0.0.1", "--port", "3100"]');
+  });
+  it("stops with a message and a non-zero code when Next is not installed", () => {
+    expect(script).toMatch(/catch \{[\s\S]*console\.error\([\s\S]*process\.exit\(1\);/);
   });
 });

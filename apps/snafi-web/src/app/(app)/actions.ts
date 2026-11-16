@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { authAdapter } from "@/adapters";
+import { MailboxError } from "@/adapters/mailbox/types";
 import { isPreviewMode } from "@/config/env";
 import { getPreferences } from "@/core/server-preferences";
 import { conversationId, mailboxFor, requireSession } from "@/core/session";
@@ -49,15 +50,17 @@ export async function decideApproval(
 
 // ---------- the Inbox, settings and push ----------
 /**
- * Marks one of Khalid's own cards read (opened in the Inbox). Fails quietly: when the database
- * has no mark_card_read yet, the card just stays unread and the Inbox keeps working.
+ * Marks one of Khalid's own cards read (opened in the Inbox). The card stays unread when it
+ * fails. Quiet only when the database has no mark_card_read yet (PRD risk 7); any other
+ * failure is reported like the other actions, with `reported` so the screen can say so
+ * (SEC-172). It never throws into the Inbox.
  */
-export async function markCardRead(id: string): Promise<{ ok: boolean }> {
+export async function markCardRead(id: string): Promise<{ ok: boolean; reported?: boolean }> {
   const session = await requireSession();
   try {
     await mailboxFor(session).markCardRead(String(id ?? ""));
-  } catch {
-    return { ok: false };
+  } catch (error) {
+    return { ok: false, reported: !(error instanceof MailboxError && error.schemaMissing) };
   }
   return { ok: true };
 }

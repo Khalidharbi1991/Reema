@@ -195,9 +195,23 @@ export function toTodayFeed(row: {
   };
 }
 
-export class MailboxError extends Error {}
+/**
+ * `schemaMissing` marks the one failure the app is allowed to pass over in silence: the
+ * database does not have that column or function yet (migration not run). Every other
+ * failure is a real one and is reported (SEC-172).
+ */
+export class MailboxError extends Error {
+  constructor(message: string, readonly schemaMissing = false) {
+    super(message);
+  }
+}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** True only for a value shaped like one of our ids; used before an id from the address bar is trusted. */
+export function isId(id: unknown): id is string {
+  return typeof id === "string" && UUID.test(id);
+}
 
 export function checkMessageBody(body: string): string {
   const trimmed = body.trim();
@@ -207,7 +221,7 @@ export function checkMessageBody(body: string): string {
 }
 
 export function checkId(id: string): string {
-  if (!UUID.test(id)) throw new MailboxError("invalid id");
+  if (!isId(id)) throw new MailboxError("invalid id");
   return id.toLowerCase();
 }
 
