@@ -45,21 +45,31 @@ afterEach(() => {
 });
 
 describe("AC-12: what Today shows", () => {
-  it("shows the greeting with both dates, the Now card, the plan, Ahmad's message and the orb, in Khalid's order", async () => {
+  it("shows the greeting with both dates, the Now card, Ahmad's message, the plan and the orb, in Khalid's order", async () => {
     draw(await live({ ...FEED, nextEvent: event(30) }, [], [card(1)]));
     const h1 = screen.getByRole("heading", { level: 1 });
     expect(h1).toHaveTextContent("Good morning, Khalid");
     expect(screen.getByTestId("today-dates")).toHaveTextContent("Saturday, 14 November 2026");
     expect(screen.getByTestId("today-dates")).toHaveTextContent("1448");
-    const parts = [h1, screen.getByTestId("now-card"), screen.getByTestId("plan"), screen.getByTestId("ahmad"),
+    // Ahmad's message comes before the plan, so a waiting approval is on the first screen.
+    const parts = [h1, screen.getByTestId("now-card"), screen.getByTestId("ahmad"), screen.getByTestId("plan"),
       screen.getByRole("link", { name: "Talk to Ahmad" })];
     for (let i = 1; i < parts.length; i++) {
       expect(parts[i - 1].compareDocumentPosition(parts[i]) & Node.DOCUMENT_POSITION_FOLLOWING, `part ${i}`).toBeTruthy();
     }
     expect(screen.getByRole("link", { name: "Talk to Ahmad" })).toHaveAttribute("href", "/chat");
-    // One h1 and two h2: the plan and Ahmad. Nothing else has a heading.
-    expect(screen.getAllByRole("heading").map((h) => h.textContent)).toEqual([h1.textContent, "Today's plan", "From Ahmad"]);
+    // One h1 and two h2: Ahmad and the plan. Nothing else has a heading.
+    expect(screen.getAllByRole("heading").map((h) => h.textContent)).toEqual([h1.textContent, "From Ahmad", "Today's plan"]);
     expect(screen.queryByTestId("sample-note")).toBeNull();
+  });
+
+  it("leaves the foot of the page clear of the orb and its glow", async () => {
+    const { container } = draw(await live());
+    const page = container.querySelector<HTMLElement>("[data-screen='today']")!;
+    // The spacing is the named .orb-clear rule in globals.css (checked there); jsdom applies no
+    // stylesheet, so only a browser measurement proves the last line really clears the orb.
+    expect(page.className.split(/\s+/)).toContain("orb-clear");
+    expect(page.className).not.toMatch(/pb-\[/);
   });
 });
 
@@ -215,6 +225,20 @@ describe("AC-16 (with Q3): today's plan", () => {
   it("an overdue task says Overdue in words", async () => {
     draw(await withPlan(0, 2));
     expect(screen.getByTestId("plan-tasks").querySelector("[data-overdue='true']")).toHaveTextContent("Overdue");
+  });
+
+  it("keeps the due line with its own task, not at the far edge of the column, in both languages", async () => {
+    for (const lang of ["en", "ar"] as const) {
+      const view = draw(await withPlan(0, 2), lang);
+      const row = screen.getByTestId("plan-tasks").querySelector("[data-overdue='true']")!;
+      const title = row.querySelector("[data-slot='task-title']")!;
+      const dueLine = [...row.querySelectorAll("span")].find((span) => span.className.includes("t-caption"))!;
+      // Same container as the task's title, and aligned to the text, not to the opposite edge.
+      expect(dueLine.parentElement, lang).toBe(title.parentElement);
+      expect(dueLine.className, lang).toContain("text-start");
+      expect(dueLine.className, lang).not.toContain("text-end");
+      view.unmount();
+    }
   });
 
   it("shows a short neutral line, not an error, with no events or no tasks", async () => {

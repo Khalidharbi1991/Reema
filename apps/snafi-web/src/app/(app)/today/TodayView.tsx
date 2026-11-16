@@ -15,8 +15,9 @@ export const PLAN_EVENTS = 5;
 export const PLAN_TASKS = 3;
 
 /**
- * The Today screen: the greeting with both dates, the Now card, today's plan, Ahmad's one message
- * and the orb. Nothing else (AC-12, AC-13). Pure view: all data comes in through props.
+ * The Today screen: the greeting with both dates, the Now card, Ahmad's one message, today's plan
+ * and the orb. Nothing else (AC-12, AC-13). Ahmad's message comes before the plan so a waiting
+ * approval is on the first screen. Pure view: all data comes in through props.
  */
 export function TodayView({ lang, hour, today, now }: Props) {
   const t = messages(lang);
@@ -33,7 +34,8 @@ export function TodayView({ lang, hour, today, now }: Props) {
   const quiet = "t-small text-muted";
 
   return (
-    <div className="pt-4 pb-[calc(7rem+env(safe-area-inset-bottom))]" data-screen="today">
+    // orb-clear (globals.css) keeps the last line of the plan clear of the orb and its glow.
+    <div className="orb-clear pt-4" data-screen="today">
       <h1 className="t-title wrap">{t.greeting[greetingFor(hour)]}{comma}{t.ownerName}</h1>
       <p className={`${quiet} mt-1`} data-testid="today-dates">
         <span>{today.gregorianDate}</span><span className="sr-only">, </span>
@@ -43,6 +45,30 @@ export function TodayView({ lang, hour, today, now }: Props) {
       {today.sample && <p className={`${quiet} mt-1`} data-testid="sample-note">{t.placeholderNote}</p>}
 
       <NowCard lang={lang} items={today.now} serverNow={now.toISOString()} />
+
+      <section aria-labelledby="ahmad-title" data-testid="ahmad">
+        <h2 id="ahmad-title" className="t-heading mt-8 mb-3">{t.ahmadCards}</h2>
+        {message ? (
+          <Link href={`/inbox?open=${encodeURIComponent(message.id)}`} data-testid="ahmad-message" data-kind={message.kind}
+            aria-label={`${message.title}. ${second}. ${t.ahmad.openInInbox}`}
+            className="row-press -mx-2 grid min-h-11 items-center gap-x-2 px-2 py-2" style={{ gridTemplateColumns: "minmax(0, 1fr) auto" }}>
+            <span className="min-w-0">
+              <span className="t-body wrap clamp-2" data-slot="message-title"><bdi>{message.title}</bdi></span>
+              {message.kind === "approval" ? (
+                <span className="t-small block text-gold-ink">{second}</span>
+              ) : (
+                <span className={`${quiet} flex gap-2`}>
+                  <span>{t.inbox.kind[message.kind]}</span>
+                  <span className="nums"><bdi>{inboxTime(message.createdAt, lang, now, tz)}</bdi></span>
+                </span>
+              )}
+            </span>
+            <ChevronForwardIcon className="flex-none text-muted" />
+          </Link>
+        ) : (
+          <p className={quiet} data-testid="ahmad-empty">{t.noCards}</p>
+        )}
+      </section>
 
       <section aria-labelledby="plan-title" data-testid="plan">
         <h2 id="plan-title" className="t-heading mt-8 mb-3">{t.plan.title}</h2>
@@ -71,8 +97,9 @@ export function TodayView({ lang, hour, today, now }: Props) {
                 <span className="pt-1 text-muted"><TaskCircleIcon /></span>
                 <span className="min-w-0">
                   <span className="t-body wrap clamp-2" data-slot="task-title"><bdi>{task.title}</bdi></span>
+                  {/* The due line sits under its task's own text, never at the far edge of the column (Arabic at 360/390). */}
                   {due && (
-                    <span className={`t-caption wrap block text-end ${task.overdue ? "font-medium text-gold-ink" : "text-muted"}`}><bdi>{due}</bdi></span>
+                    <span className={`t-caption wrap block text-start ${task.overdue ? "font-medium text-gold-ink" : "text-muted"}`}><bdi>{due}</bdi></span>
                   )}
                 </span>
               </li>
@@ -85,30 +112,6 @@ export function TodayView({ lang, hour, today, now }: Props) {
             <li className="plan-row"><span /><span className={quiet}>{today.todoist === "ok" ? t.plan.noTasks : t.plan.tasksUnavailable}</span></li>
           )}
         </ul>
-      </section>
-
-      <section aria-labelledby="ahmad-title" data-testid="ahmad">
-        <h2 id="ahmad-title" className="t-heading mt-8 mb-3">{t.ahmadCards}</h2>
-        {message ? (
-          <Link href={`/inbox?open=${encodeURIComponent(message.id)}`} data-testid="ahmad-message" data-kind={message.kind}
-            aria-label={`${message.title}. ${second}. ${t.ahmad.openInInbox}`}
-            className="row-press -mx-2 grid min-h-11 items-center gap-x-2 px-2 py-2" style={{ gridTemplateColumns: "minmax(0, 1fr) auto" }}>
-            <span className="min-w-0">
-              <span className="t-body wrap clamp-2" data-slot="message-title"><bdi>{message.title}</bdi></span>
-              {message.kind === "approval" ? (
-                <span className="t-small block text-gold-ink">{second}</span>
-              ) : (
-                <span className={`${quiet} flex gap-2`}>
-                  <span>{t.inbox.kind[message.kind]}</span>
-                  <span className="nums"><bdi>{inboxTime(message.createdAt, lang, now, tz)}</bdi></span>
-                </span>
-              )}
-            </span>
-            <ChevronForwardIcon className="flex-none text-muted" />
-          </Link>
-        ) : (
-          <p className={quiet} data-testid="ahmad-empty">{t.noCards}</p>
-        )}
       </section>
 
       <div className="orb-dock">

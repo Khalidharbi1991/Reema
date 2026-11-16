@@ -54,12 +54,35 @@ the real app. All content is sample data.
 - Screen readers, measured contrast, and measured 44 px targets (read from the CSS, not measured).
 - Light theme (the shots are dark), and the look itself, which is Khalid's judgement.
 
+## Second round, Nov 16: after Khalid's swap and the two Arabic tidies
+
+Khalid asked for Ahmad's message above the plan, for "متأخرة" to stay with its task, and for the
+foot of the plan to clear the orb. Re-measured on a restarted preview:
+
+| Check | 390 EN | 390 AR | 360 EN | 360 AR |
+| --- | --- | --- | --- | --- |
+| Today scroll width / elements over an edge | 390 / 0 | 390 / 0 | 360 / 0 | 360 / 0 |
+| Orb clearance (`padding-bottom` on the page) | 144 px | 144 px | 144 px | 144 px |
+| Gap between the last plan line and the orb's top | 138 px | 137 px | — | — |
+
+- The order is right: "From Ahmad" with the waiting approval now sits directly under the Now card,
+  on the first screen at 390 px (`screenshots/390-today-en.jpg`, `390-today-ar.jpg`).
+- "Overdue" / "متأخرة" now sits under its own task in both languages, not at the opposite edge.
+- The foot of the plan is clear of the orb and its glow (`390-today-en-bottom.jpg`,
+  `390-today-ar-bottom.jpg`).
+
+**A correction to my own earlier finding.** I reported that the Today page's bottom padding
+"generates no CSS at all". That was wrong, and Agent 14 was right to push back: the class was in
+the built stylesheet all along, and the 0 px I measured came from a **stale cached stylesheet** in
+the preview tab — the dev server had rewritten the same chunk file name with new content. Forcing
+the browser to re-fetch the stylesheet gives 144 px. The padding is now a named `.orb-clear` rule
+in `globals.css` anyway, which the test suite can check and which cannot go missing silently.
+The lesson for later measuring: re-fetch the stylesheet (or restart the preview and hard-reload)
+before trusting a computed style.
+
 ## Two cosmetic things worth Khalid's eye
 
-1. **Ahmad's message sits below the first screen on Today.** With the plan above it (Khalid's
-   order), a waiting approval is not visible until he scrolls, as `390-today-en.jpg` and
-   `390-today-en-bottom.jpg` show together. Agent 17 had proposed the message above the plan for
-   this reason. Khalid can swap them.
-2. **In Arabic, "متأخرة" (Overdue) wraps onto its own line at the far edge** instead of sitting
-   under its task, and "+2 more" sits close to the orb's glow at the foot of the plan. Neither
-   overflows; both are small layout tidies.
+1. ~~Ahmad's message sits below the first screen on Today.~~ **Fixed on Nov 16** at Khalid's
+   instruction: the message is now above the plan.
+2. ~~In Arabic, "متأخرة" wraps onto its own line at the far edge, and "+2 more" sits close to the
+   orb's glow.~~ **Both fixed on Nov 16** and re-measured above.

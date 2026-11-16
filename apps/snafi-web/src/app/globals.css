@@ -296,6 +296,9 @@ body[data-daypart="night"] { --tone: var(--tone-night); }
 
   /* Today: the plan grid, the orb's place and the scrim under it. */
   .plan-row { display: grid; grid-template-columns: 4.75rem minmax(0, 1fr); column-gap: 12px; padding-block: 8px; }
+  /* The foot of a page with the orb: clear of the orb (64px), its dock (20px) and its glow (~20px).
+     A named rule, not an arbitrary pb-[…] class, so it cannot go missing when the stylesheet is built. */
+  .orb-clear { padding-block-end: calc(9rem + env(safe-area-inset-bottom)); }
   .orb-dock { position: fixed; inset-inline: 0; inset-block-end: 0; z-index: 30; display: flex; justify-content: center;
     padding-block-end: max(env(safe-area-inset-bottom), 20px); pointer-events: none; }
   .orb-dock::before { content: ""; position: absolute; inset-inline: 0; inset-block-end: 0; block-size: 112px; z-index: -1;

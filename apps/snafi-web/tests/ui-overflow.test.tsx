@@ -10,7 +10,7 @@
  * Real overflow (AC-25: scrollWidth equals the viewport width) is measured in a browser,
  * separately, per page, width and language; real phones are checked by Khalid.
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { act, fireEvent, render, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -176,6 +176,36 @@ describe("globals.css: the rules the guards rest on", () => {
     expect(physical).toHaveLength(1);
     expect(physical[0]).toContain(".gutter {");
     expect(physical[0]).toContain("env(safe-area-inset-left)");
+  });
+
+  /**
+   * Spacing that keeps a page off the orb lives in a named rule, not in an arbitrary pb-[…] class.
+   * An arbitrary class only exists if Tailwind's scanner emitted it, and nothing in this suite can
+   * see whether it did: jsdom applies no stylesheet, so a class that generates no CSS still reads
+   * back from className. A named rule is in globals.css, where `rule()` can read it. The three
+   * arbitrary values with a CSS function inside are the ones already measured in a browser
+   * (MEASUREMENTS_ui_inbox.md); a new one must be a named rule here instead, or be measured and
+   * added to this list on purpose. The real proof of the clearance is still a browser measurement.
+   */
+  it("AC-12/AC-27: the orb clearance is a named rule, and no new arbitrary class hides a CSS function", () => {
+    expect(rule("orb-clear")).toContain("padding-block-end: calc(9rem + env(safe-area-inset-bottom))");
+    const today = readFileSync(resolve(process.cwd(), "src/app/(app)/today/TodayView.tsx"), "utf8");
+    expect(today).toContain('className="orb-clear pt-4"');
+    expect(today).not.toMatch(/pb-\[/);
+
+    const MEASURED = ["pb-[max(env(safe-area-inset-bottom),12px)]", "w-[calc(100%+1rem)]"];
+    const files = readdirSync(resolve(process.cwd(), "src"), { recursive: true, encoding: "utf8" })
+      .filter((name) => name.endsWith(".tsx") || name.endsWith(".ts"));
+    const found = new Set<string>();
+    for (const name of files) {
+      const source = readFileSync(resolve(process.cwd(), "src", name), "utf8");
+      for (const m of source.matchAll(/class[A-Za-z]*=["'`]([^"'`]*)["'`]/g)) {
+        for (const token of m[1].split(/\s+/).filter(Boolean)) {
+          if (/-\[[^\]]*\w\(/.test(token) && !MEASURED.includes(token)) found.add(`${name}: ${token}`);
+        }
+      }
+    }
+    expect([...found]).toEqual([]);
   });
 
   it("AC-25/A10: the page may be pinch-zoomed (no maximum-scale, no user-scalable=no)", () => {
